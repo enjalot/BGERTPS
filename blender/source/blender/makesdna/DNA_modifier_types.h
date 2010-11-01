@@ -66,6 +66,7 @@ typedef enum ModifierType {
 	eModifierType_ShapeKey,
 	eModifierType_Solidify,
 	eModifierType_Screw,
+	eModifierType_RTPS,
 	/* placeholder, keep this so durian files load in
 	 * trunk with the correct modifier once its merged */
 	eModifierType_Warp,
@@ -442,6 +443,34 @@ typedef struct HookModifierData {
 typedef struct SoftbodyModifierData {
 	ModifierData modifier;
 } SoftbodyModifierData;
+
+
+typedef struct RTPSModifierData {
+    ModifierData modifier;
+    int system;
+    int num;
+   
+    // sph attributes
+    float radius;
+    short collision;
+    short padding;//need this so struct is right size
+    int updates;
+    float dt;
+
+    // boids attributes
+    float maxspeed;
+    float separationdist;
+    float perceptionrange;
+    float color_r;
+    float color_g;
+    float color_b;
+
+    //rendering options
+    short glsl;
+    short blending;
+} RTPSModifierData;
+
+
 
 typedef struct ClothModifierData {
 	ModifierData		modifier;

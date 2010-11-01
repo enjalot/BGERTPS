@@ -61,6 +61,7 @@ SET(SRC
 	intern/MOD_none.c
 	intern/MOD_particleinstance.c
 	intern/MOD_particlesystem.c
+    intern/MOD_rtps.c
 	intern/MOD_screw.c
 	intern/MOD_shapekey.c
 	intern/MOD_shrinkwrap.c

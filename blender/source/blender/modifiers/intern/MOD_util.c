@@ -177,6 +177,7 @@ void modifier_type_init(ModifierTypeInfo *types[])
 	INIT_TYPE(Mask);
 	INIT_TYPE(SimpleDeform);
 	INIT_TYPE(Multires);
+    INIT_TYPE(RTPS);
 	INIT_TYPE(Surface);
 	INIT_TYPE(Smoke);
 	INIT_TYPE(ShapeKey);

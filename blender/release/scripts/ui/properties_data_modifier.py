@@ -567,6 +567,46 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
 
     def SOFT_BODY(self, layout, ob, md):
         layout.label(text="See Soft Body panel.")
+    
+    def RTPS(self, layout, ob, md):
+        #split = layout.split()
+        #col = split.column()
+        layout.label(text="System: 0: Simple, 1: SPH 2: Boids")
+        layout.prop(md, "system")
+        layout.label(text="Number of particles:")
+        layout.prop(md, "num")
+        #layout.label(text"Particle Radius:")
+        if md.system == 1:
+            layout.prop(md, "radius")
+            layout.prop(md, "collision")
+            layout.prop(md, "updates")
+            layout.prop(md, "dt")
+            layout.label(text="Rendering options")
+            layout.prop(md, "glsl")
+            layout.prop(md, "blending")
+        elif md.system == 2:
+            layout.label(text="Maximum Speed of each Boid:")
+            layout.prop(md, "maxspeed")
+            layout.label(text="Separation Distance between Flockmates:")
+            layout.prop(md, "separationdist")
+            layout.label(text="Neighbor's search radius:")
+            layout.prop(md, "perceptionrange")
+            
+            layout.label(text="Set the color")
+
+            split = layout.split(percentage=0.33)
+
+            col = split.column()
+            col.label(text="RED")
+            col.prop(md, "color_r")
+
+            col =  split.column()
+            col.label(text="GREEN")
+            col.prop(md, "color_g")
+
+            col =  split.column()
+            col.label(text="BLUE")
+            col.prop(md, "color_b")
 
     def SOLIDIFY(self, layout, ob, md):
 

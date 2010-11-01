@@ -311,6 +311,8 @@ int           modifiers_getCageIndex(struct Scene *scene, struct Object *ob,
 int           modifiers_isSoftbodyEnabled(struct Object *ob);
 int           modifiers_isClothEnabled(struct Object *ob);
 int           modifiers_isParticleEnabled(struct Object *ob);
+int           modifiers_isRTPSEnabled(struct Object *ob);
+
 
 struct Object *modifiers_isDeformedByArmature(struct Object *ob);
 struct Object *modifiers_isDeformedByLattice(struct Object *ob);

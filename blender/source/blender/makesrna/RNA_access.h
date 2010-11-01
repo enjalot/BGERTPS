@@ -381,6 +381,7 @@ extern StructRNA RNA_RenderResult;
 extern StructRNA RNA_RenderSettings;
 extern StructRNA RNA_RGBANodeSocket;
 extern StructRNA RNA_RigidBodyJointConstraint;
+extern StructRNA RNA_RTPSModifier;
 extern StructRNA RNA_Scene;
 extern StructRNA RNA_SceneGameData;
 extern StructRNA RNA_SceneRenderLayer;

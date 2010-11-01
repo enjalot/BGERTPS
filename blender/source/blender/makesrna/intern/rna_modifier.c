@@ -82,6 +82,7 @@ EnumPropertyItem modifier_type_items[] ={
 	{eModifierType_Fluidsim, "FLUID_SIMULATION", ICON_MOD_FLUIDSIM, "Fluid Simulation", ""},
 	{eModifierType_ParticleInstance, "PARTICLE_INSTANCE", ICON_MOD_PARTICLES, "Particle Instance", ""},
 	{eModifierType_ParticleSystem, "PARTICLE_SYSTEM", ICON_MOD_PARTICLES, "Particle System", ""},
+	{eModifierType_RTPS, "RTPS", ICON_MOD_SOFT, "RTPS", ""},
 	{eModifierType_Smoke, "SMOKE", ICON_MOD_SMOKE, "Smoke", ""},
 	{eModifierType_Softbody, "SOFT_BODY", ICON_MOD_SOFT, "Soft Body", ""},
 	{eModifierType_Surface, "SURFACE", ICON_MOD_PHYSICS, "Surface", ""},
@@ -167,6 +168,8 @@ static StructRNA* rna_Modifier_refine(struct PointerRNA *ptr)
 			return &RNA_SimpleDeformModifier;
 		case eModifierType_Multires:
 			return &RNA_MultiresModifier;
+		case eModifierType_RTPS:
+			return &RNA_RTPSModifier;
 		case eModifierType_Surface:
 			return &RNA_SurfaceModifier;
 		case eModifierType_Smoke:
@@ -2242,6 +2245,110 @@ static void rna_def_modifier_screw(BlenderRNA *brna)
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");*/
 }
 
+static void rna_def_modifier_rtps(BlenderRNA *brna)
+{
+	StructRNA *srna;
+	PropertyRNA *prop;
+
+	srna= RNA_def_struct(brna, "RTPSModifier", "Modifier");
+	RNA_def_struct_ui_text(srna, "RTPS Modifier", "Add a particle system");
+	RNA_def_struct_sdna(srna, "RTPSModifierData");
+	RNA_def_struct_ui_icon(srna, ICON_MOD_SOFT);
+
+    prop= RNA_def_property(srna, "system", PROP_INT, PROP_NONE);
+    RNA_def_property_int_default(prop, 1);
+	//RNA_def_property_int_sdna(prop, NULL, "system");
+    // we should use an enum but this is hacked together for now
+    // this range is to allow the user to select a different system
+	RNA_def_property_ui_range(prop, 0, 3, 1, 0);                    
+	RNA_def_property_ui_text(prop, "Systems", "Available particle systems");
+	RNA_def_property_update(prop, 0, "rna_Modifier_update");
+
+    prop= RNA_def_property(srna, "num", PROP_INT, PROP_NONE);
+    RNA_def_property_int_sdna(prop, NULL, "num");
+    RNA_def_property_int_default(prop, 100000);
+	RNA_def_property_ui_range(prop, 1, 20000000, 10, 0);             
+	RNA_def_property_ui_text(prop, "Number", "Number of particles");
+	RNA_def_property_update(prop, 0, "rna_Modifier_update");
+
+
+	// sph properties
+	prop= RNA_def_property(srna, "radius", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_float_sdna(prop, NULL, "radius");
+	RNA_def_property_ui_text(prop, "Particle Radius", "Radius of each particle");
+	RNA_def_property_update(prop, 0, "rna_Modifier_update");
+
+    	prop= RNA_def_property(srna, "collision", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "collision", 0); //should have some enum?
+	RNA_def_property_ui_text(prop, "Collide with meshes", "Particles will collide with other meshes in the Scene");
+	RNA_def_property_update(prop, 0, "rna_Modifier_update");
+
+    	prop= RNA_def_property(srna, "updates", PROP_INT, PROP_NONE);
+    	RNA_def_property_int_default(prop, 1);
+	RNA_def_property_ui_range(prop, 1, 100, 1, 0);             
+	RNA_def_property_ui_text(prop, "Updates", "Number of particle system updates to do per frame");
+	RNA_def_property_update(prop, 0, "rna_Modifier_update");
+
+	prop= RNA_def_property(srna, "dt", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_float_default(prop, .001f);
+	RNA_def_property_ui_range(prop, .00001, 1.0, .01, 0);             
+	RNA_def_property_ui_text(prop, "Time Step", "Time step used in the particle system");
+	RNA_def_property_update(prop, 0, "rna_Modifier_update");
+
+
+	// boids properties
+        prop= RNA_def_property(srna, "maxspeed", PROP_FLOAT, PROP_NONE);
+        RNA_def_property_range(prop, 0.001f, 10.f);
+	RNA_def_property_ui_range(prop, .001f, 10.0f, .01f, 1000);             
+        RNA_def_property_ui_text(prop, "Max Speed", "Max Speed of each Boid");
+        RNA_def_property_update(prop, 0, "rna_Modifier_update");
+
+        prop= RNA_def_property(srna, "separationdist", PROP_FLOAT, PROP_NONE);
+        RNA_def_property_range(prop, 1.0f, 25.f);
+	RNA_def_property_ui_range(prop, 1.0f, 25.0f, .01f, 2500);             
+        RNA_def_property_ui_text(prop, "Separation Distance", "Separation Distance to determine how close of far is a flockmate");
+        RNA_def_property_update(prop, 0, "rna_Modifier_update");
+
+        prop= RNA_def_property(srna, "perceptionrange", PROP_FLOAT, PROP_NONE);
+        RNA_def_property_range(prop, 1.0f, 50.f);
+	RNA_def_property_ui_range(prop, 1.0f, 50.0f, .01f, 5000);             
+        RNA_def_property_ui_text(prop, "Perception Range", "Perception Range to search for neighbors");
+        RNA_def_property_update(prop, 0, "rna_Modifier_update");
+
+        prop= RNA_def_property(srna, "color_r", PROP_FLOAT, PROP_NONE);
+        RNA_def_property_range(prop, 0.f, 255.f);
+	RNA_def_property_ui_range(prop, 0.0f, 255.0f, .01f, 25600);             
+        RNA_def_property_ui_text(prop, "Color-Red", "Set the color for the boids");
+        RNA_def_property_update(prop, 0, "rna_Modifier_update");
+        
+	prop= RNA_def_property(srna, "color_g", PROP_FLOAT, PROP_NONE);
+        RNA_def_property_range(prop, 0.f, 255.f);
+	RNA_def_property_ui_range(prop, 0.0f, 255.0f, .01f, 25600);             
+        RNA_def_property_ui_text(prop, "Color-Green", "Set the color for the boids");
+        RNA_def_property_update(prop, 0, "rna_Modifier_update");
+
+        prop= RNA_def_property(srna, "color_b", PROP_FLOAT, PROP_NONE);
+        RNA_def_property_range(prop, 0.f, 255.f);
+	RNA_def_property_ui_range(prop, 0.0f, 255.0f, .01f, 25600);             
+        RNA_def_property_ui_text(prop, "Color-Blue", "Set the color for the boids");
+        RNA_def_property_update(prop, 0, "rna_Modifier_update");
+
+
+    	//rendering options
+	prop= RNA_def_property(srna, "glsl", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "glsl", 0); //should have some enum?
+	RNA_def_property_ui_text(prop, "Use GLSL", "Use GLSL to render particles");
+	RNA_def_property_update(prop, 0, "rna_Modifier_update");
+
+    	prop= RNA_def_property(srna, "blending", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "blending", 1);
+	RNA_def_property_ui_text(prop, "Alpha Blending", "Render with alpha blending turned on");
+	RNA_def_property_update(prop, 0, "rna_Modifier_update");
+}
+
+
+
+
 void RNA_def_modifier(BlenderRNA *brna)
 {
 	StructRNA *srna;
@@ -2333,6 +2440,7 @@ void RNA_def_modifier(BlenderRNA *brna)
 	rna_def_modifier_smoke(brna);
 	rna_def_modifier_solidify(brna);
 	rna_def_modifier_screw(brna);
+	rna_def_modifier_rtps(brna);
 }
 
 #endif
