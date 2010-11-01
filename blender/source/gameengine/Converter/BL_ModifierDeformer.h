@@ -46,17 +46,20 @@ class BL_ModifierDeformer : public BL_ShapeDeformer
 public:
 	static bool HasCompatibleDeformer(Object *ob);
 	static bool HasArmatureDeformer(Object *ob);
+    static bool HasRTPSDeformer(Object *ob);
 
 
 	BL_ModifierDeformer(BL_DeformableGameObject *gameobj,
 						Scene *scene,
 						Object *bmeshobj,
-						RAS_MeshObject *mesh)
+						RAS_MeshObject *mesh,
+                        bool bIsRTPS = false)
 						:	
 						BL_ShapeDeformer(gameobj,bmeshobj, mesh),
 						m_lastModifierUpdate(-1),
 						m_scene(scene),
-						m_dm(NULL)
+						m_dm(NULL),
+                        m_bIsRTPS(bIsRTPS)
 	{
 		m_recalcNormal = false;
 	};
@@ -68,12 +71,14 @@ public:
 						struct Object *bmeshobj_new,
 						class RAS_MeshObject *mesh,
 						bool release_object,
-						BL_ArmatureObject* arma = NULL)
+						BL_ArmatureObject* arma = NULL,
+                        bool bIsRTPS = false)
 						:
 						BL_ShapeDeformer(gameobj, bmeshobj_old, bmeshobj_new, mesh, release_object, false, arma),
 						m_lastModifierUpdate(-1),
 						m_scene(scene),
-						m_dm(NULL)
+						m_dm(NULL),
+                        m_bIsRTPS(bIsRTPS)
 	{
 	};
 
@@ -101,6 +106,7 @@ protected:
 	double					 m_lastModifierUpdate;
 	Scene					*m_scene;
 	DerivedMesh				*m_dm;
+    bool                     m_bIsRTPS; //different from the RAS_MaterialBucket flag but used to set it.
 
 
 #ifdef WITH_CXX_GUARDEDALLOC

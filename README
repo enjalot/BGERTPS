@@ -1,0 +1,64 @@
+####
+enjalot's EnjaParticles modifications to Blender
+
+Build: 
+(Sorry, only Mac and Linux are tested right now)
+right now my changes depend on my RTPS library:
+http://github.com/enjalot/EnjaParticles
+    git clone git://github.com/enjalot/EnjaParticles.git
+
+check this out and switch to branch rtps
+    cd EnjaParticles
+    git checkout rtps
+
+follow the README to build, you will need to set an environment variable so that the Blender CMake can find the RTPS library
+the RTPS library path should be something like
+~/EnjaParticles/rtps/build/rtpslib/librtps.so
+
+you need to set an environment variable like:
+    export RTPS_DIR=$HOME/EnjaParticles/rtps
+an example is given in environment/setupenv_linux_enj.sh
+
+Build Blender:
+    cd ..
+    mkdir build-b25rtps
+    cd build-b25rtps
+    cmake ../BGERTPS/blender    (Mac users may want to run ccmake ../BGERTPS/blender to configure properly)
+        (make sure to check that all the libraries and dependencies are found)
+    make -j8    (j8 runs make in 8 threads, if you encounter an error rerun make by itself to get sequential error output)
+    
+    
+
+
+
+Usage:
+You can apply the RTPS modifier to an object which turns its vertices into an emitter
+
+
+
+
+
+Changes:
+Check MODIFIED_FILES for a more indepth list of changes
+
+I added opencl headers with slight modification in the intern/ directory
+
+The most important aspects of the gameengine changes are in
+gameengine/Converter/BL_ModifierDeformer.cpp (in the Apply and Update functions)
+The rendering chain gets hijacked in RAS_MaterialBucket.cpp and then RAS_ListRasterizer.cpp
+
+You can see refer to my blog to see how I made the custom modifier:
+http://enja.org/2010/05/24/blender-creating-a-custom-modifier/
+
+I had to make some changes to several header files so we don't include any gl.h or glext.h before glew.h
+
+
+
+
+
+
+
+I will continue to add more as experimentation. In the future I hope to integrate with the 2.5 blender particle redesign
+right now I'm still finding my way around blender and opencl
+
+----------------------------------------------------------------------

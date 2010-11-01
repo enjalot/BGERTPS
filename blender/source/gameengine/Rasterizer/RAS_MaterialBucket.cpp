@@ -60,6 +60,8 @@ RAS_MeshSlot::RAS_MeshSlot() : SG_QList()
 	m_bDisplayList = true;
 	m_joinSlot = NULL;
 	m_pDerivedMesh = NULL;
+    m_bRTPS = false;
+    m_pRTPS = NULL;
 }
 
 RAS_MeshSlot::~RAS_MeshSlot()
@@ -83,6 +85,10 @@ RAS_MeshSlot::~RAS_MeshSlot()
 		m_DisplayList->Release();
 		m_DisplayList = NULL;
 	}
+    if (m_bRTPS)
+    {
+        delete m_pRTPS;
+    }	
 }
 
 RAS_MeshSlot::RAS_MeshSlot(const RAS_MeshSlot& slot) : SG_QList()
@@ -101,6 +107,7 @@ RAS_MeshSlot::RAS_MeshSlot(const RAS_MeshSlot& slot) : SG_QList()
 	m_RGBAcolor = slot.m_RGBAcolor;
 	m_DisplayList = NULL;
 	m_bDisplayList = slot.m_bDisplayList;
+    m_bRTPS = slot.m_bRTPS;
 	m_joinSlot = NULL;
 	m_currentArray = slot.m_currentArray;
 	m_displayArrays = slot.m_displayArrays;
@@ -608,7 +615,14 @@ void RAS_MaterialBucket::RenderMeshSlot(const MT_Transform& cameratrans, RAS_IRa
 	rendertools->PushMatrix();
 	if (!ms.m_pDeformer || !ms.m_pDeformer->SkipVertexTransform())
 	{
-		rendertools->applyTransform(rasty,ms.m_OpenGLMatrix,m_material->GetDrawingMode());
+        if(ms.m_bRTPS)
+        {
+                //printf("M.Merced IJ (RAS_MaterialBucket.cpp) :: skipping RAS Materials transforming\n");
+        }
+        else
+        {
+        rendertools->applyTransform(rasty,ms.m_OpenGLMatrix,m_material->GetDrawingMode());
+        }	
 	}
 
 	if(rasty->QueryLists())

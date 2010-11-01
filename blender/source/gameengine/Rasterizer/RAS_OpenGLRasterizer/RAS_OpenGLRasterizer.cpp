@@ -29,9 +29,9 @@
 #include <math.h>
 #include <stdlib.h>
  
-#include "RAS_OpenGLRasterizer.h"
-
 #include "GL/glew.h"
+
+#include "RAS_OpenGLRasterizer.h"
 
 #include "RAS_Rect.h"
 #include "RAS_TexVert.h"

@@ -39,6 +39,8 @@
 #include "RAS_IRasterizer.h"
 #include "RAS_Deformer.h"
 
+#include "RTPS.h"
+
 #include <vector>
 #include <set>
 #include <list>
@@ -132,6 +134,11 @@ public:
 	RAS_MeshSlot*			m_joinSlot;
 	MT_Matrix4x4			m_joinInvTransform;
 	list<RAS_MeshSlot*>		m_joinedSlots;
+    	
+    bool                    m_bRTPS;
+    rtps::RTPS*             m_pRTPS;
+
+
 
 	RAS_MeshSlot();
 	RAS_MeshSlot(const RAS_MeshSlot& slot);

@@ -25,6 +25,8 @@ Developed as part of a Research and Development project for SAT - La Soci�t�
 #if !defined KX_DOME_H
 #define KX_DOME_H
 
+#include "GL/glew.h"
+
 #include "KX_Scene.h"
 #include "KX_Camera.h"
 #include "DNA_screen_types.h"
@@ -33,7 +35,6 @@ Developed as part of a Research and Development project for SAT - La Soci�t�
 #include "RAS_IRenderTools.h"
 #include "KX_KetsjiEngine.h"
 
-#include "GL/glew.h"
 #include <vector>
 
 #include "MEM_guardedalloc.h"

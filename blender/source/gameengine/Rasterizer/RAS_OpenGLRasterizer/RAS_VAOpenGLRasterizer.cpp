@@ -25,10 +25,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+#include "GL/glew.h"
+
 #include "RAS_VAOpenGLRasterizer.h"
 #include <stdlib.h>
 
-#include "GL/glew.h"
 #include "GPU_extensions.h"
 
 #include "STR_String.h"

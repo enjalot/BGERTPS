@@ -22,6 +22,8 @@ http://www.gnu.org/copyleft/lesser.txt.
 
 // implementation
 
+#include "GL/glew.h"
+
 #include <PyObjectPlus.h>
 #include <structmember.h>
 
@@ -45,7 +47,6 @@ http://www.gnu.org/copyleft/lesser.txt.
 #include "Exception.h"
 
 #include <memory.h>
-#include "GL/glew.h"
 
 
 // macro for exception handling and logging

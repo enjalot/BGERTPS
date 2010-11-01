@@ -142,6 +142,68 @@ ENDIF(NOT WITH_INSTALL AND WITH_PYTHON_INSTALL)
 
 TEST_SSE_SUPPORT()
 
+
+#right now this is just a shortcut to load EnjaParticles library
+#we can envision a future where more parts of blender use OpenCL accelleration
+OPTION(WITH_OPENCL "Use OpenCL acceleration  where possible" ON)
+#-----------------------------------------------------------------------------
+# Really EnjaParticles right now
+IF(WITH_OPENCL)
+   
+    message("WITH OPENCL\n")
+ 
+    #use the Khronos headers
+    #with slight modification for Mac
+    SET(OPENCL_INCLUDE_DIR  "${Blender_SOURCE_DIR}/intern/opencl")
+
+    IF (WIN32)
+        #FIND_PATH(OPENCL_INCLUDE_DIR CL/cl.h )
+        # TODO this is only a hack assuming the 64 bit library will
+        # not be found on 32 bit system
+        FIND_LIBRARY(OPENCL_LIBRARIES opencl64 )
+        IF( OPENCL_LIBRARIES )
+            FIND_LIBRARY(OPENCL_LIBRARIES opencl32 )
+        ENDIF( OPENCL_LIBRARIES )
+    ELSE (WIN32)
+        # Unix style platforms
+        FIND_LIBRARY(OPENCL_LIBRARIES OpenCL ENV LD_LIBRARY_PATH)
+        #message(***** OPENCL ENV: "$ENV{GPU_SDK}" ********)
+    ENDIF (WIN32)
+
+    SET( OPENCL_FOUND "NO" )
+    IF(OPENCL_LIBRARIES )
+        SET( OPENCL_FOUND "YES" )
+    ENDIF(OPENCL_LIBRARIES)
+    
+    #If OPENCL is not found, should probably set something or turn off OpenCL
+    
+    #this sets the RTPS_INCLUDE_DIR and RTPS_LIB_DIR
+    INCLUDE(build_files/cmake/environment.cmake)
+    #hard coding for a second, need to fix of course
+    #SET(ENJA_INCLUDE_DIR "/panfs/panasas1/users/idj03/research/iansvn/enjacl")
+    #SET(ENJA_INCLUDE_DIR "/Users/enjalot/code/EnjaParticles/enjacl")
+    #SET(RTPS_INCLUDE_DIR $ENV{ENJA_DIR})
+
+    message("RTPS include: ${RTPS_INCLUDE_DIR}")
+    message("RTPS lib: ${RTPS_LIB_DIR}")
+
+    #LINK_DIRECTORIES(${RTPS_LIB_DIR})
+    #FIND_LIBRARY(RTPS_LIBRARY NAMES rtps)
+    ADD_LIBRARY(rtps UNKNOWN IMPORTED)
+    #SET_PROPERTY(TARGET enjaclparticles PROPERTY IMPORTED_LOCATION /panfs/panasas1/users/idj03/research/iansvn/enjacl/build/libenjaclparticles.a)
+    #assumes you built the EnjaParticles library out-of-source in a build directory
+    #SET_PROPERTY(TARGET enjaclparticles PROPERTY IMPORTED_LOCATION /Users/enjalot/code/EnjaParticles/enjacl/build/libenjaclparticles.a)
+    #SET_PROPERTY(TARGET enjaclparticles PROPERTY IMPORTED_LOCATION ${ENJA_INCLUDE_DIR}/build/libenjaclparticles.a)
+    SET_PROPERTY(TARGET rtps PROPERTY IMPORTED_LOCATION ${RTPS_LIB_DIR})
+    #SET_PROPERTY(TARGET rtps PROPERTY IMPORTED_LOCATION ${RTPS_LIBRARY})
+
+
+
+ENDIF(WITH_OPENCL)
+
+
+
+
 # disabled for now, not supported
 # OPTION(WITH_WEBPLUGIN     "Enable Web Plugin (Unix only)" OFF)
 

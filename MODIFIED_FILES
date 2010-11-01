@@ -16,19 +16,24 @@ source/gameengine/
         RAS_MaterialBucket.cpp (setup, cleanup, and bypass transforming our system with OpenGL)
         RAS_OpenGLRasterizer/
             CMakeLists.txt
-            RAS_ListRasterizer.cpp (where we call RTPS->render();)
-            RAS_VAOpenGLRasterizer.cpp (some print statements)
+            RAS_ListRasterizer.cpp (where we call RTPS->render();) (also move glew.h include up)
+            RAS_OpenGLRasterizer.cpp (move glew.h up)
+            RAS_VAOpenGLRasterizer.cpp (move glew.h up)
 
     BlenderRoutines/
         CMakeLists.txt
     Ketsji/
         CMakeLists.txt
         KX_Scene.cpp (check for RTPS modifier so the game engine modifier constructor knows what to do)
+        KX_Dome.h (moved glew.h include above the other includes to avoid conflicts)
+        KX_KetsjiEngine (moved KX_Dome.h above the other includes because it includes glew.h)
 
     Physics/Bullet/
         CMakeLists.txt
+        CcdPhysicsEnvironment.cpp (moved glew.h up) 
     VideoTexture/
         CMakeLists.txt 
+        Texture.cpp (moved glew.h up)
     
 
 #custom modifier stuff ( http://enja.org/2010/05/24/blender-creating-a-custom-modifier/ )

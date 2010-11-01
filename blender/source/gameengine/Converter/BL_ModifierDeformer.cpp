@@ -55,7 +55,18 @@
 #include "BKE_ipo.h"
 #include "MT_Point3.h"
 
+#include "RTPS.h"
+//These KX might not belong here...
+//this should be addressed when moving away from a modifier
+#include "KX_Scene.h"   //for getting the camera
+//#include "BKE_scene.h"
+#include "KX_Camera.h"
+#include "KX_GameObject.h"
+#include "KX_PythonInit.h"
+#include "SG_BBox.h"
+
 extern "C"{
+    #include "BKE_cdderivedmesh.h" //added by IJ for RTPS
 	#include "BKE_customdata.h"
 	#include "BKE_DerivedMesh.h"
 	#include "BKE_lattice.h"
@@ -122,6 +133,21 @@ bool BL_ModifierDeformer::HasCompatibleDeformer(Object *ob)
 	return false;
 }
 
+bool BL_ModifierDeformer::HasRTPSDeformer(Object *ob)
+{
+    	printf("IJ: in HasRTPSModifier\n");
+   	ModifierData* md;
+
+	for (md = (ModifierData*)ob->modifiers.first; md; md = (ModifierData*)md->next) {
+        	if(md->type & eModifierType_RTPS){
+            		printf("IJ: found RTPS modifier!\n");
+            		return true;
+        	}
+	}
+
+	return false;
+}
+
 bool BL_ModifierDeformer::HasArmatureDeformer(Object *ob)
 {
 	if (!ob->modifiers.first)
@@ -177,6 +203,26 @@ bool BL_ModifierDeformer::Update(void)
 		m_lastModifierUpdate=m_gameobj->GetLastFrame();
 		bShapeUpdate = true;
 	}
+    
+    if(m_bIsRTPS)
+    {
+        int nmat = m_pMeshObject->NumMaterials();
+
+        for(int imat=0; imat<nmat; imat++)
+        {
+            RAS_MeshMaterial *mmat = m_pMeshObject->GetMeshMaterial(imat);
+            RAS_MeshSlot **slot = mmat->m_slots[(void*)m_gameobj];   
+    	    if(!slot || !*slot)
+                continue;
+            //iterate through the slots until we find one with a particle system
+            if((*slot)->m_bRTPS && (*slot)->m_pRTPS)
+            {
+                (*slot)->m_pRTPS->update();
+	        }
+        }//for loop over materials
+    }//if(m_bIsRTPS)
+
+
 	return bShapeUpdate;
 }
 
@@ -193,6 +239,39 @@ bool BL_ModifierDeformer::Apply(RAS_IPolyMaterial *mat)
 		if(!slot || !*slot)
 			continue;
 		(*slot)->m_pDerivedMesh = m_dm;
+        
+        if(m_bIsRTPS)
+        {
+            printf("IJ: set the mesh slot m_bRTPS to true (in ModifierDeformer::Apply()\n");
+            (*slot)->m_bRTPS = true;
+            //initialize the particle system
+            printf("IJ: initialize particle system\n");
+            
+            ModifierData* md;
+            for (md = (ModifierData*)m_objMesh->modifiers.first; md; md = (ModifierData*)md->next) 
+            {
+                if(md->type & eModifierType_RTPS)
+                {
+                    RTPSModifierData* rtmd = (RTPSModifierData*)md;
+                    //printf("SysType::Simple %d\n", rtps::RTPSettings::Simple);
+                    //printf("rtmd->system: %d\n", rtmd->system);
+
+                    rtps::RTPSettings::SysType sys = (rtps::RTPSettings::SysType)rtmd->system;
+                    //printf("sys: %d\n", sys);
+        
+                    if (sys == rtps::RTPSettings::SimpleFlock)
+                    {
+                        float color[3] = {rtmd->color_r, rtmd->color_g, rtmd->color_b};
+                        rtps::RTPSettings settings(rtmd->num, rtmd->maxspeed, rtmd->separationdist, rtmd->perceptionrange, color);
+                        (*slot)->m_pRTPS = new rtps::RTPS(settings);
+                    }
+                    else{
+                        rtps::RTPSettings settings(sys, rtmd->num, rtmd->dt);
+                        (*slot)->m_pRTPS = new rtps::RTPS(settings);
+                    }
+                }
+            }
+        }
 	}
 	return true;
 }

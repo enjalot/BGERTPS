@@ -1740,11 +1740,14 @@ static KX_GameObject *gameobject_from_blenderobject(
 		bool bHasDvert = mesh->dvert != NULL && ob->defbase.first;
 		bool bHasArmature = (BL_ModifierDeformer::HasArmatureDeformer(ob) && ob->parent && ob->parent->type == OB_ARMATURE && bHasDvert);
 		bool bHasModifier = BL_ModifierDeformer::HasCompatibleDeformer(ob);
+        
+		bool bIsRTPS = BL_ModifierDeformer::HasRTPSDeformer(ob);    //RTPS
+
 		bool bHasSoftBody = (!ob->parent && (ob->gameflag & OB_SOFT_BODY));
 
 		if (bHasModifier) {
 			BL_ModifierDeformer *dcont = new BL_ModifierDeformer((BL_DeformableGameObject *)gameobj,
-																kxscene->GetBlenderScene(), ob,	meshobj);
+																kxscene->GetBlenderScene(), ob,	meshobj, bIsRTPS);
 			((BL_DeformableGameObject*)gameobj)->SetDeformer(dcont);
 			if (bHasShapeKey && bHasArmature)
 				dcont->LoadShapeDrivers(ob->parent);

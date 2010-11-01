@@ -1,13 +1,14 @@
 //
 #include <iostream>
 
+#include "GL/glew.h"
+
 #include "RAS_ListRasterizer.h"
 
 #ifdef WIN32
 #include <windows.h>
 #endif // WIN32
 
-#include "GL/glew.h"
 
 #include "RAS_MaterialBucket.h"
 #include "RAS_TexVert.h"
@@ -225,6 +226,16 @@ void RAS_ListRasterizer::IndexPrimitives(RAS_MeshSlot& ms)
 {
 	RAS_ListSlot* localSlot =0;
 
+    //printf("IJ: In ListRasterizer IP\n");
+    //not sure why we end up here for rendering with Enja modifier on our object
+    //lets override functionality here and call special particle render function
+    if(ms.m_bRTPS)
+    {
+        ms.m_pRTPS->render();
+        return;
+
+    }
+
 	if(ms.m_bDisplayList) {
 		localSlot = FindOrAdd(ms);
 		localSlot->DrawList();
@@ -251,6 +262,18 @@ void RAS_ListRasterizer::IndexPrimitives(RAS_MeshSlot& ms)
 void RAS_ListRasterizer::IndexPrimitivesMulti(RAS_MeshSlot& ms)
 {
 	RAS_ListSlot* localSlot =0;
+
+    //printf("IJ: In ListRasterizer IPM\n");
+    //not sure why we end up here for rendering with RTPS modifier on our object
+    //lets override functionality here and call special particle render function
+    if(ms.m_bRTPS)
+    {
+        //RAS_OpenGLRasterizer::RenderParticles(ms);
+        //printf("IJ: about to render from IPMulti\n");
+        ms.m_pRTPS->render();
+        //printf("IJ: returning from ListRasterizer IPM");
+        return;
+    }
 
 	if(ms.m_bDisplayList) {
 		localSlot = FindOrAdd(ms);
