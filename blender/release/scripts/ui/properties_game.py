@@ -185,6 +185,166 @@ class PHYSICS_PT_game_collision_bounds(PhysicsButtonsPanel, bpy.types.Panel):
         col.prop(game, "use_collision_compound", text="Compound")
 
 
+##############################################################################################################
+
+def particle_panel_enabled(context, psys):
+    return (psys.point_cache.baked is False) and (not psys.edited) and (not context.particle_system_editable)
+
+
+def particle_panel_poll(cls, context):
+    psys = context.particle_system
+    engine = context.scene.render.engine
+    if psys is None:
+        return False
+    if psys.settings is None:
+        return False
+    return psys.settings.type in ('EMITTER', 'REACTOR', 'HAIR') and (engine in cls.COMPAT_ENGINES)
+
+
+class ParticleButtonsPanel():
+    bl_space_type = 'PROPERTIES'
+    bl_region_type = 'WINDOW'
+    bl_context = "particle"
+    print("particle buttons panel")
+
+
+#for some reason i couldn't name this PARTICLE_PT_context_particles...
+class PARTICLE_PT_particles(ParticleButtonsPanel, bpy.types.Panel):
+    bl_label = ""
+    bl_show_header = False
+    COMPAT_ENGINES = {'BLENDER_GAME'}
+    print("particles constructor")
+
+    @staticmethod
+    def poll(context):
+        print("particles poll")
+        #rd = context.scene.render
+        #return (rd.engine in __class__.COMPAT_ENGINES)
+        engine = context.scene.render.engine
+        return (context.particle_system or context.object) and (engine in __class__.COMPAT_ENGINES)
+
+
+
+    def draw(self, context):
+        print("particles draw")
+        layout = self.layout
+        #row = layout.row()
+        #row.label(text="Particles")
+        #row.label()
+
+        ob = context.object
+        psys = context.particle_system
+
+        if ob:
+            row = layout.row()
+
+            row.template_list(ob, "particle_systems", ob, "active_particle_system_index", rows=2)
+
+            col = row.column(align=True)
+            col.operator("object.particle_system_add", icon='ZOOMIN', text="")
+            col.operator("object.particle_system_remove", icon='ZOOMOUT', text="")
+
+        if psys and not psys.settings:
+            split = layout.split(percentage=0.32)
+
+            col = split.column()
+            col.label(text="Name:")
+            col.label(text="Settings:")
+
+            col = split.column()
+            col.prop(psys, "name", text="")
+            col.template_ID(psys, "settings", new="particle.new")
+        elif psys:
+            part = psys.settings
+
+            split = layout.split(percentage=0.32)
+            col = split.column()
+            col.label(text="Name:")
+            if part.type in ('EMITTER', 'REACTOR', 'HAIR'):
+                col.label(text="Settings:")
+                col.label(text="Type:")
+
+            col = split.column()
+            col.prop(psys, "name", text="")
+            if part.type in ('EMITTER', 'REACTOR', 'HAIR'):
+                col.template_ID(psys, "settings", new="particle.new")
+
+            #row = layout.row()
+            #row.label(text="Viewport")
+            #row.label(text="Render")
+
+            if part:
+                if part.type not in ('EMITTER', 'REACTOR', 'HAIR'):
+                    layout.label(text="No settings for fluid particles")
+                    return
+
+                row = col.row()
+                row.enabled = particle_panel_enabled(context, psys)
+                row.prop(part, "type", text="")
+                row.prop(psys, "seed")
+
+                split = layout.split(percentage=0.65)
+                if part.type == 'HAIR':
+                    if psys.edited:
+                        split.operator("particle.edited_clear", text="Free Edit")
+                    else:
+                        split.label(text="")
+                    row = split.row()
+                    row.enabled = particle_panel_enabled(context, psys)
+                    row.prop(part, "hair_step")
+                    if psys.edited:
+                        if psys.global_hair:
+                            layout.operator("particle.connect_hair")
+                            layout.label(text="Hair is disconnected.")
+                        else:
+                            layout.operator("particle.disconnect_hair")
+                            layout.label(text="")
+                elif part.type == 'REACTOR':
+                    split.enabled = particle_panel_enabled(context, psys)
+                    split.prop(psys, "reactor_target_object")
+                    split.prop(psys, "reactor_target_particle_system", text="Particle System")
+
+
+
+
+
+class PARTICLE_PT_asdf(ParticleButtonsPanel, bpy.types.Panel):
+    bl_label = "Asdf"
+    COMPAT_ENGINES = {'BLENDER_GAME'}
+    print("particle game constructor")
+
+    @staticmethod
+    def poll(context):
+        print("particle asdf poll")
+        rd = context.scene.render
+        return (rd.engine in __class__.COMPAT_ENGINES)
+
+    def draw(self, context):
+        print("particle asdf draw")
+        layout = self.layout
+
+        row = layout.row()
+        row.label(text="ASDF")
+        row.label()
+
+
+
+"""
+class PARTICLE_PT_custom_props(ParticleButtonsPanel, PropertyPanel, bpy.types.Panel):
+    COMPAT_ENGINES = {'BLENDER_RENDER'}
+    _context_path = "particle_system.settings"
+    print("particle custom props")
+
+    @staticmethod
+    def poll(context):
+        return particle_panel_poll(__class__, context)
+"""
+##############################################################################################################
+
+
+
+
+
 class RenderButtonsPanel():
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
