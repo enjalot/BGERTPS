@@ -217,6 +217,53 @@ bool BL_ModifierDeformer::Update(void)
             //iterate through the slots until we find one with a particle system
             if((*slot)->m_bRTPS && (*slot)->m_pRTPS)
             {
+                rtps::RTPS* rtps = (*slot)->m_pRTPS;
+
+                KX_Scene* kxs = KX_GetActiveScene();
+                //handle camera scale for proper render size
+                KX_Camera* kxc = kxs->GetActiveCamera();
+                if(!kxc)
+                {
+                    //(*slot)->m_pEnjaParticles->point_scale = 1.0;
+                }
+                else
+                {
+                    float scale = kxc->GetScale();
+                    //printf("SCALE: %g\n", scale);
+                    //(*slot)->m_pEnjaParticles->point_scale = scale;
+                }
+
+
+                //deal with emitters if SPH
+                if(rtps->settings.system == rtps::RTPSettings::SPH)
+                {
+                    //loop through the objects looking for objects with collider property
+                    CListValue* oblist = kxs->GetObjectList();
+                    int num_objects = oblist->GetCount();
+                    for(int iob = 0; iob < num_objects; iob++)
+                    {
+                        KX_GameObject* gobj = (KX_GameObject*)oblist->GetValue(iob);
+                        //print out some info about the object
+                        //int mesh_count = gobj->GetMeshCount();
+                        STR_String name = gobj->GetName();
+
+
+                        //Check if object is a collider
+                        bool collider = false;
+                        CBoolValue* boolprop = (CBoolValue*)gobj->GetProperty("collider");
+                        if(boolprop)
+                        {
+                            printf("obj: %s, collider: %d\n", name.Ptr(), boolprop->GetBool());
+                            collider = boolprop->GetBool();
+                        }
+                       
+                        //printf("obj: %s mesh_count: %d collider: %d\n", name.Ptr(), mesh_count, collider);
+     
+                    }
+                }
+                
+
+
                 (*slot)->m_pRTPS->update();
 	        }
         }//for loop over materials
@@ -259,16 +306,68 @@ bool BL_ModifierDeformer::Apply(RAS_IPolyMaterial *mat)
                     rtps::RTPSettings::SysType sys = (rtps::RTPSettings::SysType)rtmd->system;
                     //printf("sys: %d\n", sys);
         
+                    //get the bounding box of the object for use as domain bounds
+                    KX_GameObject* gobj = (KX_GameObject*)m_gameobj;
+                    MT_Point3 bbpts[8];
+                    gobj->GetSGNode()->getAABBox(bbpts);
+                    MT_Point3 min = bbpts[0];
+                    MT_Point3 max = bbpts[7];
+                    using namespace rtps;
+                    rtps::Domain grid(float4(min.x(), min.y(), min.z(), 0), float4(max.x(), max.y(), max.z(), 0));
+
+
                     if (sys == rtps::RTPSettings::SimpleFlock)
                     {
                         float color[3] = {rtmd->color_r, rtmd->color_g, rtmd->color_b};
                         rtps::RTPSettings settings(rtmd->num, rtmd->maxspeed, rtmd->separationdist, rtmd->perceptionrange, color);
                         (*slot)->m_pRTPS = new rtps::RTPS(settings);
                     }
-                    else{
-                        rtps::RTPSettings settings(sys, rtmd->num, rtmd->dt);
+                    else if (sys == rtps::RTPSettings::SPH) 
+                    {
+                        rtps::RTPSettings settings(sys, rtmd->num, rtmd->dt, grid);
+                        (*slot)->m_pRTPS = new rtps::RTPS(settings);
+
+                        rtps::RTPS* rtps = (*slot)->m_pRTPS;
+                        KX_Scene* kxs = KX_GetActiveScene();
+
+                        //Loop through objects to look for emitters
+                        //this should probably use modifiers/particle systems
+                        //instead of game props but lets just get something going
+                        CListValue* oblist = kxs->GetObjectList();
+                        int num_objects = oblist->GetCount();
+                        for(int iob = 0; iob < num_objects; iob++)
+                        {
+                            KX_GameObject* gobj = (KX_GameObject*)oblist->GetValue(iob);
+                            STR_String name = gobj->GetName();
+
+                            //Check if object is an emitter
+                            //for now we are just doing boxes 
+                            CIntValue* intprop = (CIntValue*)gobj->GetProperty("emitter");
+                            if(intprop)
+                            {
+                                int nn = (int)intprop->GetInt();
+                                printf("obj: %s, emitter: %d\n", name.Ptr(), nn);
+                                MT_Point3 bbpts[8];
+                                gobj->GetSGNode()->getAABBox(bbpts);
+                                float4 min = float4(bbpts[0].x(), bbpts[0].y(), bbpts[0].z(), 0);
+                                float4 max = float4(bbpts[7].x(), bbpts[7].y(), bbpts[7].z(), 0);
+                                rtps->system->addBox(nn, min, max, false);
+
+                            }
+                            
+                            //printf("obj: %s mesh_count: %d collider: %d\n", name.Ptr(), mesh_count, collider);
+         
+                        }
+
+                            
+
+                    }
+                    else 
+                    {
+                        rtps::RTPSettings settings(sys, rtmd->num, rtmd->dt, grid);
                         (*slot)->m_pRTPS = new rtps::RTPS(settings);
                     }
+
                 }
             }
         }
