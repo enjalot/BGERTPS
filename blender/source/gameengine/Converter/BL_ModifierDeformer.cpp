@@ -235,6 +235,7 @@ bool BL_ModifierDeformer::Update(void)
 
 
                 //deal with emitters if SPH
+                //maybe this should be done with a new modifier?
                 if(rtps->settings.system == rtps::RTPSettings::SPH)
                 {
                     //loop through the objects looking for objects with collider property
@@ -255,6 +256,68 @@ bool BL_ModifierDeformer::Update(void)
                         {
                             printf("obj: %s, collider: %d\n", name.Ptr(), boolprop->GetBool());
                             collider = boolprop->GetBool();
+                        }
+
+
+                        using namespace rtps;
+                        //Check if object is an emitter
+                        //for now we are just doing boxes 
+                        CIntValue* intprop = (CIntValue*)gobj->GetProperty("num");
+                        if(intprop)
+                        {
+                            //get the number of particles in this emitter
+                            int num = (int)intprop->GetInt();
+                            int nn = 0; //the number of particles to emit
+                            if (num == 0) { continue;} //out of particles
+                            boolprop = (CBoolValue*)gobj->GetProperty("hose");
+                            if(boolprop && boolprop->GetBool())
+                            {
+                                //particles per frame
+                                intprop = (CIntValue*)gobj->GetProperty("ppf");
+                                int ppf = (int)intprop->GetInt();
+                                intprop = (CIntValue*)gobj->GetProperty("freq");
+                                int freq = (int)intprop->GetInt();
+                                intprop = (CIntValue*)gobj->GetProperty("ioff");
+                                int ioff = (int)intprop->GetInt();
+                                if(ioff == 0)
+                                {
+                                    num -= ppf;
+                                    if (num < 0)
+                                    {
+                                        //inject the remaining particles
+                                        nn = num + ppf;
+                                    }
+                                    else
+                                    {
+                                        //inject the number of particles for this frame
+                                        nn = ppf;
+                                    }
+                                }
+                                ioff++;
+                                if(ioff >= freq) ioff = 0;
+                                printf("ioff: %d\n", ioff);
+				                CIntValue * newioffprop = new CIntValue(ioff);            
+
+                                gobj->SetProperty("ioff", newioffprop);
+                            }
+                            else
+                            {
+                                //not a hose
+                                nn = num;
+                            }
+
+
+                            if(nn <= 0)
+                            {
+                                continue;
+                            }
+                            printf("obj: %s, nn: %d\n", name.Ptr(), nn);
+                            MT_Point3 bbpts[8];
+                            gobj->GetSGNode()->getAABBox(bbpts);
+                            float4 min = float4(bbpts[0].x(), bbpts[0].y(), bbpts[0].z(), 0);
+                            float4 max = float4(bbpts[7].x(), bbpts[7].y(), bbpts[7].z(), 0);
+                            rtps->system->addBox(nn, min, max, false);
+
                         }
                        
                         //printf("obj: %s mesh_count: %d collider: %d\n", name.Ptr(), mesh_count, collider);
