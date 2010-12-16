@@ -25,7 +25,7 @@
  * ***** END GPL LICENSE BLOCK *****
  */
 
-
+#include <stdio.h>
 
 #include "MEM_guardedalloc.h"
 
@@ -61,6 +61,7 @@
 #include "ED_keyframing.h"
 
 #include "BIF_gl.h"
+#include "BIF_glutil.h"
 
 #include "WM_api.h"
 #include "WM_types.h"
@@ -2785,6 +2786,17 @@ void ANIM_channel_draw (bAnimContext *ac, bAnimListElem *ale, float yminc, float
 		
 		offset += 3;
 		UI_DrawString(offset, ytext, name);
+		
+		/* draw red underline if channel is disabled */
+		if ((ale->type == ANIMTYPE_FCURVE) && (ale->flag & FCURVE_DISABLED)) 
+		{
+			// FIXME: replace hardcoded color here, and check on extents!
+			glColor3f(1.0f, 0.0f, 0.0f);
+			glLineWidth(2.0);
+				fdrawline((float)(offset), yminc, 
+						  (float)(v2d->cur.xmax), yminc);
+			glLineWidth(1.0);
+		}
 	}
 	
 	/* step 6) draw backdrops behidn mute+protection toggles + (sliders) ....................... */
@@ -2905,6 +2917,7 @@ static void achannel_setting_slider_cb(bContext *C, void *id_poin, void *fcu_poi
 	ID *id= (ID *)id_poin;
 	FCurve *fcu= (FCurve *)fcu_poin;
 	
+	ReportList *reports = CTX_wm_reports(C);
 	Scene *scene= CTX_data_scene(C);
 	PointerRNA id_ptr, ptr;
 	PropertyRNA *prop;
@@ -2928,7 +2941,7 @@ static void achannel_setting_slider_cb(bContext *C, void *id_poin, void *fcu_poi
 			flag |= INSERTKEY_REPLACE;
 		
 		/* insert a keyframe for this F-Curve */
-		done= insert_keyframe_direct(ptr, prop, fcu, cfra, flag);
+		done= insert_keyframe_direct(reports, ptr, prop, fcu, cfra, flag);
 		
 		if (done)
 			WM_event_add_notifier(C, NC_ANIMATION|ND_ANIMCHAN|NA_EDITED, NULL);
@@ -2942,6 +2955,7 @@ static void achannel_setting_slider_shapekey_cb(bContext *C, void *key_poin, voi
 	KeyBlock *kb= (KeyBlock *)kb_poin;
 	char *rna_path= key_get_curValue_rnaPath(key, kb);
 	
+	ReportList *reports = CTX_wm_reports(C);
 	Scene *scene= CTX_data_scene(C);
 	PointerRNA id_ptr, ptr;
 	PropertyRNA *prop;
@@ -2970,7 +2984,7 @@ static void achannel_setting_slider_shapekey_cb(bContext *C, void *key_poin, voi
 			flag |= INSERTKEY_REPLACE;
 		
 		/* insert a keyframe for this F-Curve */
-		done= insert_keyframe_direct(ptr, prop, fcu, cfra, flag);
+		done= insert_keyframe_direct(reports, ptr, prop, fcu, cfra, flag);
 		
 		if (done)
 			WM_event_add_notifier(C, NC_ANIMATION|ND_ANIMCHAN|NA_EDITED, NULL);
@@ -2987,7 +3001,7 @@ static void draw_setting_widget (bAnimContext *ac, bAnimListElem *ale, bAnimChan
 	short negflag, ptrsize, enabled, butType;
 	int flag, icon;
 	void *ptr;
-	char *tooltip;
+	const char *tooltip;
 	uiBut *but = NULL;
 	
 	/* get the flag and the pointer to that flag */

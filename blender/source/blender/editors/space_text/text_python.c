@@ -358,7 +358,7 @@ short do_texttools(SpaceText *st, char ascii, unsigned short evnt, short val)
 }
 
 #if 0
-#ifndef DISABLE_PYTHON	
+#ifdef WITH_PYTHON	
 	/* Run text plugin scripts if enabled */
 	if(st->doplugins && event && val) {
 		if(BPY_menu_do_shortcut(PYMENU_TEXTPLUGIN, event, qual)) {
@@ -388,7 +388,7 @@ short do_textmarkers(SpaceText *st, char ascii, unsigned short evnt, short val)
 		/* Find the next temporary marker */
 		if(evnt==TABKEY) {
 			int lineno= txt_get_span(text->lines.first, text->curl);
-			TextMarker *mrk= text->markers.first;
+			mrk= text->markers.first;
 			while(mrk) {
 				if(!marker && (mrk->flags & TMARK_TEMP)) marker= mrk;
 				if((mrk->flags & TMARK_TEMP) && (mrk->lineno > lineno || (mrk->lineno==lineno && mrk->end > text->curc))) {

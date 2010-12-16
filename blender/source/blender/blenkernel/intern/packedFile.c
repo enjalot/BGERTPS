@@ -162,7 +162,7 @@ PackedFile *newPackedFileMemory(void *mem, int memlen)
 	return pf;
 }
 
-PackedFile *newPackedFile(ReportList *reports, char *filename)
+PackedFile *newPackedFile(ReportList *reports, const char *filename)
 {
 	PackedFile *pf = NULL;
 	int file, filelen;
@@ -263,7 +263,7 @@ static char *find_new_name(char *name)
 	
 */
 
-int writePackedFile(ReportList *reports, char *filename, PackedFile *pf, int guimode)
+int writePackedFile(ReportList *reports, const char *filename, PackedFile *pf, int guimode)
 {
 	int file, number, remove_tmp = FALSE;
 	int ret_value = RET_OK;
@@ -331,7 +331,7 @@ PF_NOFILE		- the original file doens't exist
 
 */
 
-int checkPackedFile(char *filename, PackedFile *pf)
+int checkPackedFile(const char *filename, PackedFile *pf)
 {
 	struct stat st;
 	int ret_val, i, len, file;
@@ -467,7 +467,7 @@ int unpackVFont(ReportList *reports, VFont *vfont, int how)
 	return (ret_value);
 }
 
-int unpackSound(ReportList *reports, bSound *sound, int how)
+int unpackSound(Main *bmain, ReportList *reports, bSound *sound, int how)
 {
 	char localname[FILE_MAXDIR + FILE_MAX], fi[FILE_MAX];
 	char *newname;
@@ -486,7 +486,7 @@ int unpackSound(ReportList *reports, bSound *sound, int how)
 			freePackedFile(sound->packedfile);
 			sound->packedfile = 0;
 
-			sound_load(NULL, sound);
+			sound_load(bmain, sound);
 
 			ret_value = RET_OK;
 		}
@@ -536,6 +536,6 @@ void unpackAll(Main *bmain, ReportList *reports, int how)
 
 	for(sound=bmain->sound.first; sound; sound=sound->id.next)
 		if(sound->packedfile)
-			unpackSound(reports, sound, how);
+			unpackSound(bmain, reports, sound, how);
 }
 

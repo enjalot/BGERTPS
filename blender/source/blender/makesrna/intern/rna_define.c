@@ -264,8 +264,8 @@ static ContainerDefRNA *rna_find_container_def(ContainerRNA *cont)
 /* DNA utility function for looking up members */
 
 typedef struct DNAStructMember {
-	char *type;
-	char *name;
+	const char *type;
+	const char *name;
 	int arraylength;
 	int pointerlevel;
 } DNAStructMember;
@@ -295,7 +295,7 @@ static int rna_member_cmp(const char *name, const char *oname)
 
 static int rna_find_sdna_member(SDNA *sdna, const char *structname, const char *membername, DNAStructMember *smember)
 {
-	char *dnaname;
+	const char *dnaname;
 	short *sp;
 	int a, b, structnr, totmember, cmp;
 
@@ -359,7 +359,7 @@ static int rna_validate_identifier(const char *identifier, char *error, int prop
 	int a=0;
 	
 	/*  list from http://docs.python.org/reference/lexical_analysis.html#id5 */
-	static char *kwlist[] = {
+	static const char *kwlist[] = {
 		"and", "as", "assert", "break",
 		"class", "continue", "def", "del",
 		"elif", "else", "except", "exec",
@@ -1005,6 +1005,11 @@ void RNA_def_property_clear_flag(PropertyRNA *prop, int flag)
 	prop->flag &= ~flag;
 }
 
+void RNA_def_property_subtype(PropertyRNA *prop, PropertySubType subtype)
+{
+	prop->subtype= subtype;
+}
+
 void RNA_def_property_array(PropertyRNA *prop, int length)
 {
 	StructRNA *srna= DefRNA.laststruct;
@@ -1017,6 +1022,12 @@ void RNA_def_property_array(PropertyRNA *prop, int length)
 
 	if(length>RNA_MAX_ARRAY_LENGTH) {
 		fprintf(stderr, "RNA_def_property_array: \"%s.%s\", array length must be smaller than %d.\n", srna->identifier, prop->identifier, RNA_MAX_ARRAY_LENGTH);
+		DefRNA.error= 1;
+		return;
+	}
+
+	if(prop->arraydimension > 1) {
+		fprintf(stderr, "RNA_def_property_array: \"%s.%s\", array dimensions has been set to %d but would be overwritten as 1.\n", srna->identifier, prop->identifier, prop->arraydimension);
 		DefRNA.error= 1;
 		return;
 	}
@@ -1036,7 +1047,7 @@ void RNA_def_property_array(PropertyRNA *prop, int length)
 	}
 }
 
-void RNA_def_property_multi_array(PropertyRNA *prop, int dimension, int length[])
+void RNA_def_property_multi_array(PropertyRNA *prop, int dimension, const int length[])
 {
 	StructRNA *srna= DefRNA.laststruct;
 	int i;
@@ -2235,8 +2246,11 @@ PropertyRNA *RNA_def_float_matrix(StructOrFunctionRNA *cont_, const char *identi
 {
 	ContainerRNA *cont= cont_;
 	PropertyRNA *prop;
-	int length[2]= {rows, columns};
-	
+	int length[2];
+
+	length[0]= rows;
+	length[1]= columns;
+
 	prop= RNA_def_property(cont, identifier, PROP_FLOAT, PROP_MATRIX);
 	RNA_def_property_multi_array(prop, 2, length);
 	if(default_value) RNA_def_property_float_array_default(prop, default_value);

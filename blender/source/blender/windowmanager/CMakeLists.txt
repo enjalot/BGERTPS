@@ -24,7 +24,7 @@
 #
 # ***** END GPL LICENSE BLOCK *****
 
-SET(INC
+set(INC
 	.
 	../nodes
 	../gpu
@@ -33,7 +33,6 @@ SET(INC
 	../makesdna
 	../makesrna
 	../blenkernel
-	../include
 	../imbuf
 	../blenloader
 	../editors/include
@@ -48,7 +47,7 @@ SET(INC
 	${OPENGL_INCLUDE_DIR}
 )
 
-SET(SRC
+set(SRC
 	intern/wm.c
 	intern/wm_apple.c
 	intern/wm_cursors.c
@@ -63,44 +62,54 @@ SET(SRC
 	intern/wm_operators.c
 	intern/wm_subwindow.c
 	intern/wm_window.c
+
+	WM_api.h
+	WM_types.h
+	wm.h
+	wm_cursors.h
+	wm_draw.h
+	wm_event_system.h
+	wm_event_types.h
+	wm_files.h
+	wm_subwindow.h
+	wm_window.h
 )
 
-ADD_DEFINITIONS(-DGLEW_STATIC)
+add_definitions(-DGLEW_STATIC)
 
-IF(WITH_INTERNATIONAL)
-	ADD_DEFINITIONS(-DINTERNATIONAL)
-ENDIF(WITH_INTERNATIONAL)
+if(WITH_INTERNATIONAL)
+	add_definitions(-DINTERNATIONAL)
+endif()
 
-IF(WITH_OPENCOLLADA)
-	ADD_DEFINITIONS(-DWITH_COLLADA)
-ENDIF(WITH_OPENCOLLADA)
+if(WITH_OPENCOLLADA)
+	add_definitions(-DWITH_COLLADA)
+endif()
 
-IF(WITH_QUICKTIME)
-	LIST(APPEND INC ../quicktime ${QUICKTIME_INC})
-	ADD_DEFINITIONS(-DWITH_QUICKTIME)
-ENDIF(WITH_QUICKTIME)
+if(WITH_CODEC_QUICKTIME)
+	list(APPEND INC ../quicktime ${QUICKTIME_INC})
+	add_definitions(-DWITH_QUICKTIME)
+endif()
 
-IF(WITH_FFMPEG)
-	LIST(APPEND INC ${FFMPEG_INC})
-	ADD_DEFINITIONS(-DWITH_FFMPEG)
-ENDIF(WITH_FFMPEG)
+if(WITH_CODEC_FFMPEG)
+	list(APPEND INC ${FFMPEG_INC})
+	add_definitions(-DWITH_FFMPEG)
+endif()
 
-IF(WITH_PYTHON)
-	LIST(APPEND INC ../python ${PYTHON_INC})
-ELSE(WITH_PYTHON)
-	ADD_DEFINITIONS(-DDISABLE_PYTHON)
-ENDIF(WITH_PYTHON)
+if(WITH_PYTHON)
+	list(APPEND INC ../python ${PYTHON_INC})
+	add_definitions(-DWITH_PYTHON)
+endif()
 
-IF(WIN32)
-	LIST(APPEND INC ${PTHREADS_INC})
-ENDIF(WIN32)
+if(WITH_GAMEENGINE)
+	add_definitions(-DWITH_GAMEENGINE)
+endif()
 
-IF(WITH_COCOA)
-	LIST(REMOVE_ITEM SRC "${CMAKE_CURRENT_SOURCE_DIR}/intern/wm_apple.c")
-ENDIF(WITH_COCOA)
+if(WITH_COCOA)
+	list(REMOVE_ITEM SRC "${CMAKE_CURRENT_SOURCE_DIR}/intern/wm_apple.c")
+endif()
 
-IF(WITH_BUILDINFO)
-	ADD_DEFINITIONS(-DNAN_BUILDINFO)
-ENDIF(WITH_BUILDINFO)
+if(WITH_BUILDINFO)
+	add_definitions(-DNAN_BUILDINFO)
+endif()
 
-BLENDERLIB_NOLIST(bf_windowmanager "${SRC}" "${INC}")
+blenderlib_nolist(bf_windowmanager "${SRC}" "${INC}")

@@ -55,7 +55,7 @@ def load(operator, context, filepath, frame_start=0, frame_step=1):
     try:
         num_keys = len(obj.data.shape_keys.keys)
     except:
-        basis = obj.add_shape_key()
+        basis = obj.shape_key_add()
         basis.name = "Basis"
         obj.data.update()
 
@@ -64,13 +64,13 @@ def load(operator, context, filepath, frame_start=0, frame_step=1):
     def UpdateMesh(ob, fr):
 
         # Insert new shape key
-        new_shapekey = obj.add_shape_key()
+        new_shapekey = obj.shape_key_add()
         new_shapekey.name = ("frame_%.4d" % fr)
         new_shapekey_name = new_shapekey.name
 
         obj.active_shape_key_index = len(obj.data.shape_keys.keys)-1
         index = len(obj.data.shape_keys.keys)-1
-        obj.show_shape_key = True
+        obj.show_only_shape_key = True
 
         verts = obj.data.shape_keys.keys[len(obj.data.shape_keys.keys)-1].data
 
@@ -78,7 +78,7 @@ def load(operator, context, filepath, frame_start=0, frame_step=1):
         for v in verts: # 12 is the size of 3 floats
             v.co[:] = unpack('>3f', file.read(12))
         #me.update()
-        obj.show_shape_key = False
+        obj.show_only_shape_key = False
 
 
         # insert keyframes

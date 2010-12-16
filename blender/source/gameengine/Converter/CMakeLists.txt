@@ -24,7 +24,7 @@
 #
 # ***** END GPL LICENSE BLOCK *****
 
-SET(INC
+set(INC
 	.
 	../../../source/kernel/gen_system
 	../../../intern/string
@@ -59,7 +59,7 @@ SET(INC
 	../../../extern/bullet2/src
 )
 
-SET(SRC
+set(SRC
 	BL_ActionActuator.cpp
 	BL_ArmatureActuator.cpp
 	BL_ArmatureChannel.cpp
@@ -81,8 +81,8 @@ SET(SRC
 	KX_ConvertSensors.cpp
 	KX_IpoConvert.cpp
 	KX_SoftBodyDeformer.cpp
-)
 
+<<<<<<< HEAD
 IF(WITH_OPENCL)
 	LIST(APPEND INC ${OPENCL_INCLUDE_DIR})  
 	LIST(APPEND INC ${RTPS_INCLUDE_DIR})  
@@ -93,9 +93,33 @@ IF(WITH_PYTHON)
 ELSE(WITH_PYTHON)
 	ADD_DEFINITIONS(-DDISABLE_PYTHON)
 ENDIF(WITH_PYTHON)
+=======
+	BL_ActionActuator.h
+	BL_ArmatureActuator.h
+	BL_ArmatureChannel.h
+	BL_ArmatureConstraint.h
+	BL_ArmatureObject.h
+	BL_BlenderDataConversion.h
+	BL_DeformableGameObject.h
+	BL_MeshDeformer.h
+	BL_ModifierDeformer.h
+	BL_ShapeActionActuator.h
+	BL_ShapeDeformer.h
+	BL_SkinDeformer.h
+	BlenderWorldInfo.h
+	KX_BlenderScalarInterpolator.h
+	KX_BlenderSceneConverter.h
+	KX_ConvertActuators.h
+	KX_ConvertControllers.h
+	KX_ConvertProperties.h
+	KX_ConvertSensors.h
+	KX_IpoConvert.h
+	KX_SoftBodyDeformer.h
+)
+>>>>>>> 9b28302d9853b8fee3fc46f398f32a5d8ef01113
 
-IF(WITH_BULLET)
-	ADD_DEFINITIONS(-DUSE_BULLET)
-ENDIF(WITH_BULLET)
+if(WITH_BULLET)
+	add_definitions(-DUSE_BULLET)
+endif()
 
-BLENDERLIB(bf_converter "${SRC}" "${INC}")
+blenderlib(ge_converter "${SRC}" "${INC}")

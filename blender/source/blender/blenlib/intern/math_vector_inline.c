@@ -149,6 +149,23 @@ MINLINE void sub_v3_v3v3(float r[3], const float a[3], const float b[3])
 	r[2]= a[2] - b[2];
 }
 
+MINLINE void sub_v4_v4(float r[4], const float a[4])
+{
+	r[0] -= a[0];
+	r[1] -= a[1];
+	r[2] -= a[2];
+	r[3] -= a[3];
+}
+
+MINLINE void sub_v4_v4v4(float r[3], const float a[3], const float b[3])
+{
+	r[0]= a[0] - b[0];
+	r[1]= a[1] - b[1];
+	r[2]= a[2] - b[2];
+	r[3]= a[3] - b[3];
+}
+
+
 MINLINE void mul_v2_fl(float *v1, float f)
 {
 	v1[0]*= f;
@@ -402,27 +419,32 @@ MINLINE void normal_float_to_short_v3(short *out, const float *in)
 
 /********************************* Comparison ********************************/
 
-MINLINE int is_zero_v3(float *v)
+MINLINE int is_zero_v3(const float *v)
 {
 	return (v[0] == 0 && v[1] == 0 && v[2] == 0);
 }
 
-MINLINE int is_one_v3(float *v)
+MINLINE int is_one_v3(const float *v)
 {
 	return (v[0] == 1 && v[1] == 1 && v[2] == 1);
 }
 
-MINLINE int equals_v3v3(float *v1, float *v2)
+MINLINE int equals_v2v2(const float *v1, const float *v2)
+{
+	return ((v1[0]==v2[0]) && (v1[1]==v2[1]));
+}
+
+MINLINE int equals_v3v3(const float *v1, const float *v2)
 {
 	return ((v1[0]==v2[0]) && (v1[1]==v2[1]) && (v1[2]==v2[2]));
 }
 
-MINLINE int equals_v4v4(float *v1, float *v2)
+MINLINE int equals_v4v4(const float *v1, const float *v2)
 {
 	return ((v1[0]==v2[0]) && (v1[1]==v2[1]) && (v1[2]==v2[2]) && (v1[3]==v2[3]));
 }
 
-MINLINE int compare_v3v3(float *v1, float *v2, float limit)
+MINLINE int compare_v3v3(const float *v1, const float *v2, const float limit)
 {
 	if(fabs(v1[0]-v2[0])<limit)
 		if(fabs(v1[1]-v2[1])<limit)
@@ -432,7 +454,7 @@ MINLINE int compare_v3v3(float *v1, float *v2, float limit)
 	return 0;
 }
 
-MINLINE int compare_len_v3v3(float *v1, float *v2, float limit)
+MINLINE int compare_len_v3v3(const float *v1, const float *v2, const float limit)
 {
 	float x,y,z;
 
@@ -443,7 +465,7 @@ MINLINE int compare_len_v3v3(float *v1, float *v2, float limit)
 	return ((x*x + y*y + z*z) < (limit*limit));
 }
 
-MINLINE int compare_v4v4(float *v1, float *v2, float limit)
+MINLINE int compare_v4v4(const float *v1, const float *v2, const float limit)
 {
 	if(fabs(v1[0]-v2[0])<limit)
 		if(fabs(v1[1]-v2[1])<limit)

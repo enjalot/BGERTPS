@@ -45,6 +45,7 @@
 #include "BLI_blenlib.h"
 #include "BLI_math.h"
 #include "BLI_editVert.h"
+#include "BLI_scanfill.h"
 
 #include "BKE_global.h"
 #include "BKE_displist.h"
@@ -788,7 +789,7 @@ void reshadeall_displist(Scene *scene)
 
 /* ****************** make displists ********************* */
 
-static void curve_to_displist(Curve *cu, ListBase *nubase, ListBase *dispbase)
+static void curve_to_displist(Curve *cu, ListBase *nubase, ListBase *dispbase, int forRender)
 {
 	Nurb *nu;
 	DispList *dl;
@@ -801,7 +802,7 @@ static void curve_to_displist(Curve *cu, ListBase *nubase, ListBase *dispbase)
 	while(nu) {
 		if(nu->hide==0) {
 			
-			if(G.rendering && cu->resolu_ren!=0) 
+			if(forRender && cu->resolu_ren!=0)
 				resolu= cu->resolu_ren;
 			else
 				resolu= nu->resolu;
@@ -1202,6 +1203,8 @@ void makeDispListMBall(Scene *scene, Object *ob)
 void makeDispListMBall_forRender(Scene *scene, Object *ob, ListBase *dispbase)
 {
 	metaball_polygonize(scene, ob, dispbase);
+	tex_space_mball(ob);
+	
 	object_deform_mball(ob, dispbase);
 }
 
@@ -1613,8 +1616,15 @@ void makeDispListSurf(Scene *scene, Object *ob, ListBase *dispbase,
 
 	for (nu=nubase->first; nu; nu=nu->next) {
 		if(forRender || nu->hide==0) {
+			int resolu= nu->resolu, resolv= nu->resolv;
+
+			if(forRender){
+				if(cu->resolu_ren) resolu= cu->resolu_ren;
+				if(cu->resolv_ren) resolv= cu->resolv_ren;
+			}
+
 			if(nu->pntsv==1) {
-				len= SEGMENTSU(nu)*nu->resolu;
+				len= SEGMENTSU(nu)*resolu;
 
 				dl= MEM_callocN(sizeof(DispList), "makeDispListsurf");
 				dl->verts= MEM_callocN(len*3*sizeof(float), "dlverts");
@@ -1633,10 +1643,10 @@ void makeDispListSurf(Scene *scene, Object *ob, ListBase *dispbase,
 				if(nu->flagu & CU_NURB_CYCLIC) dl->type= DL_POLY;
 				else dl->type= DL_SEGM;
 
-				makeNurbcurve(nu, data, NULL, NULL, NULL, nu->resolu, 3*sizeof(float));
+				makeNurbcurve(nu, data, NULL, NULL, NULL, resolu, 3*sizeof(float));
 			}
 			else {
-				len= (nu->pntsu*nu->resolu) * (nu->pntsv*nu->resolv);
+				len= (nu->pntsu*resolu) * (nu->pntsv*resolv);
 				
 				dl= MEM_callocN(sizeof(DispList), "makeDispListsurf");
 				dl->verts= MEM_callocN(len*3*sizeof(float), "dlverts");
@@ -1652,12 +1662,12 @@ void makeDispListSurf(Scene *scene, Object *ob, ListBase *dispbase,
 				data= dl->verts;
 				dl->type= DL_SURF;
 
-				dl->parts= (nu->pntsu*nu->resolu);	/* in reverse, because makeNurbfaces works that way */
-				dl->nr= (nu->pntsv*nu->resolv);
+				dl->parts= (nu->pntsu*resolu);	/* in reverse, because makeNurbfaces works that way */
+				dl->nr= (nu->pntsv*resolv);
 				if(nu->flagv & CU_NURB_CYCLIC) dl->flag|= DL_CYCL_U;	/* reverse too! */
 				if(nu->flagu & CU_NURB_CYCLIC) dl->flag|= DL_CYCL_V;
 
-				makeNurbfaces(nu, data, 0);
+				makeNurbfaces(nu, data, 0, resolu, resolv);
 				
 				/* gl array drawing: using indices */
 				displist_surf_indices(dl);
@@ -1710,7 +1720,7 @@ static void do_makeDispListCurveTypes(Scene *scene, Object *ob, ListBase *dispba
 
 		/* no bevel or extrude, and no width correction? */
 		if (!dlbev.first && cu->width==1.0f) {
-			curve_to_displist(cu, nubase, dispbase);
+			curve_to_displist(cu, nubase, dispbase, forRender);
 		} else {
 			float widfac= cu->width-1.0;
 			BevList *bl= cu->bev.first;

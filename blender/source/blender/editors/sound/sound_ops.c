@@ -203,7 +203,7 @@ void SOUND_OT_pack(wmOperatorType *ot)
 /********************* unpack operator *********************/
 
 // XXX this function is in image_ops.c too, exactly the same, should be moved to a generally accessible position
-static void unpack_menu(bContext *C, char *opname, char *abs_name, char *folder, PackedFile *pf)
+static void unpack_menu(bContext *C, const char *opname, const char *abs_name, const char *folder, PackedFile *pf)
 {
 	uiPopupMenu *pup;
 	uiLayout *layout;
@@ -275,7 +275,7 @@ static int unpack_exec(bContext *C, wmOperator *op)
 	if(G.fileflags & G_AUTOPACK)
 		BKE_report(op->reports, RPT_WARNING, "AutoPack is enabled, so image will be packed again on file save.");
 
-	unpackSound(op->reports, sound, method);
+	unpackSound(CTX_data_main(C), op->reports, sound, method);
 
 	return OPERATOR_FINISHED;
 }

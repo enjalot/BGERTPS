@@ -464,7 +464,7 @@ static void area_lamp_vectors(LampRen *lar)
 
 static void ramp_blend(GPUMaterial *mat, GPUNodeLink *fac, GPUNodeLink *col1, GPUNodeLink *col2, int type, GPUNodeLink **outcol)
 {
-	static char *names[] = {"mix_blend", "mix_add", "mix_mult", "mix_sub",
+	static const char *names[] = {"mix_blend", "mix_add", "mix_mult", "mix_sub",
 		"mix_screen", "mix_div", "mix_diff", "mix_dark", "mix_light",
 		"mix_overlay", "mix_dodge", "mix_burn", "mix_hue", "mix_sat",
 		"mix_val", "mix_color", "mix_soft", "mix_linear"};
@@ -629,10 +629,8 @@ static void shade_one_light(GPUShadeInput *shi, GPUShadeResult *shr, GPULamp *la
 	}
 	else {
 		if(lamp->type == LA_AREA) {
-			float area[4][4], areasize;
+			float area[4][4]= {{0.0f}}, areasize= 0.0f;
 
-			memset(&area, 0, sizeof(area));
-			memset(&areasize, 0, sizeof(areasize));
 			mat->dynproperty |= DYN_LAMP_VEC|DYN_LAMP_CO;
 			GPU_link(mat, "shade_inp_area", GPU_builtin(GPU_VIEW_POSITION), GPU_dynamic_uniform(lamp->dynco), GPU_dynamic_uniform(lamp->dynvec), vn, GPU_uniform((float*)area),
 				GPU_uniform(&areasize), GPU_uniform(&lamp->k), &inp);
@@ -1296,7 +1294,7 @@ GPUMaterial *GPU_material_from_blender(Scene *scene, Material *ma)
 	return mat;
 }
 
-void GPU_materials_free()
+void GPU_materials_free(void)
 {
 	Object *ob;
 	Material *ma;

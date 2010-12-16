@@ -88,7 +88,7 @@ class OBJECT_PT_delta_transform(ObjectButtonsPanel, bpy.types.Panel):
             #row.column().prop(pchan, "delta_rotation_angle", text="Angle")
             #row.column().prop(pchan, "delta_rotation_axis", text="Axis")
             #row.column().prop(ob, "delta_rotation_axis_angle", text="Rotation")
-            row.column().label(ob, text="Not for Axis-Angle")
+            row.column().label(text="Not for Axis-Angle")
         else:
             row.column().prop(ob, "delta_rotation_euler", text="Rotation")
 
@@ -217,7 +217,8 @@ class OBJECT_PT_display(ObjectButtonsPanel, bpy.types.Panel):
         col = split.column()
         col.prop(ob, "show_texture_space", text="Texture Space")
         col.prop(ob, "show_x_ray", text="X-Ray")
-        col.prop(ob, "show_transparent", text="Transparency")
+        if ob.type == 'MESH':
+            col.prop(ob, "show_transparent", text="Transparency")
 
 
 class OBJECT_PT_duplication(ObjectButtonsPanel, bpy.types.Panel):

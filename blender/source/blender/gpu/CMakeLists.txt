@@ -24,11 +24,10 @@
 #
 # ***** END GPL LICENSE BLOCK *****
 
-SET(INC
+set(INC
 	.
 	../blenlib
 	../blenkernel
-	../include
 	../imbuf
 	../makesdna
 	../makesrna
@@ -37,7 +36,7 @@ SET(INC
 	../../../intern/smoke/extern
 )
 
-SET(SRC
+set(SRC
 	intern/gpu_buffers.c
 	intern/gpu_codegen.c
 	intern/gpu_draw.c
@@ -45,13 +44,15 @@ SET(SRC
 	intern/gpu_material.c
 	intern/gpu_shader_material.glsl.c
 	intern/gpu_shader_vertex.glsl.c
+
+	GPU_buffers.h
+	GPU_draw.h
+	GPU_extensions.h
+	GPU_material.h
+	intern/gpu_codegen.h
 )
 
-IF(WIN32)
-	INCLUDE_DIRECTORIES(${PTHREADS_INC})
-ENDIF(WIN32)
+add_definitions(-DGLEW_STATIC)
 
-ADD_DEFINITIONS(-DGLEW_STATIC)
-
-BLENDERLIB(bf_gpu "${SRC}" "${INC}")
+blenderlib(bf_gpu "${SRC}" "${INC}")
 

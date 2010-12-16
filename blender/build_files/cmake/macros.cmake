@@ -1,65 +1,57 @@
 
-IF(MSVC)
-	# only MSVC uses SOURCE_GROUP
-	MACRO(BLENDERLIB_NOLIST
-		name
-		sources
-		includes)
-
-		MESSAGE(STATUS "Configuring library ${name}")
-
-		# Gather all headers
-		FILE(GLOB_RECURSE INC_ALL *.h)
-			 
-		INCLUDE_DIRECTORIES(${includes})
-		ADD_LIBRARY(${name} ${INC_ALL} ${sources})
-
-		# Group by location on disk
-		SOURCE_GROUP(Files FILES CMakeLists.txt)
-		SET(ALL_FILES ${sources} ${INC_ALL})
-		FOREACH(SRC ${ALL_FILES})
-			STRING(REGEX REPLACE ${CMAKE_CURRENT_SOURCE_DIR} "Files" REL_DIR "${SRC}")
-			STRING(REGEX REPLACE "[\\\\/][^\\\\/]*$" "" REL_DIR "${REL_DIR}")
-			STRING(REGEX REPLACE "^[\\\\/]" "" REL_DIR "${REL_DIR}")
-			IF(REL_DIR)
-				SOURCE_GROUP(${REL_DIR} FILES ${SRC})
-			ELSE(REL_DIR)
-				SOURCE_GROUP(Files FILES ${SRC})
-			ENDIF(REL_DIR)
-		ENDFOREACH(SRC)
-	ENDMACRO(BLENDERLIB_NOLIST)
-ELSE(MSVC)
-
-	MACRO(BLENDERLIB_NOLIST
-		name
-		sources
-		includes)
-
-		MESSAGE(STATUS "Configuring library ${name}")
-		INCLUDE_DIRECTORIES(${includes})
-		ADD_LIBRARY(${name} ${sources})
-	ENDMACRO(BLENDERLIB_NOLIST)
-ENDIF(MSVC)
-
-MACRO(BLENDERLIB
+# only MSVC uses SOURCE_GROUP
+macro(blenderlib_nolist
 	name
 	sources
 	includes)
 
-	BLENDERLIB_NOLIST(${name} "${sources}" "${includes}")
+	message(STATUS "Configuring library ${name}")
 
-	# Add to blender's list of libraries
-	FILE(APPEND ${CMAKE_BINARY_DIR}/cmake_blender_libs.txt "${name};")
-ENDMACRO(BLENDERLIB)
+	include_directories(${includes})
+	add_library(${name} ${sources})
 
-MACRO(SETUP_LIBDIRS)
+	# Group by location on disk
+	source_group("Source Files" FILES CMakeLists.txt)
+	foreach(SRC ${sources})
+		get_filename_component(SRC_EXT ${SRC} EXT)
+		if(${SRC_EXT} MATCHES ".h" OR ${SRC_EXT} MATCHES ".hpp") 
+			source_group("Header Files" FILES ${SRC})
+		else()
+			source_group("Source Files" FILES ${SRC})
+		endif()
+	endforeach()
+endmacro()
+
+#	# works fine but having the includes listed is helpful for IDE's (QtCreator/MSVC)
+#	macro(blenderlib_nolist
+#		name
+#		sources
+#		includes)
+#
+#		message(STATUS "Configuring library ${name}")
+#		include_directories(${includes})
+#		add_library(${name} ${sources})
+#	endmacro()
+
+
+macro(blenderlib
+	name
+	sources
+	includes)
+
+	blenderlib_nolist(${name} "${sources}" "${includes}")
+
+	set_property(GLOBAL APPEND PROPERTY BLENDER_LINK_LIBS ${name})
+
+endmacro()
+
+macro(SETUP_LIBDIRS)
 	# see "cmake --help-policy CMP0003"
 	if(COMMAND cmake_policy)
-		CMAKE_POLICY(SET CMP0003 NEW)
-	endif(COMMAND cmake_policy)
+		cmake_policy(SET CMP0003 NEW)
+	endif()
 	
-	LINK_DIRECTORIES(${JPEG_LIBPATH} ${PNG_LIBPATH} ${ZLIB_LIBPATH} ${FREETYPE_LIBPATH} ${LIBSAMPLERATE_LIBPATH})
-	
+<<<<<<< HEAD
 	IF(WITH_PYTHON)
 		LINK_DIRECTORIES(${PYTHON_LIBPATH})
 	ENDIF(WITH_PYTHON)
@@ -113,12 +105,69 @@ MACRO(SETUP_LIBDIRS)
 ENDMACRO(SETUP_LIBDIRS)
 
 MACRO(SETUP_LIBLINKS
-	target)
-	SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${PLATFORM_LINKFLAGS} ")
+=======
+	link_directories(${JPEG_LIBPATH} ${PNG_LIBPATH} ${ZLIB_LIBPATH} ${FREETYPE_LIBPATH})
 
-	TARGET_LINK_LIBRARIES(${target} ${OPENGL_gl_LIBRARY} ${OPENGL_glu_LIBRARY} ${JPEG_LIBRARY} ${PNG_LIBRARIES} ${ZLIB_LIBRARIES} ${LLIBS})
+	if(WITH_PYTHON)
+		link_directories(${PYTHON_LIBPATH})
+	endif()
+	if(WITH_INTERNATIONAL)
+		link_directories(${ICONV_LIBPATH})
+		link_directories(${GETTEXT_LIBPATH})
+	endif()
+	if(WITH_SDL)
+		link_directories(${SDL_LIBPATH})
+	endif()
+	if(WITH_CODEC_FFMPEG)
+		link_directories(${FFMPEG_LIBPATH})
+	endif()
+	if(WITH_IMAGE_OPENEXR)
+		link_directories(${OPENEXR_LIBPATH})
+	endif()
+	if(WITH_IMAGE_TIFF)
+		link_directories(${TIFF_LIBPATH})
+	endif()
+	if(WITH_LCMS)
+		link_directories(${LCMS_LIBPATH})
+	endif()
+	if(WITH_CODEC_QUICKTIME)
+		link_directories(${QUICKTIME_LIBPATH})
+	endif()
+	if(WITH_OPENAL)
+		link_directories(${OPENAL_LIBPATH})
+	endif()
+	if(WITH_JACK)
+		link_directories(${JACK_LIBPATH})
+	endif()
+	if(WITH_CODEC_SNDFILE)
+		link_directories(${SNDFILE_LIBPATH})
+	endif()
+	if(WITH_SAMPLERATE)
+		link_directories(${LIBSAMPLERATE_LIBPATH})
+	endif()
+	if(WITH_FFTW3)
+		link_directories(${FFTW3_LIBPATH})
+	endif()
+	if(WITH_OPENCOLLADA)
+		link_directories(${OPENCOLLADA_LIBPATH})
+		link_directories(${PCRE_LIBPATH})
+		link_directories(${EXPAT_LIBPATH})
+	endif()
+
+	if(WIN32 AND NOT UNIX)
+		link_directories(${PTHREADS_LIBPATH})
+	endif()
+endmacro()
+
+macro(setup_liblinks
+>>>>>>> 9b28302d9853b8fee3fc46f398f32a5d8ef01113
+	target)
+	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${PLATFORM_LINKFLAGS} ")
+
+	target_link_libraries(${target} ${OPENGL_gl_LIBRARY} ${OPENGL_glu_LIBRARY} ${JPEG_LIBRARY} ${PNG_LIBRARIES} ${ZLIB_LIBRARIES} ${LLIBS})
 
 	# since we are using the local libs for python when compiling msvc projects, we need to add _d when compiling debug versions
+<<<<<<< HEAD
 	IF(WITH_PYTHON)
 		TARGET_LINK_LIBRARIES(${target} ${PYTHON_LINKFLAGS})
 
@@ -225,96 +274,203 @@ MACRO(TEST_SSE_SUPPORT)
 	ENDIF()
 
 	CHECK_C_SOURCE_RUNS("
+=======
+	if(WITH_PYTHON)
+		target_link_libraries(${target} ${PYTHON_LINKFLAGS})
+
+		if(WIN32 AND NOT UNIX)
+			target_link_libraries(${target} debug ${PYTHON_LIB}_d)
+			target_link_libraries(${target} optimized ${PYTHON_LIB})
+		else()
+			target_link_libraries(${target} ${PYTHON_LIB})
+		endif()
+	endif()
+
+	target_link_libraries(${target} ${OPENGL_glu_LIBRARY} ${JPEG_LIB} ${PNG_LIB} ${ZLIB_LIB})
+	target_link_libraries(${target} ${FREETYPE_LIBRARY})
+
+	if(WITH_INTERNATIONAL)
+		target_link_libraries(${target} ${GETTEXT_LIB})
+
+		if(WIN32 AND NOT UNIX)
+			target_link_libraries(${target} ${ICONV_LIB})
+		endif()
+	endif()
+
+	if(WITH_OPENAL)
+		target_link_libraries(${target} ${OPENAL_LIBRARY})
+	endif()
+	if(WITH_FFTW3)	
+		target_link_libraries(${target} ${FFTW3_LIB})
+	endif()
+	if(WITH_JACK)
+		target_link_libraries(${target} ${JACK_LIB})
+	endif()
+	if(WITH_CODEC_SNDFILE)
+		target_link_libraries(${target} ${SNDFILE_LIB})
+	endif()
+	if(WITH_SAMPLERATE)
+		target_link_libraries(${target} ${LIBSAMPLERATE_LIB})
+	endif()	
+	if(WITH_SDL)
+		target_link_libraries(${target} ${SDL_LIBRARY})
+	endif()
+	if(WITH_CODEC_QUICKTIME)
+		target_link_libraries(${target} ${QUICKTIME_LIB})
+	endif()
+	if(WITH_IMAGE_TIFF)
+		target_link_libraries(${target} ${TIFF_LIBRARY})
+	endif()
+	if(WITH_IMAGE_OPENEXR)
+		if(WIN32 AND NOT UNIX)
+			foreach(loop_var ${OPENEXR_LIB})
+				target_link_libraries(${target} debug ${loop_var}_d)
+				target_link_libraries(${target} optimized ${loop_var})
+			endforeach()
+		else()
+			target_link_libraries(${target} ${OPENEXR_LIB})
+		endif()
+	endif()
+	if(WITH_LCMS)
+		target_link_libraries(${target} ${LCMS_LIBRARY})
+	endif()
+	if(WITH_CODEC_FFMPEG)
+		target_link_libraries(${target} ${FFMPEG_LIB})
+	endif()
+	if(WITH_OPENCOLLADA)
+		if(WIN32 AND NOT UNIX)
+			foreach(loop_var ${OPENCOLLADA_LIB})
+				target_link_libraries(${target} debug ${loop_var}_d)
+				target_link_libraries(${target} optimized ${loop_var})
+			endforeach()
+			target_link_libraries(${target} debug ${PCRE_LIB}_d)
+			target_link_libraries(${target} optimized ${PCRE_LIB})
+			if(EXPAT_LIB)
+				target_link_libraries(${target} debug ${EXPAT_LIB}_d)
+				target_link_libraries(${target} optimized ${EXPAT_LIB})
+			endif()
+		else()
+			target_link_libraries(${target} ${OPENCOLLADA_LIB})
+			target_link_libraries(${target} ${PCRE_LIB})
+			target_link_libraries(${target} ${EXPAT_LIB})
+		endif()
+	endif()
+	if(WITH_LCMS)
+		if(WIN32 AND NOT UNIX)
+			target_link_libraries(${target} debug ${LCMS_LIB}_d)
+			target_link_libraries(${target} optimized ${LCMS_LIB})
+		endif()
+	endif()
+	if(WIN32 AND NOT UNIX)
+		target_link_libraries(${target} ${PTHREADS_LIB})
+	endif()
+endmacro()
+
+macro(TEST_SSE_SUPPORT)
+	include(CheckCSourceRuns)
+
+	message(STATUS "Detecting SSE support")
+	if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX)
+		set(CMAKE_REQUIRED_FLAGS "-msse -msse2")
+	elseif(MSVC)
+		set(CMAKE_REQUIRED_FLAGS "/arch:SSE2") # TODO, SSE 1 ?
+	endif()
+
+	check_c_source_runs("
+>>>>>>> 9b28302d9853b8fee3fc46f398f32a5d8ef01113
 		#include <xmmintrin.h>
 		int main() { __m128 v = _mm_setzero_ps(); return 0; }"
 	SUPPORT_SSE_BUILD)
 
-	CHECK_C_SOURCE_RUNS("
+	check_c_source_runs("
 		#include <emmintrin.h>
 		int main() { __m128d v = _mm_setzero_pd(); return 0; }"
 	SUPPORT_SSE2_BUILD)
-	MESSAGE(STATUS "Detecting SSE support")
+	message(STATUS "Detecting SSE support")
 
-	IF(SUPPORT_SSE_BUILD)
-		MESSAGE(STATUS "   ...SSE support found.")
-	ELSE(SUPPORT_SSE_BUILD)
-		MESSAGE(STATUS "   ...SSE support missing.")
-	ENDIF(SUPPORT_SSE_BUILD)
+	if(SUPPORT_SSE_BUILD)
+		message(STATUS "   ...SSE support found.")
+	else()
+		message(STATUS "   ...SSE support missing.")
+	endif()
 
-	IF(SUPPORT_SSE2_BUILD)
-		MESSAGE(STATUS "   ...SSE2 support found.")
-	ELSE(SUPPORT_SSE2_BUILD)
-		MESSAGE(STATUS "   ...SSE2 support missing.")
-	ENDIF(SUPPORT_SSE2_BUILD)
+	if(SUPPORT_SSE2_BUILD)
+		message(STATUS "   ...SSE2 support found.")
+	else()
+		message(STATUS "   ...SSE2 support missing.")
+	endif()
 
-ENDMACRO(TEST_SSE_SUPPORT)
+endmacro()
 
 # when we have warnings as errors applied globally this
 # needs to be removed for some external libs which we dont maintain.
 
 # utility macro
-MACRO(_REMOVE_STRICT_FLAGS
+macro(_remove_strict_flags
 	flag)
 	
-	STRING(REGEX REPLACE ${flag} "" CMAKE_C_FLAGS ${CMAKE_C_FLAGS})
-	STRING(REGEX REPLACE ${flag} "" CMAKE_C_FLAGS_DEBUG ${CMAKE_C_FLAGS_DEBUG})
-	STRING(REGEX REPLACE ${flag} "" CMAKE_C_FLAGS_RELEASE ${CMAKE_C_FLAGS_RELEASE})
-	STRING(REGEX REPLACE ${flag} "" CMAKE_C_FLAGS_MINSIZEREL ${CMAKE_C_FLAGS_MINSIZEREL})
-	STRING(REGEX REPLACE ${flag} "" CMAKE_C_FLAGS_RELWITHDEBINFO ${CMAKE_C_FLAGS_RELWITHDEBINFO})
+	string(REGEX REPLACE ${flag} "" CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
+	string(REGEX REPLACE ${flag} "" CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}")
+	string(REGEX REPLACE ${flag} "" CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE}")
+	string(REGEX REPLACE ${flag} "" CMAKE_C_FLAGS_MINSIZEREL "${CMAKE_C_FLAGS_MINSIZEREL}")
+	string(REGEX REPLACE ${flag} "" CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO}")
 
-	STRING(REGEX REPLACE ${flag} "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
-	STRING(REGEX REPLACE ${flag} "" CMAKE_CXX_FLAGS_DEBUG ${CMAKE_CXX_FLAGS_DEBUG})
-	STRING(REGEX REPLACE ${flag} "" CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE})
-	STRING(REGEX REPLACE ${flag} "" CMAKE_CXX_FLAGS_MINSIZEREL ${CMAKE_CXX_FLAGS_MINSIZEREL})
-	STRING(REGEX REPLACE ${flag} "" CMAKE_CXX_FLAGS_RELWITHDEBINFO ${CMAKE_CXX_FLAGS_RELWITHDEBINFO})
+	string(REGEX REPLACE ${flag} "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+	string(REGEX REPLACE ${flag} "" CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
+	string(REGEX REPLACE ${flag} "" CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
+	string(REGEX REPLACE ${flag} "" CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL}")
+	string(REGEX REPLACE ${flag} "" CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
 
-ENDMACRO(_REMOVE_STRICT_FLAGS)
+endmacro()
 
-MACRO(REMOVE_STRICT_FLAGS)
+macro(remove_strict_flags)
 
-	IF(CMAKE_COMPILER_IS_GNUCC)
-		_REMOVE_STRICT_FLAGS("-Wunused-parameter")
-		_REMOVE_STRICT_FLAGS("-Werror=[^ ]+")
-		_REMOVE_STRICT_FLAGS("-Werror")
-	ENDIF(CMAKE_COMPILER_IS_GNUCC)
+	if(CMAKE_COMPILER_IS_GNUCC)
+		_remove_strict_flags("-Wstrict-prototypes")
+		_remove_strict_flags("-Wunused-parameter")
+		_remove_strict_flags("-Wwrite-strings")
+		_remove_strict_flags("-Wshadow")
+		_remove_strict_flags("-Werror=[^ ]+")
+		_remove_strict_flags("-Werror")
+	endif()
 
-	IF(MSVC)
+	if(MSVC)
 		# TODO
-	ENDIF(MSVC)
+	endif()
 
-ENDMACRO(REMOVE_STRICT_FLAGS)
+endmacro()
 
 
-MACRO(GET_BLENDER_VERSION)
-	FILE(READ ${CMAKE_SOURCE_DIR}/source/blender/blenkernel/BKE_blender.h CONTENT)
-	STRING(REGEX REPLACE "\n" ";" CONTENT "${CONTENT}")
-	STRING(REGEX REPLACE "\t" ";" CONTENT "${CONTENT}")
-	STRING(REGEX REPLACE " " ";" CONTENT "${CONTENT}")
+macro(get_blender_version)
+	file(READ ${CMAKE_SOURCE_DIR}/source/blender/blenkernel/BKE_blender.h CONTENT)
+	string(REGEX REPLACE "\n" ";" CONTENT "${CONTENT}")
+	string(REGEX REPLACE "\t" ";" CONTENT "${CONTENT}")
+	string(REGEX REPLACE " " ";" CONTENT "${CONTENT}")
 
-	FOREACH(ITEM ${CONTENT})
-		IF(LASTITEM MATCHES "BLENDER_VERSION")
+	foreach(ITEM ${CONTENT})
+		if(LASTITEM MATCHES "BLENDER_VERSION")
 			MATH(EXPR BLENDER_VERSION_MAJOR "${ITEM} / 100")
 			MATH(EXPR BLENDER_VERSION_MINOR "${ITEM} % 100")
-			SET(BLENDER_VERSION "${BLENDER_VERSION_MAJOR}.${BLENDER_VERSION_MINOR}")
-		ENDIF(LASTITEM MATCHES "BLENDER_VERSION")
+			set(BLENDER_VERSION "${BLENDER_VERSION_MAJOR}.${BLENDER_VERSION_MINOR}")
+		endif()
 		
-		IF(LASTITEM MATCHES "BLENDER_SUBVERSION")
-			SET(BLENDER_SUBVERSION ${ITEM})
-		ENDIF(LASTITEM MATCHES "BLENDER_SUBVERSION")
+		if(LASTITEM MATCHES "BLENDER_SUBVERSION")
+			set(BLENDER_SUBVERSION ${ITEM})
+		endif()
 		
-		IF(LASTITEM MATCHES "BLENDER_MINVERSION")
+		if(LASTITEM MATCHES "BLENDER_MINVERSION")
 			MATH(EXPR BLENDER_MINVERSION_MAJOR "${ITEM} / 100")
 			MATH(EXPR BLENDER_MINVERSION_MINOR "${ITEM} % 100")
-			SET(BLENDER_MINVERSION "${BLENDER_MINVERSION_MAJOR}.${BLENDER_MINVERSION_MINOR}")
-		ENDIF(LASTITEM MATCHES "BLENDER_MINVERSION")
+			set(BLENDER_MINVERSION "${BLENDER_MINVERSION_MAJOR}.${BLENDER_MINVERSION_MINOR}")
+		endif()
 		
-		IF(LASTITEM MATCHES "BLENDER_MINSUBVERSION")
-			SET(BLENDER_MINSUBVERSION ${ITEM})
-		ENDIF(LASTITEM MATCHES "BLENDER_MINSUBVERSION")
+		if(LASTITEM MATCHES "BLENDER_MINSUBVERSION")
+			set(BLENDER_MINSUBVERSION ${ITEM})
+		endif()
 
-		SET(LASTITEM ${ITEM})
-	ENDFOREACH(ITEM ${CONTENT})
+		set(LASTITEM ${ITEM})
+	endforeach()
 	
-	MESSAGE(STATUS "Version major: ${BLENDER_VERSION_MAJOR}, Version minor: ${BLENDER_VERSION_MINOR}, Subversion: ${BLENDER_SUBVERSION}, Version: ${BLENDER_VERSION}")
-	MESSAGE(STATUS "Minversion major: ${BLENDER_MINVERSION_MAJOR}, Minversion minor: ${BLENDER_MINVERSION_MINOR}, MinSubversion: ${BLENDER_MINSUBVERSION}, Minversion: ${BLENDER_MINVERSION}")
-ENDMACRO(GET_BLENDER_VERSION)
+	message(STATUS "Version major: ${BLENDER_VERSION_MAJOR}, Version minor: ${BLENDER_VERSION_MINOR}, Subversion: ${BLENDER_SUBVERSION}, Version: ${BLENDER_VERSION}")
+	message(STATUS "Minversion major: ${BLENDER_MINVERSION_MAJOR}, Minversion minor: ${BLENDER_MINVERSION_MINOR}, MinSubversion: ${BLENDER_MINSUBVERSION}, Minversion: ${BLENDER_MINVERSION}")
+endmacro()

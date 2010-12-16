@@ -112,7 +112,7 @@ static CustomDataMask requiredDataMask(Object *ob, ModifierData *md)
 	
 	/* particles only need this if they are after a non deform modifier, and
 	* the modifier stack will only create them in that case. */
-	dataMask |= CD_MASK_ORIGSPACE;
+	dataMask |= CD_MASK_ORIGSPACE|CD_MASK_ORIGINDEX;
 
 	dataMask |= CD_MASK_ORCO;
 	
@@ -154,6 +154,10 @@ static void deformVerts(ModifierData *md, Object *ob,
 		psmd->dm->needsFree = 1;
 		psmd->dm->release(psmd->dm);
 	}
+	else {
+		/* no dm before, so recalc particles fully */
+		psys->recalc |= PSYS_RECALC_RESET;
+	}
 
 	/* make new dm */
 	psmd->dm=CDDM_copy(dm);
@@ -175,7 +179,6 @@ static void deformVerts(ModifierData *md, Object *ob,
 		/* in file read dm hasn't really changed but just wasn't saved in file */
 
 		psys->recalc |= PSYS_RECALC_RESET;
-		psmd->flag |= eParticleSystemFlag_DM_changed;
 
 		psmd->totdmvert= psmd->dm->getNumVerts(psmd->dm);
 		psmd->totdmedge= psmd->dm->getNumEdges(psmd->dm);
@@ -186,7 +189,6 @@ static void deformVerts(ModifierData *md, Object *ob,
 		psmd->flag &= ~eParticleSystemFlag_psys_updated;
 		particle_system_update(md->scene, ob, psys);
 		psmd->flag |= eParticleSystemFlag_psys_updated;
-		psmd->flag &= ~eParticleSystemFlag_DM_changed;
 	}
 }
 

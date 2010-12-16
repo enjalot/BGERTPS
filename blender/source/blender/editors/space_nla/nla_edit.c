@@ -1258,7 +1258,7 @@ static int nlaedit_apply_scale_exec (bContext *C, wmOperator *UNUSED(op))
 	bAnimListElem *ale;
 	int filter;
 	
-	KeyframeEditData ked;
+	KeyframeEditData ked= {{0}};
 	
 	/* get editor data */
 	if (ANIM_animdata_get_context(C, &ac) == 0)
@@ -1269,7 +1269,6 @@ static int nlaedit_apply_scale_exec (bContext *C, wmOperator *UNUSED(op))
 	ANIM_animdata_filter(&ac, &anim_data, filter, ac.data, ac.datatype);
 	
 	/* init the editing data */
-	memset(&ked, 0, sizeof(KeyframeEditData));
 	
 	/* for each NLA-Track, apply scale of all selected strips */
 	for (ale= anim_data.first; ale; ale= ale->next) {
@@ -1639,6 +1638,7 @@ void NLA_OT_fmodifier_add (wmOperatorType *ot)
 	/* identifiers */
 	ot->name= "Add F-Modifier";
 	ot->idname= "NLA_OT_fmodifier_add";
+	ot->description= "Add F-Modifier of the secified type to the selected NLA-Strips";
 	
 	/* api callbacks */
 	ot->invoke= nla_fmodifier_add_invoke;
@@ -1702,7 +1702,7 @@ void NLA_OT_fmodifier_copy (wmOperatorType *ot)
 	/* identifiers */
 	ot->name= "Copy F-Modifiers";
 	ot->idname= "NLA_OT_fmodifier_copy";
-	ot->description= "Copy the F-Modifier(s) of the active NLA-Strip.";
+	ot->description= "Copy the F-Modifier(s) of the active NLA-Strip";
 	
 	/* api callbacks */
 	ot->exec= nla_fmodifier_copy_exec;

@@ -468,7 +468,9 @@ void makeraytree(Render *re)
 			max[i] += 0.01f;
 			sub[i] = max[i]-min[i];
 		}
-		re->maxdist = sqrt( sub[0]*sub[0] + sub[1]*sub[1] + sub[2]*sub[2] );
+
+		re->maxdist= sub[0]*sub[0] + sub[1]*sub[1] + sub[2]*sub[2];
+		if(re->maxdist > 0.0f) re->maxdist= sqrt(re->maxdist);
 
 		re->i.infostr= "Raytree finished";
 		re->stats_draw(re->sdh, &re->i);
@@ -718,7 +720,7 @@ static void traceray(ShadeInput *origshi, ShadeResult *origshr, short depth, flo
 
 		shi.mask= origshi->mask;
 		shi.osatex= origshi->osatex;
-		shi.depth= 1;					/* only used to indicate tracing */
+		shi.depth= origshi->depth + 1;					/* only used to indicate tracing */
 		shi.thread= origshi->thread;
 		//shi.sample= 0; // memset above, so dont need this
 		shi.xs= origshi->xs;
@@ -1458,8 +1460,8 @@ void ray_trace(ShadeInput *shi, ShadeResult *shr)
 	float diff[3];
 	int do_tra, do_mir;
 	
-	do_tra= ((shi->mat->mode & MA_TRANSP) && (shi->mat->mode & MA_RAYTRANSP) && shr->alpha!=1.0f);
-	do_mir= ((shi->mat->mode & MA_RAYMIRROR) && shi->ray_mirror!=0.0f);
+	do_tra= ((shi->mat->mode & MA_TRANSP) && (shi->mat->mode & MA_RAYTRANSP) && shr->alpha!=1.0f && (shi->depth <= shi->mat->ray_depth_tra));
+	do_mir= ((shi->mat->mode & MA_RAYMIRROR) && shi->ray_mirror!=0.0f && (shi->depth <= shi->mat->ray_depth));
 	
 	/* raytrace mirror amd refract like to separate the spec color */
 	if(shi->combinedflag & SCE_PASS_SPEC)
@@ -1570,7 +1572,7 @@ static void ray_trace_shadow_tra(Isect *is, ShadeInput *origshi, int depth, int 
 		memset(&shi, 0, sizeof(ShadeInput)); 
 		/* end warning! - Campbell */
 		
-		shi.depth= 1;					/* only used to indicate tracing */
+		shi.depth= origshi->depth + 1;					/* only used to indicate tracing */
 		shi.mask= origshi->mask;
 		shi.thread= origshi->thread;
 		shi.passflag= SCE_PASS_COMBINED;
@@ -1589,8 +1591,13 @@ static void ray_trace_shadow_tra(Isect *is, ShadeInput *origshi, int depth, int 
 			/* mix colors based on shadfac (rgb + amount of light factor) */
 			addAlphaLight(is->col, shr.diff, shr.alpha, d*shi.mat->filter);
 		} else if (shi.mat->material_type == MA_TYPE_VOLUME) {
-			QUATCOPY(is->col, shr.combined);
-			is->col[3] = 1.f;
+			const float a = is->col[3];
+			
+			is->col[0] = a*is->col[0] + shr.alpha*shr.combined[0];
+			is->col[1] = a*is->col[1] + shr.alpha*shr.combined[1];
+			is->col[2] = a*is->col[2] + shr.alpha*shr.combined[2];
+			
+			is->col[3] = (1.0 - shr.alpha)*a;
 		}
 		
 		if(depth>0 && is->col[3]>0.0f) {

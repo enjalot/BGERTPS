@@ -29,6 +29,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <assert.h>
 
 #include "MEM_guardedalloc.h"
 
@@ -323,7 +324,7 @@ static void ui_apply_autokey_undo(bContext *C, uiBut *but)
 {
 	Scene *scene= CTX_data_scene(C);
 	uiAfterFunc *after;
-	char *str= NULL;
+	const char *str= NULL;
 
 	if(but->flag & UI_BUT_UNDO) {
 		/* define which string to use for undo */
@@ -1067,19 +1068,19 @@ static void ui_but_copy_paste(bContext *C, uiBut *but, uiHandleButtonData *data,
 
 	/* text/string and ID data */
 	else if(ELEM3(but->type, TEX, IDPOIN, SEARCH_MENU)) {
-		uiHandleButtonData *data= but->active;
+		uiHandleButtonData *active_data= but->active;
 
 		if(but->poin==NULL && but->rnapoin.data==NULL);
 		else if(mode=='c') {
 			button_activate_state(C, but, BUTTON_STATE_TEXT_EDITING);
-			BLI_strncpy(buf, data->str, UI_MAX_DRAW_STR);
-			WM_clipboard_text_set(data->str, 0);
-			data->cancel= 1;
+			BLI_strncpy(buf, active_data->str, UI_MAX_DRAW_STR);
+			WM_clipboard_text_set(active_data->str, 0);
+			active_data->cancel= 1;
 			button_activate_state(C, but, BUTTON_STATE_EXIT);
 		}
 		else {
 			button_activate_state(C, but, BUTTON_STATE_TEXT_EDITING);
-			BLI_strncpy(data->str, buf, data->maxlen);
+			BLI_strncpy(active_data->str, buf, active_data->maxlen);
 			button_activate_state(C, but, BUTTON_STATE_EXIT);
 		}
 	}
@@ -1280,7 +1281,7 @@ static int ui_textedit_type_ascii(uiBut *but, uiHandleButtonData *data, char asc
 	return changed;
 }
 
-void ui_textedit_move(uiBut *but, uiHandleButtonData *data, int direction, int select, int jump)
+static void ui_textedit_move(uiBut *but, uiHandleButtonData *data, int direction, int select, int jump)
 {
 	char *str;
 	int len;
@@ -1315,10 +1316,11 @@ void ui_textedit_move(uiBut *but, uiHandleButtonData *data, int direction, int s
 		} else {
 			if(select) {
 				/* make a selection, starting from the cursor position */
+				int tlen;
 				but->selsta = but->pos;
 				
 				but->pos++;
-				if(but->pos>strlen(str)) but->pos= strlen(str);
+				if(but->pos > (tlen= strlen(str))) but->pos= tlen;
 				
 				but->selend = but->pos;
 			} else if(jump) {
@@ -1330,8 +1332,9 @@ void ui_textedit_move(uiBut *but, uiHandleButtonData *data, int direction, int s
 					if(test_special_char(str[but->pos])) break;
 				}
 			} else {
+				int tlen;
 				but->pos++;
-				if(but->pos>strlen(str)) but->pos= strlen(str);
+				if(but->pos > (tlen= strlen(str))) but->pos= tlen;
 			}
 		}
 	}
@@ -1383,7 +1386,7 @@ void ui_textedit_move(uiBut *but, uiHandleButtonData *data, int direction, int s
 	}
 }
 
-void ui_textedit_move_end(uiBut *but, uiHandleButtonData *data, int direction, int select)
+static void ui_textedit_move_end(uiBut *but, uiHandleButtonData *data, int direction, int select)
 {
 	char *str;
 
@@ -1588,7 +1591,7 @@ static void ui_textedit_begin(bContext *C, uiBut *but, uiHandleButtonData *data)
 static void ui_textedit_end(bContext *C, uiBut *but, uiHandleButtonData *data)
 {
 	if(but) {
-		if(ui_is_utf8_but(but)) {
+		if(!ui_is_utf8_but(but)) {
 			int strip= BLI_utf8_invalid_strip(but->editstr, strlen(but->editstr));
 			/* not a file?, strip non utf-8 chars */
 			if(strip) {
@@ -2078,6 +2081,12 @@ static int ui_do_but_HOTKEYEVT(bContext *C, uiBut *but, uiHandleButtonData *data
 				button_activate_state(C, but, BUTTON_STATE_EXIT);
 				return WM_UI_HANDLER_BREAK;
 			}
+			else if(event->type == ESCKEY) {
+				data->cancel= 1;
+				data->escapecancel= 1;
+				button_activate_state(C, but, BUTTON_STATE_EXIT);
+			}
+			
 		}
 	}
 	
@@ -2207,7 +2216,7 @@ static float ui_numedit_apply_snapf(uiBut *but, float tempf, float softmin, floa
 		
 		if(ui_is_but_unit(but)) {
 			Scene *scene= CTX_data_scene((bContext *)but->block->evil_C);
-			int unit_type = RNA_SUBTYPE_UNIT_VALUE(RNA_property_subtype(but->rnaprop));
+			int unit_type= uiButGetUnitType(but)>>16;
 
 			if(bUnit_IsValid(scene->unit.system, unit_type)) {
 				fac= (float)bUnit_BaseScalar(scene->unit.system, unit_type);
@@ -2991,42 +3000,43 @@ static int ui_numedit_but_HSVCUBE(uiBut *but, uiHandleButtonData *data, int mx, 
 	y= ((float)my-but->y1)/(but->y2-but->y1);
 	CLAMP(x, 0.0, 1.0);
 	CLAMP(y, 0.0, 1.0);
-	
-	if(but->a1==0) {
-		hsv[2]= x; 
-		hsv[1]= y; 
-	}
-	else if(but->a1==1) {
-		hsv[0]= x; 				
-		hsv[2]= y; 				
-	}
-	else if(but->a1==2) {
-		hsv[0]= x; 
-		hsv[1]= y; 
-	}
-	else if(but->a1==3) {
-		hsv[0]= x; 
-	}
-	else if(but->a1==4) {
-		hsv[1]= x; 
-	}
-	else if(but->a1==5) {
-		hsv[2]= x; 
-	}
-	else if (but->a1==9){
-		float range;
-		
-		/* vertical 'value' strip */
 
+	switch((int)but->a1) {
+	case UI_GRAD_SV:
+		hsv[2]= x;
+		hsv[1]= y;
+		break;
+	case UI_GRAD_HV:
+		hsv[0]= x;
+		hsv[2]= y;
+		break;
+	case UI_GRAD_HS:
+		hsv[0]= x;
+		hsv[1]= y;
+		break;
+	case UI_GRAD_H:
+		hsv[0]= x;
+		break;
+	case UI_GRAD_S:
+		hsv[1]= x;
+		break;
+	case UI_GRAD_V:
+		hsv[2]= x;
+		break;
+	case UI_GRAD_V_ALT:	
+		/* vertical 'value' strip */
+	
 		/* exception only for value strip - use the range set in but->min/max */
-		range = but->softmax - but->softmin;
-		hsv[2] = y*range + but->softmin;
+		hsv[2] = y * (but->softmax - but->softmin) + but->softmin;
 		
 		if (color_profile)
 			hsv[2] = srgb_to_linearrgb(hsv[2]);
 		
 		if (hsv[2] > but->softmax)
 			hsv[2] = but->softmax;
+		break;
+	default:
+		assert(!"invalid hsv type");
 	}
 
 	hsv_to_rgb(hsv[0], hsv[1], hsv[2], rgb, rgb+1, rgb+2);
@@ -3060,8 +3070,9 @@ static int ui_do_but_HSVCUBE(bContext *C, uiBlock *block, uiBut *but, uiHandleBu
 			
 			return WM_UI_HANDLER_BREAK;
 		}
-		else if (event->type == ZEROKEY && event->val == KM_PRESS) {
-			if (but->a1==9){
+		/* XXX hardcoded keymap check.... */
+		else if (ELEM(event->type, ZEROKEY, PAD0) && event->val == KM_PRESS) {
+			if (but->a1==UI_GRAD_V_ALT){
 				int len;
 				
 				/* reset only value */
@@ -3181,7 +3192,8 @@ static int ui_do_but_HSVCIRCLE(bContext *C, uiBlock *block, uiBut *but, uiHandle
 			
 			return WM_UI_HANDLER_BREAK;
 		}
-		else if (event->type == ZEROKEY && event->val == KM_PRESS) {
+		/* XXX hardcoded keymap check.... */
+		else if (ELEM(event->type, ZEROKEY, PAD0) && event->val == KM_PRESS) {
 			int len;
 			
 			/* reset only saturation */
@@ -3626,7 +3638,8 @@ static int ui_do_but_HISTOGRAM(bContext *C, uiBlock *block, uiBut *but, uiHandle
 			
 			return WM_UI_HANDLER_BREAK;
 		}
-		else if (event->type == ZEROKEY && event->val == KM_PRESS) {
+		/* XXX hardcoded keymap check.... */
+		else if (ELEM(event->type, ZEROKEY, PAD0) && event->val == KM_PRESS) {
 			Histogram *hist = (Histogram *)but->poin;
 			hist->ymax = 1.f;
 			
@@ -3708,7 +3721,8 @@ static int ui_do_but_WAVEFORM(bContext *C, uiBlock *block, uiBut *but, uiHandleB
 
 			return WM_UI_HANDLER_BREAK;
 		}
-		else if (event->type == ZEROKEY && event->val == KM_PRESS) {
+		/* XXX hardcoded keymap check.... */
+		else if (ELEM(event->type, ZEROKEY, PAD0) && event->val == KM_PRESS) {
 			Scopes *scopes = (Scopes *)but->poin;
 			scopes->wavefrm_yfac = 1.f;
 
@@ -4003,14 +4017,14 @@ static uiBlock *menu_change_shortcut(bContext *C, ARegion *ar, void *arg)
 	
 	block= uiBeginBlock(C, ar, "_popup", UI_EMBOSS);
 	uiBlockSetHandleFunc(block, but_shortcut_name_func, but);
-	uiBlockSetFlag(block, UI_BLOCK_RET_1|UI_BLOCK_MOVEMOUSE_QUIT);
+	uiBlockSetFlag(block, UI_BLOCK_MOVEMOUSE_QUIT);
 	uiBlockSetDirection(block, UI_CENTER);
 	
 	layout= uiBlockLayout(block, UI_LAYOUT_VERTICAL, UI_LAYOUT_PANEL, 0, 0, 200, 20, style);
 	
 	uiItemR(layout, &ptr, "type", UI_ITEM_R_FULL_EVENT|UI_ITEM_R_IMMEDIATE, "", 0);
 	
-	uiPopupBoundsBlock(block, 6, 100, 10);
+	uiPopupBoundsBlock(block, 6, -50, 26);
 	uiEndBlock(C, block);
 	
 	return block;
@@ -4029,12 +4043,16 @@ static uiBlock *menu_add_shortcut(bContext *C, ARegion *ar, void *arg)
 	
 	km = WM_keymap_guess_opname(C, but->optype->idname);		
 	kmi = WM_keymap_add_item(km, but->optype->idname, AKEY, KM_PRESS, 0, 0);
-	MEM_freeN(kmi->properties);
-	if (prop)
-		kmi->properties= IDP_CopyProperty(prop);
-	
+
+	if (prop) {
+		prop= IDP_CopyProperty(prop);
+	}
+
+	/* prop can be NULL */	
+	WM_keymap_properties_reset(kmi, prop);
+
 	RNA_pointer_create(NULL, &RNA_KeyMapItem, kmi, &ptr);
-	
+
 	block= uiBeginBlock(C, ar, "_popup", UI_EMBOSS);
 	uiBlockSetHandleFunc(block, but_shortcut_name_func, but);
 	uiBlockSetFlag(block, UI_BLOCK_RET_1);
@@ -4044,7 +4062,7 @@ static uiBlock *menu_add_shortcut(bContext *C, ARegion *ar, void *arg)
 
 	uiItemR(layout, &ptr, "type", UI_ITEM_R_FULL_EVENT|UI_ITEM_R_IMMEDIATE, "", 0);
 	
-	uiPopupBoundsBlock(block, 6, 100, 10);
+	uiPopupBoundsBlock(block, 6, -50, 26);
 	uiEndBlock(C, block);
 	
 	return block;
@@ -4084,7 +4102,7 @@ static int ui_but_menu(bContext *C, uiBut *but)
 	uiPopupMenu *pup;
 	uiLayout *layout;
 	int length;
-	char *name;
+	const char *name;
 
 	if((but->rnapoin.data && but->rnaprop)==0 && but->optype==NULL)
 		return 0;
@@ -4104,6 +4122,11 @@ static int ui_but_menu(bContext *C, uiBut *but)
 	uiLayoutSetOperatorContext(layout, WM_OP_INVOKE_DEFAULT);
 
 	if(but->rnapoin.data && but->rnaprop) {
+		short is_anim= RNA_property_animateable(&but->rnapoin, but->rnaprop);
+
+		/* second slower test, saved people finding keyframe items in menus when its not possible */
+		if(is_anim)
+			is_anim= RNA_property_path_from_ID_check(&but->rnapoin, but->rnaprop);
 
 		length= RNA_property_array_length(&but->rnapoin, but->rnaprop);
 		
@@ -4121,7 +4144,7 @@ static int ui_but_menu(bContext *C, uiBut *but)
 			}
 		}
 		else if(but->flag & UI_BUT_DRIVEN);
-		else if(RNA_property_animateable(&but->rnapoin, but->rnaprop)) {
+		else if(is_anim) {
 			if(length) {
 				uiItemBooleanO(layout, "Insert Keyframes", 0, "ANIM_OT_keyframe_insert_button", "all", 1);
 				uiItemBooleanO(layout, "Insert Single Keyframe", 0, "ANIM_OT_keyframe_insert_button", "all", 0);
@@ -4146,7 +4169,7 @@ static int ui_but_menu(bContext *C, uiBut *but)
 				uiItemO(layout, "Paste Driver", 0, "ANIM_OT_paste_driver_button");
 		}
 		else if(but->flag & (UI_BUT_ANIMATED_KEY|UI_BUT_ANIMATED));
-		else if(RNA_property_animateable(&but->rnapoin, but->rnaprop)) {
+		else if(is_anim) {
 			uiItemS(layout);
 
 			if(length) {
@@ -4161,7 +4184,7 @@ static int ui_but_menu(bContext *C, uiBut *but)
 		}
 		
 		/* Keying Sets */
-		if(RNA_property_animateable(&but->rnapoin, but->rnaprop)) {
+		if(is_anim) {
 			uiItemS(layout);
 
 			if(length) {
@@ -4330,7 +4353,8 @@ static int ui_do_button(bContext *C, uiBlock *block, uiBut *but, wmEvent *event)
 			return WM_UI_HANDLER_BREAK;
 		}
 		/* reset to default */
-		else if(ELEM(event->type, ZEROKEY,PAD0) && event->val == KM_PRESS) {
+		/* XXX hardcoded keymap check.... */
+		else if(ELEM(event->type, ZEROKEY, PAD0) && event->val == KM_PRESS) {
 			if (!(ELEM3(but->type, HSVCIRCLE, HSVCUBE, HISTOGRAM)))
 				ui_set_but_default(C, but);
 		}
@@ -4429,7 +4453,7 @@ static int ui_do_button(bContext *C, uiBlock *block, uiBut *but, wmEvent *event)
 		retval= ui_do_but_BUT(C, but, data, event);
 		break;
 	case COL:
-		if(but->a1 == 9)  // signal to prevent calling up color picker
+		if(but->a1 == UI_GRAD_V_ALT)  // signal to prevent calling up color picker
 			retval= ui_do_but_EXIT(C, but, data, event);
 		else
 			retval= ui_do_but_BLOCK(C, but, data, event);
@@ -4932,17 +4956,16 @@ void ui_button_active_free(const bContext *C, uiBut *but)
 void uiContextActiveProperty(const bContext *C, struct PointerRNA *ptr, struct PropertyRNA **prop, int *index)
 {
 	ARegion *ar= CTX_wm_region(C);
-	uiBlock *block;
-	uiBut *but, *activebut;
 
 	memset(ptr, 0, sizeof(*ptr));
 	*prop= NULL;
 	*index= 0;
 
 	while(ar) {
+		uiBlock *block;
+		uiBut *but, *activebut= NULL;
+	
 		/* find active button */
-		activebut= NULL;
-
 		for(block=ar->uiblocks.first; block; block=block->next) {
 			for(but=block->buttons.first; but; but= but->next) {
 				if(but->active)
@@ -4952,21 +4975,20 @@ void uiContextActiveProperty(const bContext *C, struct PointerRNA *ptr, struct P
 			}
 		}
 
-		if(activebut) {
-			if(activebut->rnapoin.data) {
-				/* found RNA button */
-				*ptr= activebut->rnapoin;
-				*prop= activebut->rnaprop;
-				*index= activebut->rnaindex;
-				return;
+		if(activebut && activebut->rnapoin.data) {
+			uiHandleButtonData *data= activebut->active;
+
+			/* found RNA button */
+			*ptr= activebut->rnapoin;
+			*prop= activebut->rnaprop;
+			*index= activebut->rnaindex;
+
+			/* recurse into opened menu, like colorpicker case */
+			if(data && data->menu && (ar != data->menu->region)) {
+				ar = data->menu->region;
 			}
 			else {
-				/* recurse into opened menu */
-				uiHandleButtonData *data= activebut->active;
-				if(data && data->menu)
-					ar = data->menu->region;
-				else
-					return;
+				return;
 			}
 		}
 		else {
@@ -4991,7 +5013,8 @@ void uiContextAnimUpdate(const bContext *C)
 		for(block=ar->uiblocks.first; block; block=block->next) {
 			for(but=block->buttons.first; but; but= but->next) {
 				ui_but_anim_flag(but, (scene)? scene->r.cfra: 0.0f);
-
+				ED_region_tag_redraw(ar);
+				
 				if(but->active)
 					activebut= but;
 				else if(!activebut && (but->flag & UI_BUT_LAST_ACTIVE))
@@ -5000,18 +5023,12 @@ void uiContextAnimUpdate(const bContext *C)
 		}
 
 		if(activebut) {
-			if(activebut->rnapoin.data) {
-				/* found RNA button */
+			/* always recurse into opened menu, so all buttons update (like colorpicker) */
+			uiHandleButtonData *data= activebut->active;
+			if(data && data->menu)
+				ar = data->menu->region;
+			else
 				return;
-			}
-			else {
-				/* recurse into opened menu */
-				uiHandleButtonData *data= activebut->active;
-				if(data && data->menu)
-					ar = data->menu->region;
-				else
-					return;
-			}
 		}
 		else {
 			/* no active button */
@@ -5624,8 +5641,65 @@ int ui_handle_menu_event(bContext *C, wmEvent *event, uiPopupBlockHandle *menu, 
 
 						retval= WM_UI_HANDLER_BREAK;
 					}
-
 					break;
+
+				/* Handle keystrokes on menu items */
+				case AKEY:
+				case BKEY:
+				case CKEY:
+				case DKEY:
+				case EKEY:
+				case FKEY:
+				case GKEY:
+				case HKEY:
+				case IKEY:
+				case JKEY:
+				case KKEY:
+				case LKEY:
+				case MKEY:
+				case NKEY:
+				case OKEY:
+				case PKEY:
+				case QKEY:
+				case RKEY:
+				case SKEY:
+				case TKEY:
+				case UKEY:
+				case VKEY:
+				case WKEY:
+				case XKEY:
+				case YKEY:
+				case ZKEY:
+				{
+					if(event->val == KM_PRESS) {
+						count= 0;
+						for(but= block->buttons.first; but; but= but->next) {
+
+							if(but->menu_key==event->type) {
+								if(but->type == BUT) {
+									/* mainly for operator buttons */
+									ui_handle_button_activate(C, ar, but, BUTTON_ACTIVATE_APPLY);
+								}
+								else if(ELEM(but->type, BLOCK, PULLDOWN)) {
+									/* open submenus (like right arrow key) */
+									ui_handle_button_activate(C, ar, but, BUTTON_ACTIVATE_OPEN);
+								}
+								else if (but->type == MENU) {
+									/* activate menu items */
+									ui_handle_button_activate(C, ar, but, BUTTON_ACTIVATE);
+								}
+								else {
+									printf("Error, but->menu_key type: %d\n", but->type);
+								}
+
+								break;
+							}
+						}
+
+						retval= WM_UI_HANDLER_BREAK;
+					}
+					break;
+				}
 			}
 		}
 		
@@ -5652,10 +5726,10 @@ int ui_handle_menu_event(bContext *C, wmEvent *event, uiPopupBlockHandle *menu, 
 				menu->menuretval= UI_RETURN_CANCEL;
 			}
 			else if(ELEM(event->type, RETKEY, PADENTER) && event->val==KM_PRESS) {
-				/* enter will always close this block, but we let the event
-				 * get handled by the button if it is activated */
+				/* enter will always close this block, we let the event
+				 * get handled by the button if it is activated, otherwise we cancel */
 				if(!ui_but_find_activated(ar))
-					menu->menuretval= UI_RETURN_OK;
+					menu->menuretval= UI_RETURN_CANCEL;
 			}
 			else {
 				ui_mouse_motion_towards_check(block, menu, mx, my);

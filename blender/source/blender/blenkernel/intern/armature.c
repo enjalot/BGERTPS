@@ -69,7 +69,7 @@
 
 /*	**************** Generic Functions, data level *************** */
 
-bArmature *add_armature(char *name)
+bArmature *add_armature(const char *name)
 {
 	bArmature *arm;
 	
@@ -260,7 +260,7 @@ int bone_autoside_name (char *name, int UNUSED(strip_number), short axis, float 
 
 	len= strlen(name);
 	if (len == 0) return 0;
-	strcpy(basename, name);
+	BLI_strncpy(basename, name, sizeof(basename));
 	
 	/* Figure out extension to append: 
 	 *	- The extension to append is based upon the axis that we are working on.
@@ -577,23 +577,29 @@ Mat4 *b_bone_spline_setup(bPoseChannel *pchan, int rest)
 
 /* ************ Armature Deform ******************* */
 
-static void pchan_b_bone_defmats(bPoseChannel *pchan, int use_quaternion)
+typedef struct bPoseChanDeform {
+	Mat4		*b_bone_mats;	
+	DualQuat	*dual_quat;
+	DualQuat	*b_bone_dual_quats;
+} bPoseChanDeform;
+
+static void pchan_b_bone_defmats(bPoseChannel *pchan, bPoseChanDeform *pdef_info, int use_quaternion)
 {
 	Bone *bone= pchan->bone;
 	Mat4 *b_bone= b_bone_spline_setup(pchan, 0);
 	Mat4 *b_bone_rest= b_bone_spline_setup(pchan, 1);
 	Mat4 *b_bone_mats;
 	DualQuat *b_bone_dual_quats= NULL;
-	float tmat[4][4];
+	float tmat[4][4]= MAT4_UNITY;
 	int a;
 	
 	/* allocate b_bone matrices and dual quats */
 	b_bone_mats= MEM_mallocN((1+bone->segments)*sizeof(Mat4), "BBone defmats");
-	pchan->b_bone_mats= b_bone_mats;
+	pdef_info->b_bone_mats= b_bone_mats;
 
 	if(use_quaternion) {
 		b_bone_dual_quats= MEM_mallocN((bone->segments)*sizeof(DualQuat), "BBone dqs");
-		pchan->b_bone_dual_quats= b_bone_dual_quats;
+		pdef_info->b_bone_dual_quats= b_bone_dual_quats;
 	}
 	
 	/* first matrix is the inverse arm_mat, to bring points in local bone space
@@ -605,7 +611,6 @@ static void pchan_b_bone_defmats(bPoseChannel *pchan, int use_quaternion)
 		- translate over the curve to the bbone mat space
 		- transform with b_bone matrix
 		- transform back into global space */
-	unit_m4(tmat);
 
 	for(a=0; a<bone->segments; a++) {
 		invert_m4_m4(tmat, b_bone_rest[a].mat);
@@ -618,9 +623,9 @@ static void pchan_b_bone_defmats(bPoseChannel *pchan, int use_quaternion)
 	}
 }
 
-static void b_bone_deform(bPoseChannel *pchan, Bone *bone, float *co, DualQuat *dq, float defmat[][3])
+static void b_bone_deform(bPoseChanDeform *pdef_info, Bone *bone, float *co, DualQuat *dq, float defmat[][3])
 {
-	Mat4 *b_bone= pchan->b_bone_mats;
+	Mat4 *b_bone= pdef_info->b_bone_mats;
 	float (*mat)[4]= b_bone[0].mat;
 	float segment, y;
 	int a;
@@ -637,7 +642,7 @@ static void b_bone_deform(bPoseChannel *pchan, Bone *bone, float *co, DualQuat *
 	CLAMP(a, 0, bone->segments-1);
 
 	if(dq) {
-		copy_dq_dq(dq, &((DualQuat*)pchan->b_bone_dual_quats)[a]);
+		copy_dq_dq(dq, &(pdef_info->b_bone_dual_quats)[a]);
 	}
 	else {
 		mul_m4_v3(b_bone[a+1].mat, co);
@@ -711,7 +716,7 @@ static void pchan_deform_mat_add(bPoseChannel *pchan, float weight, float bbonem
 	add_m3_m3m3(mat, mat, wmat);
 }
 
-static float dist_bone_deform(bPoseChannel *pchan, float *vec, DualQuat *dq, float mat[][3], float *co)
+static float dist_bone_deform(bPoseChannel *pchan, bPoseChanDeform *pdef_info, float *vec, DualQuat *dq, float mat[][3], float *co)
 {
 	Bone *bone= pchan->bone;
 	float fac, contrib=0.0;
@@ -732,7 +737,7 @@ static float dist_bone_deform(bPoseChannel *pchan, float *vec, DualQuat *dq, flo
 			if(vec) {
 				if(bone->segments>1)
 					// applies on cop and bbonemat
-					b_bone_deform(pchan, bone, cop, NULL, (mat)?bbonemat:NULL);
+					b_bone_deform(pdef_info, bone, cop, NULL, (mat)?bbonemat:NULL);
 				else
 					mul_m4_v3(pchan->chan_mat, cop);
 
@@ -745,11 +750,11 @@ static float dist_bone_deform(bPoseChannel *pchan, float *vec, DualQuat *dq, flo
 			}
 			else {
 				if(bone->segments>1) {
-					b_bone_deform(pchan, bone, cop, &bbonedq, NULL);
+					b_bone_deform(pdef_info, bone, cop, &bbonedq, NULL);
 					add_weighted_dq_dq(dq, &bbonedq, fac);
 				}
 				else
-					add_weighted_dq_dq(dq, pchan->dual_quat, fac);
+					add_weighted_dq_dq(dq, pdef_info->dual_quat, fac);
 			}
 		}
 	}
@@ -757,7 +762,7 @@ static float dist_bone_deform(bPoseChannel *pchan, float *vec, DualQuat *dq, flo
 	return contrib;
 }
 
-static void pchan_bone_deform(bPoseChannel *pchan, float weight, float *vec, DualQuat *dq, float mat[][3], float *co, float *contrib)
+static void pchan_bone_deform(bPoseChannel *pchan, bPoseChanDeform *pdef_info, float weight, float *vec, DualQuat *dq, float mat[][3], float *co, float *contrib)
 {
 	float cop[3], bbonemat[3][3];
 	DualQuat bbonedq;
@@ -770,7 +775,7 @@ static void pchan_bone_deform(bPoseChannel *pchan, float weight, float *vec, Dua
 	if(vec) {
 		if(pchan->bone->segments>1)
 			// applies on cop and bbonemat
-			b_bone_deform(pchan, pchan->bone, cop, NULL, (mat)?bbonemat:NULL);
+			b_bone_deform(pdef_info, pchan->bone, cop, NULL, (mat)?bbonemat:NULL);
 		else
 			mul_m4_v3(pchan->chan_mat, cop);
 		
@@ -783,11 +788,11 @@ static void pchan_bone_deform(bPoseChannel *pchan, float weight, float *vec, Dua
 	}
 	else {
 		if(pchan->bone->segments>1) {
-			b_bone_deform(pchan, pchan->bone, cop, &bbonedq, NULL);
+			b_bone_deform(pdef_info, pchan->bone, cop, &bbonedq, NULL);
 			add_weighted_dq_dq(dq, &bbonedq, weight);
 		}
 		else
-			add_weighted_dq_dq(dq, pchan->dual_quat, weight);
+			add_weighted_dq_dq(dq, pdef_info->dual_quat, weight);
 	}
 
 	(*contrib)+=weight;
@@ -798,15 +803,18 @@ void armature_deform_verts(Object *armOb, Object *target, DerivedMesh *dm,
 						   int numVerts, int deformflag, 
 						   float (*prevCos)[3], const char *defgrp_name)
 {
+	bPoseChanDeform *pdef_info_array;
+	bPoseChanDeform *pdef_info= NULL;
 	bArmature *arm= armOb->data;
 	bPoseChannel *pchan, **defnrToPC = NULL;
+	int *defnrToPCIndex= NULL;
 	MDeformVert *dverts = NULL;
 	bDeformGroup *dg;
 	DualQuat *dualquats= NULL;
 	float obinv[4][4], premat[4][4], postmat[4][4];
-	int use_envelope = deformflag & ARM_DEF_ENVELOPE;
-	int use_quaternion = deformflag & ARM_DEF_QUATERNION;
-	int invert_vgroup= deformflag & ARM_DEF_INVERT_VGROUP;
+	const short use_envelope = deformflag & ARM_DEF_ENVELOPE;
+	const short use_quaternion = deformflag & ARM_DEF_QUATERNION;
+	const short invert_vgroup= deformflag & ARM_DEF_INVERT_VGROUP;
 	int numGroups = 0;		/* safety for vertexgroup index overflow */
 	int i, target_totvert = 0;	/* safety for vertexgroup overflow */
 	int use_dverts = 0;
@@ -823,20 +831,24 @@ void armature_deform_verts(Object *armOb, Object *target, DerivedMesh *dm,
 	/* bone defmats are already in the channels, chan_mat */
 	
 	/* initialize B_bone matrices and dual quaternions */
+	totchan= BLI_countlist(&armOb->pose->chanbase);
+
 	if(use_quaternion) {
-		totchan= BLI_countlist(&armOb->pose->chanbase);
 		dualquats= MEM_callocN(sizeof(DualQuat)*totchan, "dualquats");
 	}
+	
+	pdef_info_array= MEM_callocN(sizeof(bPoseChanDeform)*totchan, "bPoseChanDeform");
 
 	totchan= 0;
-	for(pchan = armOb->pose->chanbase.first; pchan; pchan = pchan->next) {
+	pdef_info= pdef_info_array;
+	for(pchan= armOb->pose->chanbase.first; pchan; pchan= pchan->next, pdef_info++) {
 		if(!(pchan->bone->flag & BONE_NO_DEFORM)) {
 			if(pchan->bone->segments > 1)
-				pchan_b_bone_defmats(pchan, use_quaternion);
+				pchan_b_bone_defmats(pchan, pdef_info, use_quaternion);
 
 			if(use_quaternion) {
-				pchan->dual_quat= &dualquats[totchan++];
-				mat4_to_dquat( pchan->dual_quat,pchan->bone->arm_mat, pchan->chan_mat);
+				pdef_info->dual_quat= &dualquats[totchan++];
+				mat4_to_dquat( pdef_info->dual_quat,pchan->bone->arm_mat, pchan->chan_mat);
 			}
 		}
 	}
@@ -872,15 +884,19 @@ void armature_deform_verts(Object *armOb, Object *target, DerivedMesh *dm,
 			else if(dverts) use_dverts = 1;
 
 			if(use_dverts) {
-				defnrToPC = MEM_callocN(sizeof(*defnrToPC) * numGroups,
-										"defnrToBone");
+				defnrToPC = MEM_callocN(sizeof(*defnrToPC) * numGroups, "defnrToBone");
+				defnrToPCIndex = MEM_callocN(sizeof(*defnrToPCIndex) * numGroups, "defnrToIndex");
 				for(i = 0, dg = target->defbase.first; dg;
 					i++, dg = dg->next) {
 					defnrToPC[i] = get_pose_channel(armOb->pose, dg->name);
 					/* exclude non-deforming bones */
 					if(defnrToPC[i]) {
-						if(defnrToPC[i]->bone->flag & BONE_NO_DEFORM)
+						if(defnrToPC[i]->bone->flag & BONE_NO_DEFORM) {
 							defnrToPC[i]= NULL;
+						}
+						else {
+							defnrToPCIndex[i]= BLI_findindex(&armOb->pose->chanbase, defnrToPC[i]);
+						}
 					}
 				}
 			}
@@ -951,10 +967,10 @@ void armature_deform_verts(Object *armOb, Object *target, DerivedMesh *dm,
 			
 			for(j = 0; j < dvert->totweight; j++){
 				int index = dvert->dw[j].def_nr;
-				pchan = index < numGroups?defnrToPC[index]:NULL;
-				if(pchan) {
+				if(index < numGroups && (pchan= defnrToPC[index])) {
 					float weight = dvert->dw[j].weight;
-					Bone *bone = pchan->bone;
+					Bone *bone= pchan->bone;
+					pdef_info= pdef_info_array + defnrToPCIndex[index];
 
 					deformed = 1;
 					
@@ -965,25 +981,27 @@ void armature_deform_verts(Object *armOb, Object *target, DerivedMesh *dm,
 													 bone->rad_tail,
 													 bone->dist);
 					}
-					pchan_bone_deform(pchan, weight, vec, dq, smat, co, &contrib);
+					pchan_bone_deform(pchan, pdef_info, weight, vec, dq, smat, co, &contrib);
 				}
 			}
 			/* if there are vertexgroups but not groups with bones
 			 * (like for softbody groups)
 			 */
 			if(deformed == 0 && use_envelope) {
-				for(pchan = armOb->pose->chanbase.first; pchan;
-					pchan = pchan->next) {
+				pdef_info= pdef_info_array;
+				for(pchan= armOb->pose->chanbase.first; pchan;
+					pchan= pchan->next, pdef_info++) {
 					if(!(pchan->bone->flag & BONE_NO_DEFORM))
-						contrib += dist_bone_deform(pchan, vec, dq, smat, co);
+						contrib += dist_bone_deform(pchan, pdef_info, vec, dq, smat, co);
 				}
 			}
 		}
 		else if(use_envelope) {
+			pdef_info= pdef_info_array;
 			for(pchan = armOb->pose->chanbase.first; pchan;
-				pchan = pchan->next) {
+				pchan = pchan->next, pdef_info++) {
 				if(!(pchan->bone->flag & BONE_NO_DEFORM))
-					contrib += dist_bone_deform(pchan, vec, dq, smat, co);
+					contrib += dist_bone_deform(pchan, pdef_info, vec, dq, smat, co);
 			}
 		}
 
@@ -1039,20 +1057,20 @@ void armature_deform_verts(Object *armOb, Object *target, DerivedMesh *dm,
 
 	if(dualquats) MEM_freeN(dualquats);
 	if(defnrToPC) MEM_freeN(defnrToPC);
-	
-	/* free B_bone matrices */
-	for(pchan = armOb->pose->chanbase.first; pchan; pchan = pchan->next) {
-		if(pchan->b_bone_mats) {
-			MEM_freeN(pchan->b_bone_mats);
-			pchan->b_bone_mats = NULL;
-		}
-		if(pchan->b_bone_dual_quats) {
-			MEM_freeN(pchan->b_bone_dual_quats);
-			pchan->b_bone_dual_quats = NULL;
-		}
+	if(defnrToPCIndex) MEM_freeN(defnrToPCIndex);
 
-		pchan->dual_quat = NULL;
+	/* free B_bone matrices */
+	pdef_info= pdef_info_array;
+	for(pchan = armOb->pose->chanbase.first; pchan; pchan = pchan->next, pdef_info++) {
+		if(pdef_info->b_bone_mats) {
+			MEM_freeN(pdef_info->b_bone_mats);
+		}
+		if(pdef_info->b_bone_dual_quats) {
+			MEM_freeN(pdef_info->b_bone_dual_quats);
+		}
 	}
+
+	MEM_freeN(pdef_info_array);
 }
 
 /* ************ END Armature Deform ******************* */
@@ -1085,11 +1103,10 @@ void armature_mat_world_to_pose(Object *ob, float inmat[][4], float outmat[][4])
  */
 void armature_loc_world_to_pose(Object *ob, float *inloc, float *outloc) 
 {
-	float xLocMat[4][4];
+	float xLocMat[4][4]= MAT4_UNITY;
 	float nLocMat[4][4];
 	
 	/* build matrix for location */
-	unit_m4(xLocMat);
 	VECCOPY(xLocMat[3], inloc);
 
 	/* get bone-space cursor matrix and extract location */
@@ -1165,11 +1182,10 @@ void armature_mat_pose_to_bone(bPoseChannel *pchan, float inmat[][4], float outm
  */
 void armature_loc_pose_to_bone(bPoseChannel *pchan, float *inloc, float *outloc) 
 {
-	float xLocMat[4][4];
+	float xLocMat[4][4]= MAT4_UNITY;
 	float nLocMat[4][4];
 	
 	/* build matrix for location */
-	unit_m4(xLocMat);
 	VECCOPY(xLocMat[3], inloc);
 
 	/* get bone-space cursor matrix and extract location */
@@ -1232,6 +1248,7 @@ void BKE_rotMode_change_values (float quat[4], float eul[3], float axis[3], floa
 		}
 		else if (oldMode == ROT_MODE_QUAT) {
 			/* quat to euler */
+			normalize_qt(quat);
 			quat_to_eulO( eul, newMode,quat);
 		}
 		/* else { no conversion needed } */
@@ -1254,6 +1271,7 @@ void BKE_rotMode_change_values (float quat[4], float eul[3], float axis[3], floa
 		}
 		else if (oldMode == ROT_MODE_QUAT) {
 			/* quat to axis angle */
+			normalize_qt(quat);
 			quat_to_axis_angle( axis, angle,quat);
 		}
 		
@@ -1436,10 +1454,6 @@ static void pose_proxy_synchronize(Object *ob, Object *from, int layer_protected
 
 	if(error)
 		return;
-	
-	/* exception, armature local layer should be proxied too */
-	if (pose->proxy_layer)
-		((bArmature *)ob->data)->layer= pose->proxy_layer;
 	
 	/* clear all transformation values from library */
 	rest_pose(frompose);
@@ -1715,28 +1729,25 @@ static void splineik_init_tree_from_pchan(Scene *scene, Object *UNUSED(ob), bPos
 		ikData->numpoints= ikData->chainlen+1; 
 		ikData->points= MEM_callocN(sizeof(float)*ikData->numpoints, "Spline IK Binding");
 		
+		/* bind 'tip' of chain (i.e. first joint = tip of bone with the Spline IK Constraint) */
+		ikData->points[0] = 1.0f;
+		
 		/* perform binding of the joints to parametric positions along the curve based 
 		 * proportion of the total length that each bone occupies
 		 */
 		for (i = 0; i < segcount; i++) {
-			if (i != 0) {
-				/* 'head' joints 
-				 * 	- 2 methods; the one chosen depends on whether we've got usable lengths
-				 */
-				if ((ikData->flag & CONSTRAINT_SPLINEIK_EVENSPLITS) || (totLength == 0.0f)) {
-					/* 1) equi-spaced joints */
-					ikData->points[i]= ikData->points[i-1] - segmentLen;
-				}
-				else {
-					 /*	2) to find this point on the curve, we take a step from the previous joint
-					  *	  a distance given by the proportion that this bone takes
-					  */
-					ikData->points[i]= ikData->points[i-1] - (boneLengths[i] / totLength);
-				}
+			/* 'head' joints, travelling towards the root of the chain
+			 * 	- 2 methods; the one chosen depends on whether we've got usable lengths
+			 */
+			if ((ikData->flag & CONSTRAINT_SPLINEIK_EVENSPLITS) || (totLength == 0.0f)) {
+				/* 1) equi-spaced joints */
+				ikData->points[i+1]= ikData->points[i] - segmentLen;
 			}
 			else {
-				/* 'tip' of chain, special exception for the first joint */
-				ikData->points[0]= 1.0f;
+				/*	2) to find this point on the curve, we take a step from the previous joint
+				 *	  a distance given by the proportion that this bone takes
+				 */
+				ikData->points[i+1]= ikData->points[i] - (boneLengths[i] / totLength);
 			}
 		}
 		
@@ -2083,8 +2094,7 @@ void pchan_to_mat4(bPoseChannel *pchan, float chan_mat[4][4])
 		 * but if this proves to be too problematic, switch back to the old system of operating directly on 
 		 * the stored copy
 		 */
-		QUATCOPY(quat, pchan->quat);
-		normalize_qt(quat);
+		normalize_qt_qt(quat, pchan->quat);
 		quat_to_mat3(rmat, quat);
 	}
 	
@@ -2391,7 +2401,7 @@ void where_is_pose (Scene *scene, Object *ob)
 	
 	if(ELEM(NULL, arm, scene)) return;
 	if((ob->pose==NULL) || (ob->pose->flag & POSE_RECALC)) 
-	   armature_rebuild_pose(ob, arm);
+		armature_rebuild_pose(ob, arm);
 	   
 	ctime= bsystem_time(scene, ob, (float)scene->r.cfra, 0.0);	/* not accurate... */
 	

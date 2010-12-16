@@ -79,6 +79,7 @@ void window_to_3d_delta(struct ARegion *ar, float *vec, short mx, short my);
 void view3d_unproject(struct bglMats *mats, float out[3], const short x, const short y, const float z);
 
 /* Depth buffer */
+void view3d_update_depths(struct ARegion *ar);
 float read_cached_depth(struct ViewContext *vc, int x, int y);
 void request_depth_update(struct RegionView3D *rv3d);
 
@@ -106,7 +107,7 @@ int get_view3d_viewplane(struct View3D *v3d, struct RegionView3D *rv3d, int winx
 int get_view3d_ortho(struct View3D *v3d, struct RegionView3D *rv3d);
 void view3d_get_object_project_mat(struct RegionView3D *v3d, struct Object *ob, float pmat[4][4]);
 void view3d_project_float(struct ARegion *a, float *vec, float *adr, float mat[4][4]);
-void view3d_calc_camera_border(struct Scene *scene, struct ARegion *ar, struct RegionView3D *rv3d, struct View3D *v3d, struct rctf *viewborder_r);
+void view3d_calc_camera_border(struct Scene *scene, struct ARegion *ar, struct RegionView3D *rv3d, struct View3D *v3d, struct rctf *viewborder_r, short do_shift);
 
 /* drawobject.c itterators */
 void mesh_foreachScreenVert(struct ViewContext *vc, void (*func)(void *userData, struct EditVert *eve, int x, int y, int index), void *userData, int clipVerts);
@@ -118,8 +119,9 @@ void lattice_foreachScreenVert(struct ViewContext *vc, void (*func)(void *userDa
 void ED_view3d_local_clipping(struct RegionView3D *rv3d, float mat[][4]);
 int view3d_test_clipping(struct RegionView3D *rv3d, float *vec, int local);
 void view3d_align_axis_to_vector(struct View3D *v3d, struct RegionView3D *rv3d, int axisidx, float vec[3]);
+float view3d_pixel_size(struct RegionView3D *rv3d, const float co[3]);
 
-void drawcircball(int mode, float *cent, float rad, float tmat[][4]);
+void drawcircball(int mode, const float cent[3], float rad, float tmat[][4]);
 
 /* backbuffer select and draw support */
 void view3d_validate_backbuf(struct ViewContext *vc);
@@ -164,10 +166,9 @@ void ED_view3d_draw_offscreen(struct Scene *scene, struct View3D *v3d, struct AR
 struct ImBuf *ED_view3d_draw_offscreen_imbuf(struct Scene *scene, struct View3D *v3d, struct ARegion *ar, int sizex, int sizey, unsigned int flag);
 struct ImBuf *ED_view3d_draw_offscreen_imbuf_simple(Scene *scene, int width, int height, unsigned int flag, int drawtype);
 
-void view3d_clipping_local(struct RegionView3D *rv3d, float mat[][4]);
 
 Base *ED_view3d_give_base_under_cursor(struct bContext *C, short *mval);
-void ED_view3d_quadview_update(struct ScrArea *sa, struct ARegion *ar);
+void ED_view3d_quadview_update(struct ScrArea *sa, struct ARegion *ar, short do_clip);
 
 #endif /* ED_VIEW3D_H */
 

@@ -24,7 +24,7 @@
 #
 # ***** END GPL LICENSE BLOCK *****
 
-SET(INC
+set(INC
 	.
 	../../../../source/kernel/gen_system
 	../../../../intern/string
@@ -36,18 +36,18 @@ SET(INC
 	../../../../source/gameengine/Network
 )
 
-SET(SRC
+set(SRC
 	KX_NetworkEventManager.cpp
 	KX_NetworkMessageActuator.cpp
 	KX_NetworkMessageSensor.cpp
 	KX_NetworkObjectActuator.cpp
 	KX_NetworkObjectSensor.cpp
+
+	KX_NetworkEventManager.h
+	KX_NetworkMessageActuator.h
+	KX_NetworkMessageSensor.h
+	KX_NetworkObjectActuator.h
+	KX_NetworkObjectSensor.h
 )
 
-IF(WITH_PYTHON)
-	LIST(APPEND INC ${PYTHON_INC})
-ELSE(WITH_PYTHON)
-	ADD_DEFINITIONS(-DDISABLE_PYTHON)
-ENDIF(WITH_PYTHON)
-
-BLENDERLIB(kx_network "${SRC}" "${INC}")
+blenderlib(ge_logic_network "${SRC}" "${INC}")

@@ -19,7 +19,7 @@
 #
 # ***** END GPL LICENSE BLOCK *****
 
-SET(INC
+set(INC
 	../include
 	../../blenkernel
 	../../blenlib
@@ -33,7 +33,7 @@ SET(INC
 	../../../../intern/opennl/extern
 )
 
-SET(SRC
+set(SRC
 	drawnode.c
 	node_buttons.c
 	node_draw.c
@@ -43,10 +43,8 @@ SET(SRC
 	node_select.c
 	node_state.c
 	space_node.c
+
+	node_intern.h
 )
 
-IF(WIN32)
-	LIST(APPEND INC ${PTHREADS_INC})
-ENDIF(WIN32)
-
-BLENDERLIB(bf_editor_space_node "${SRC}" "${INC}")
+blenderlib(bf_editor_space_node "${SRC}" "${INC}")

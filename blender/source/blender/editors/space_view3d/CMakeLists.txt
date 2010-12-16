@@ -19,7 +19,7 @@
 #
 # ***** END GPL LICENSE BLOCK *****
 
-SET(INC
+set(INC
 	../include
 	../../blenfont
 	../../blenkernel
@@ -34,7 +34,7 @@ SET(INC
 	../../../../intern/smoke/extern
 )
 
-SET(SRC
+set(SRC
 	drawanimviz.c
 	drawarmature.c
 	drawmesh.c
@@ -51,17 +51,15 @@ SET(SRC
 	view3d_snap.c
 	view3d_toolbar.c
 	view3d_view.c
+
+	view3d_intern.h
 )
 
-IF(WITH_GAMEENGINE)
-	LIST(APPEND INC ../../../kernel/gen_system)
-	ADD_DEFINITIONS(-DGAMEBLENDER)
-ENDIF(WITH_GAMEENGINE)
+if(WITH_GAMEENGINE)
+	list(APPEND INC ../../../kernel/gen_system)
+	add_definitions(-DWITH_GAMEENGINE)
+endif()
 
-IF(WIN32)
-	LIST(APPEND INC ${PTHREADS_INC})
-ENDIF(WIN32)
+add_definitions(-DGLEW_STATIC)
 
-ADD_DEFINITIONS(-DGLEW_STATIC)
-
-BLENDERLIB(bf_editor_space_view3d "${SRC}" "${INC}")
+blenderlib(bf_editor_space_view3d "${SRC}" "${INC}")

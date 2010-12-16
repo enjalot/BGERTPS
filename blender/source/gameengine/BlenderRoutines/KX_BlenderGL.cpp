@@ -28,14 +28,6 @@
 
 #include "KX_BlenderGL.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-#include "BLF_api.h"
-#ifdef __cplusplus
-}
-#endif
-
 /* 
  * This little block needed for linking to Blender... 
  */
@@ -81,18 +73,10 @@ extern "C" {
 #include "wm_event_system.h"
 #include "wm_cursors.h"
 #include "wm_window.h"
+#include "BLF_api.h"
 }
 
 /* end of blender block */
-
-/* was in drawmesh.c */
-void spack(unsigned int ucol)
-{
-	char *cp= (char *)&ucol;
-        
-	glColor3ub(cp[3], cp[2], cp[1]);
-}
-
 void BL_warp_pointer(wmWindow *win, int x,int y)
 {
 	WM_cursor_warp(win, x, y);
@@ -156,7 +140,7 @@ void BL_print_gamedebug_line(const char* text, int xco, int yco, int width, int 
 
 	/* the actual drawing */
 	glColor3ub(255, 255, 255);
-	BLF_draw_default(xco, height-yco, 0.0f, (char *)text);
+	BLF_draw_default(xco, height-yco, 0.0f, (char *)text, 65535); /* XXX, use real len */
 
 	glMatrixMode(GL_PROJECTION);
 	glPopMatrix();
@@ -184,9 +168,9 @@ void BL_print_gamedebug_line_padded(const char* text, int xco, int yco, int widt
 
 	/* draw in black first*/
 	glColor3ub(0, 0, 0);
-	BLF_draw_default(xco+2, height-yco-2, 0.0f, (char *)text);
+	BLF_draw_default(xco+2, height-yco-2, 0.0f, text, 65535); /* XXX, use real len */
 	glColor3ub(255, 255, 255);
-	BLF_draw_default(xco, height-yco, 0.0f, (char *)text);
+	BLF_draw_default(xco, height-yco, 0.0f, text, 65535); /* XXX, use real len */
 
 	glMatrixMode(GL_PROJECTION);
 	glPopMatrix();

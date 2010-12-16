@@ -244,7 +244,7 @@ void ED_node_shader_default(Material *ma)
 		return;
 	}
 	
-	ma->nodetree= ntreeAddTree(NTREE_SHADER);
+	ma->nodetree= ntreeAddTree("Shader Nodetree", NTREE_SHADER, FALSE);
 	
 	out= nodeAddNodeType(ma->nodetree, SH_NODE_OUTPUT, NULL, NULL);
 	out->locx= 300.0f; out->locy= 300.0f;
@@ -275,15 +275,17 @@ void ED_node_composit_default(Scene *sce)
 		return;
 	}
 	
-	sce->nodetree= ntreeAddTree(NTREE_COMPOSIT);
+	sce->nodetree= ntreeAddTree("Compositing Nodetree", NTREE_COMPOSIT, FALSE);
 	
 	out= nodeAddNodeType(sce->nodetree, CMP_NODE_COMPOSITE, NULL, NULL);
 	out->locx= 300.0f; out->locy= 400.0f;
 	out->id= &sce->id;
+	id_us_plus(out->id);
 	
 	in= nodeAddNodeType(sce->nodetree, CMP_NODE_R_LAYERS, NULL, NULL);
 	in->locx= 10.0f; in->locy= 400.0f;
 	in->id= &sce->id;
+	id_us_plus(in->id);
 	nodeSetActive(sce->nodetree, in);
 	
 	/* links from color to color */
@@ -310,7 +312,7 @@ void ED_node_texture_default(Tex *tx)
 		return;
 	}
 	
-	tx->nodetree= ntreeAddTree(NTREE_TEXTURE);
+	tx->nodetree= ntreeAddTree("Texture Nodetree", NTREE_TEXTURE, FALSE);
 	
 	out= nodeAddNodeType(tx->nodetree, TEX_NODE_OUTPUT, NULL, NULL);
 	out->locx= 300.0f; out->locy= 300.0f;
@@ -1785,7 +1787,7 @@ static int cut_links_intersect(bNodeLink *link, float mcoords[][2], int tot)
 	if(node_link_bezier_points(NULL, NULL, link, coord_array, LINK_RESOL)) {
 
 		for(i=0; i<tot-1; i++)
-			for(b=0; b<LINK_RESOL-1; b++)
+			for(b=0; b<LINK_RESOL; b++)
 				if(isect_line_line_v2(mcoords[i], mcoords[i+1], coord_array[b], coord_array[b+1]) > 0)
 					return 1;
 	}
@@ -1904,13 +1906,14 @@ void NODE_OT_read_renderlayers(wmOperatorType *ot)
 
 static int node_read_fullsamplelayers_exec(bContext *C, wmOperator *UNUSED(op))
 {
+	Main *bmain= CTX_data_main(C);
 	SpaceNode *snode= CTX_wm_space_node(C);
 	Scene *curscene= CTX_data_scene(C);
 	Render *re= RE_NewRender(curscene->id.name);
 
 //	WM_cursor_wait(1);
 
-	RE_MergeFullSample(re, curscene, snode->nodetree);
+	RE_MergeFullSample(re, bmain, curscene, snode->nodetree);
 	snode_notify(C, snode);
 	
 //	WM_cursor_wait(0);

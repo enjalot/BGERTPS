@@ -382,7 +382,7 @@ Image *BKE_add_image_file(const char *name)
 	return ima;
 }
 
-static ImBuf *add_ibuf_size(unsigned int width, unsigned int height, char *name, int depth, int floatbuf, short uvtestgrid, float color[4])
+static ImBuf *add_ibuf_size(unsigned int width, unsigned int height, const char *name, int depth, int floatbuf, short uvtestgrid, float color[4])
 {
 	ImBuf *ibuf;
 	unsigned char *rect= NULL;
@@ -415,7 +415,7 @@ static ImBuf *add_ibuf_size(unsigned int width, unsigned int height, char *name,
 }
 
 /* adds new image block, creates ImBuf and initializes color */
-Image *BKE_add_image_size(unsigned int width, unsigned int height, char *name, int depth, int floatbuf, short uvtestgrid, float color[4])
+Image *BKE_add_image_size(unsigned int width, unsigned int height, const char *name, int depth, int floatbuf, short uvtestgrid, float color[4])
 {
 	/* on save, type is changed to FILE in editsima.c */
 	Image *ima= image_alloc(name, IMA_SRC_GENERATED, IMA_TYPE_UV_TEST);
@@ -607,15 +607,21 @@ void BKE_image_free_all_textures(void)
 	
 	for(ima= G.main->image.first; ima; ima= ima->id.next) {
 		if(ima->ibufs.first && (ima->id.flag & LIB_DOIT)) {
-			/*
 			ImBuf *ibuf;
+			
 			for(ibuf= ima->ibufs.first; ibuf; ibuf= ibuf->next) {
-				if(ibuf->mipmap[0]) 
+				/* escape when image is painted on */
+				if(ibuf->userflags & IB_BITMAPDIRTY)
+					break;
+				
+				/* if(ibuf->mipmap[0]) 
 					totsize+= 1.33*ibuf->x*ibuf->y*4;
 				else
-					totsize+= ibuf->x*ibuf->y*4;
-			} */
-			image_free_buffers(ima);
+					totsize+= ibuf->x*ibuf->y*4;*/
+				
+			}
+			if(ibuf==NULL)
+				image_free_buffers(ima);
 		}
 	}
 	/* printf("freed total %d MB\n", totsize/(1024*1024)); */
@@ -760,7 +766,7 @@ int BKE_imtype_is_movie(int imtype)
 
 int BKE_add_image_extension(char *string, int imtype)
 {
-	char *extension= NULL;
+	const char *extension= NULL;
 	
 	if(imtype== R_IRIS) {
 		if(!BLI_testextensie(string, ".rgb"))
@@ -832,7 +838,10 @@ int BKE_add_image_extension(char *string, int imtype)
 	}
 
 	if(extension) {
-		return BLI_replace_extension(string, FILE_MAX, extension);
+		/* prefer this in many cases to avoid .png.tga, but in certain cases it breaks */
+		/* return BLI_replace_extension(string, FILE_MAX, extension); */
+		strcat(string, extension);
+		return TRUE;
 	}
 	else {
 		return FALSE;
@@ -931,8 +940,13 @@ static void stampdata(Scene *scene, StampData *stamp_data, int do_prefix)
 	
 	if (scene->r.stamp & R_STAMP_FRAME) {
 		char format[32];
-		if (do_prefix)		sprintf(format, "Frame %%0%di", 1 + (int) log10(scene->r.efra));
-		else				sprintf(format, "%%0%di", 1 + (int) log10(scene->r.efra));
+		int digits= 1;
+		
+		if(scene->r.efra>9)
+			digits= 1 + (int) log10(scene->r.efra);
+		
+		if (do_prefix)		sprintf(format, "Frame %%0%di", digits);
+		else				sprintf(format, "%%0%di", digits);
 		sprintf (stamp_data->frame, format, scene->r.cfra);
 	} else {
 		stamp_data->frame[0] = '\0';
@@ -982,29 +996,13 @@ static void stampdata(Scene *scene, StampData *stamp_data, int do_prefix)
 	}
 }
 
-// XXX - Bad level call.
-extern int datatoc_bmonofont_ttf_size;
-extern char datatoc_bmonofont_ttf[];
-
-// XXX - copied from text_font_begin ! Change all the BLF_* here
-static int mono= -1;
-
-int stamp_font_begin(int size)
-{
-	if (mono == -1)
-		mono= BLF_load_mem_unique("monospace", (unsigned char *)datatoc_bmonofont_ttf, datatoc_bmonofont_ttf_size);
-
-	BLF_aspect(mono, 1.0);
-	BLF_size(mono, size, 72);
-	return(mono); // XXX This is for image_gen.c!!
-}
-
 void BKE_stamp_buf(Scene *scene, unsigned char *rect, float *rectf, int width, int height, int channels)
 {
 	struct StampData stamp_data;
 	float w, h, pad;
 	int x, y;
 	float h_fixed;
+	const int mono= blf_mono_font_render; // XXX
 	
 	if (!rect && !rectf)
 		return;
@@ -1015,8 +1013,9 @@ void BKE_stamp_buf(Scene *scene, unsigned char *rect, float *rectf, int width, i
 	if(scene->r.stamp_font_id < 8)
 		scene->r.stamp_font_id= 12;
 
-	stamp_font_begin(scene->r.stamp_font_id);
-
+	/* set before return */
+	BLF_size(mono, scene->r.stamp_font_id, 72);
+	
 	BLF_buffer(mono, rectf, rect, width, height, channels);
 	BLF_buffer_col(mono, scene->r.fg_stamp[0], scene->r.fg_stamp[1], scene->r.fg_stamp[2], 1.0);
 	pad= BLF_width(mono, "--");
@@ -1199,7 +1198,30 @@ void BKE_stamp_info(Scene *scene, struct ImBuf *ibuf)
 	if (stamp_data.rendertime[0]) IMB_metadata_change_field (ibuf, "RenderTime", stamp_data.rendertime);
 }
 
-int BKE_write_ibuf(Scene *scene, ImBuf *ibuf, char *name, int imtype, int subimtype, int quality)
+int BKE_alphatest_ibuf(ImBuf *ibuf)
+{
+	int tot;
+	if(ibuf->rect_float) {
+		float *buf= ibuf->rect_float;
+		for(tot= ibuf->x * ibuf->y; tot--; buf+=4) {
+			if(buf[3] < 1.0f) {
+				return TRUE;
+			}
+		}
+	}
+	else if (ibuf->rect) {
+		unsigned char *buf= (unsigned char *)ibuf->rect;
+		for(tot= ibuf->x * ibuf->y; tot--; buf+=4) {
+			if(buf[3] != 255) {
+				return TRUE;
+			}
+		}
+	}
+
+	return FALSE;
+}
+
+int BKE_write_ibuf(Scene *scene, ImBuf *ibuf, const char *name, int imtype, int subimtype, int quality)
 {
 	int ok;
 	(void)subimtype; /* quies unused warnings */
@@ -1307,12 +1329,14 @@ int BKE_write_ibuf(Scene *scene, ImBuf *ibuf, char *name, int imtype, int subimt
 }
 
 
-void BKE_makepicstring(char *string, char *base, int frame, int imtype, int use_ext)
+void BKE_makepicstring(char *string, const char *base, int frame, int imtype, const short use_ext, const short use_frames)
 {
 	if (string==NULL) return;
 	BLI_strncpy(string, base, FILE_MAX - 10);	/* weak assumption */
 	BLI_path_abs(string, G.main->name);
-	BLI_path_frame(string, frame, 4);
+
+	if(use_frames)
+		BLI_path_frame(string, frame, 4);
 
 	if(use_ext)
 		BKE_add_image_extension(string, imtype);
@@ -1568,15 +1592,10 @@ static void image_create_multilayer(Image *ima, ImBuf *ibuf, int framenr)
 /* common stuff to do with images after loading */
 static void image_initialize_after_load(Image *ima, ImBuf *ibuf)
 {
-	
-	
 	/* preview is NULL when it has never been used as an icon before */
 	if(G.background==0 && ima->preview==NULL)
 		BKE_icon_changed(BKE_icon_getid(&ima->id));
-	
-	/* stringcodes also in ibuf, ibuf->name is used to retrieve original (buttons) */
-	BLI_strncpy(ibuf->name, ima->name, FILE_MAX);
-	
+
 	/* fields */
 	if (ima->flag & IMA_FIELDS) {
 		if(ima->flag & IMA_STD_FIELD) de_interlace_st(ibuf);
@@ -1601,11 +1620,10 @@ static ImBuf *image_load_sequence_file(Image *ima, ImageUser *iuser, int frame)
 		ima->tpageflag |= IMA_TPAGE_REFRESH;
 
 	ima->lastframe= frame;
-
-	BLI_stringdec(ima->name, head, tail, &numlen);
-	BLI_stringenc(ima->name, head, tail, numlen, frame);
 	BLI_strncpy(name, ima->name, sizeof(name));
-	
+	BLI_stringdec(name, head, tail, &numlen);
+	BLI_stringenc(name, head, tail, numlen, frame);
+
 	if(ima->id.lib)
 		BLI_path_abs(name, ima->id.lib->filepath);
 	else
@@ -1750,8 +1768,7 @@ static ImBuf *image_load_movie_file(Image *ima, ImageUser *iuser, int frame)
 	return ibuf;
 }
 
-/* cfra used for # code, Image can only have this # for all its users
- * warning, 'iuser' can be NULL */
+/* warning, 'iuser' can be NULL */
 static ImBuf *image_load_image_file(Image *ima, ImageUser *iuser, int cfra)
 {
 	struct ImBuf *ibuf;
@@ -1970,6 +1987,9 @@ static ImBuf *image_get_render_result(Image *ima, ImageUser *iuser, void **lock_
 		ibuf->flags &= ~IB_zbuffloat;
 	}
 
+	/* since its possible to access the buffer from the image directly, set the profile [#25073] */
+	ibuf->profile= (iuser->scene->r.color_mgt_flag & R_COLOR_MANAGEMENT) ? IB_PROFILE_LINEAR_RGB : IB_PROFILE_NONE;
+
 	ibuf->dither= dither;
 
 	ima->ok= IMA_OK_LOADED;
@@ -1999,11 +2019,6 @@ static ImBuf *image_get_ibuf_threadsafe(Image *ima, ImageUser *iuser, int *frame
 			/* XXX temp stuff? */
 			if(ima->lastframe != frame) {
 				ima->tpageflag |= IMA_TPAGE_REFRESH;
-				if(ibuf) {
-					/* without this the image name only updates
-					 * on first load which is quite confusing */
-					BLI_strncpy(ima->name, ibuf->name, sizeof(ima->name));
-				}
 			}
 			ima->lastframe = frame;
 		}	
@@ -2106,9 +2121,6 @@ ImBuf *BKE_image_acquire_ibuf(Image *ima, ImageUser *iuser, void **lock_r)
 					/* only 1 layer/pass stored in imbufs, no exrhandle anim storage, no saving */
 					ibuf= image_load_sequence_multilayer(ima, iuser, frame);
 				}
-
-				if(ibuf)
-					BLI_strncpy(ima->name, ibuf->name, sizeof(ima->name));
 			}
 			else if(ima->source==IMA_SRC_FILE) {
 				
@@ -2142,7 +2154,8 @@ ImBuf *BKE_image_acquire_ibuf(Image *ima, ImageUser *iuser, void **lock_r)
 						BLI_lock_thread(LOCK_VIEWER);
 						*lock_r= ima;
 
-						frame= iuser?iuser->framenr:0;
+						/* XXX anim play for viewer nodes not yet supported */
+						frame= 0; // XXX iuser?iuser->framenr:0;
 						ibuf= image_get_ibuf(ima, 0, frame);
 
 						if(!ibuf) {
@@ -2179,6 +2192,7 @@ void BKE_image_release_ibuf(Image *ima, void *lock)
 	}
 }
 
+/* warning, this can allocate generated images */
 ImBuf *BKE_image_get_ibuf(Image *ima, ImageUser *iuser)
 {
 	return BKE_image_acquire_ibuf(ima, iuser, NULL);

@@ -154,14 +154,16 @@ static void postConstraintChecks(TransInfo *t, float vec[3], float pvec[3]) {
 
 	if (hasNumInput(&t->num)) {
 		applyNumInput(&t->num, vec);
+		removeAspectRatio(t, vec);
 		constraintNumInput(t, vec);
 	}
 
 	/* autovalues is operator param, use that directly but not if snapping is forced */
 	if (t->flag & T_AUTOVALUES && (t->tsnap.status & SNAP_FORCED) == 0)
 	{
-		VECCOPY(vec, t->auto_values);
+		mul_v3_m3v3(vec, t->con.imtx, t->auto_values);
 		constraintAutoValues(t, vec);
+		/* inverse transformation at the end */
 	}
 
 	if (t->con.mode & CON_AXIS0) {
@@ -558,9 +560,8 @@ void setUserConstraint(TransInfo *t, short orientation, int mode, const char fte
 	switch(orientation) {
 	case V3D_MANIP_GLOBAL:
 		{
-			float mtx[3][3];
+			float mtx[3][3]= MAT3_UNITY;
 			sprintf(text, ftext, "global");
-			unit_m3(mtx);
 			setConstraint(t, mtx, mode, text);
 		}
 		break;

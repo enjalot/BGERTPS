@@ -86,14 +86,17 @@ void free_mball(MetaBall *mb)
 {
 	unlink_mball(mb);	
 	
-	if(mb->adt) BKE_free_animdata((ID *)mb);
+	if(mb->adt) {
+		BKE_free_animdata((ID *)mb);
+		mb->adt = NULL;
+	}
 	if(mb->mat) MEM_freeN(mb->mat);
 	if(mb->bb) MEM_freeN(mb->bb);
 	BLI_freelistN(&mb->elems);
 	if(mb->disp.first) freedisplist(&mb->disp);
 }
 
-MetaBall *add_mball(char *name)
+MetaBall *add_mball(const char *name)
 {
 	MetaBall *mb;
 	
@@ -309,6 +312,19 @@ float *make_orco_mball(Object *ob, ListBase *dispbase)
 
 	return orcodata;
 }
+
+/* Note on mball basis stuff 2.5x (this is a can of worms)
+ * This really needs a rewrite/refactorm its totally broken in anything other then basic cases
+ * Multiple Scenes + Set Scenes & mixing mball basis SHOULD work but fails to update the depsgraph on rename
+ * and linking into scenes or removal of basis mball. so take care when changing this code.
+ * 
+ * Main idiot thing here is that the system returns find_basis_mball() objects which fail a is_basis_mball() test.
+ *
+ * Not only that but the depsgraph and ther areas depend on this behavior!, so making small fixes here isnt worth it.
+ * - campbell
+ */
+
+
 /** \brief Test, if Object *ob is basic MetaBall.
  *
  * It test last character of Object ID name. If last character
@@ -330,8 +346,8 @@ int is_mball_basis_for(Object *ob1, Object *ob2)
 	int basis1nr, basis2nr;
 	char basis1name[32], basis2name[32];
 
-	splitIDname(ob1->id.name+2, basis1name, &basis1nr);
-	splitIDname(ob2->id.name+2, basis2name, &basis2nr);
+	BLI_split_name_num(basis1name, &basis1nr, ob1->id.name+2, '.');
+	BLI_split_name_num(basis2name, &basis2nr, ob2->id.name+2, '.');
 
 	if(!strcmp(basis1name, basis2name)) return is_basis_mball(ob1);
 	else return 0;
@@ -352,7 +368,7 @@ void copy_mball_properties(Scene *scene, Object *active_object)
 	int basisnr, obnr;
 	char basisname[32], obname[32];
 	
-	splitIDname(active_object->id.name+2, basisname, &basisnr);
+	BLI_split_name_num(basisname, &basisnr, active_object->id.name+2, '.');
 
 	/* XXX recursion check, see scene.c, just too simple code this next_object() */
 	if(F_ERROR==next_object(&sce_iter, 0, 0, 0))
@@ -361,7 +377,7 @@ void copy_mball_properties(Scene *scene, Object *active_object)
 	while(next_object(&sce_iter, 1, &base, &ob)) {
 		if (ob->type==OB_MBALL) {
 			if(ob!=active_object){
-				splitIDname(ob->id.name+2, obname, &obnr);
+				BLI_split_name_num(obname, &obnr, ob->id.name+2, '.');
 
 				/* Object ob has to be in same "group" ... it means, that it has to have
 				 * same base of its name */
@@ -385,6 +401,8 @@ void copy_mball_properties(Scene *scene, Object *active_object)
  * its name. All MetaBalls with same base of name can be
  * blended. MetaBalls with different basic name can't be
  * blended.
+ *
+ * warning!, is_basis_mball() can fail on returned object, see long note above.
  */
 Object *find_basis_mball(Scene *scene, Object *basis)
 {
@@ -394,8 +412,8 @@ Object *find_basis_mball(Scene *scene, Object *basis)
 	MetaElem *ml=NULL;
 	int basisnr, obnr;
 	char basisname[32], obname[32];
-	
-	splitIDname(basis->id.name+2, basisname, &basisnr);
+
+	BLI_split_name_num(basisname, &basisnr, basis->id.name+2, '.');
 	totelem= 0;
 
 	/* XXX recursion check, see scene.c, just too simple code this next_object() */
@@ -415,7 +433,7 @@ Object *find_basis_mball(Scene *scene, Object *basis)
 				else ml= mb->elems.first;
 			}
 			else{
-				splitIDname(ob->id.name+2, obname, &obnr);
+				BLI_split_name_num(obname, &obnr, ob->id.name+2, '.');
 
 				/* object ob has to be in same "group" ... it means, that it has to have
 				 * same base of its name */
@@ -1572,7 +1590,7 @@ float init_meta(Scene *scene, Object *ob)	/* return totsize */
 	invert_m4_m4(obinv, ob->obmat);
 	a= 0;
 	
-	splitIDname(ob->id.name+2, obname, &obnr);
+	BLI_split_name_num(obname, &obnr, ob->id.name+2, '.');
 	
 	/* make main array */
 	next_object(&sce_iter, 0, 0, 0);
@@ -1593,7 +1611,7 @@ float init_meta(Scene *scene, Object *ob)	/* return totsize */
 				char name[32];
 				int nr;
 				
-				splitIDname(bob->id.name+2, name, &nr);
+				BLI_split_name_num(name, &nr, bob->id.name+2, '.');
 				if( strcmp(obname, name)==0 ) {
 					mb= bob->data;
 					

@@ -47,7 +47,7 @@
 
 static RenderEngineType internal_render_type = {
 	NULL, NULL, "BLENDER_RENDER", "Blender Render", RE_INTERNAL, NULL, {NULL, NULL, NULL, NULL}};
-#if GAMEBLENDER == 1
+#ifdef WITH_GAMEENGINE
 static RenderEngineType internal_game_type = {
 	NULL, NULL, "BLENDER_GAME", "Blender Game", RE_INTERNAL|RE_GAME, NULL, {NULL, NULL, NULL, NULL}};
 #endif
@@ -57,7 +57,7 @@ ListBase R_engines = {NULL, NULL};
 void RE_engines_init()
 {
 	BLI_addtail(&R_engines, &internal_render_type);
-#if GAMEBLENDER == 1
+#ifdef WITH_GAMEENGINE
 	BLI_addtail(&R_engines, &internal_game_type);
 #endif
 }
@@ -91,7 +91,7 @@ static void engine_render(RenderEngine *engine, struct Scene *scene)
 
 	RNA_parameter_list_create(&list, &ptr, func);
 	RNA_parameter_set_lookup(&list, "scene", &scene);
-	engine->type->ext.call(&ptr, func, &list);
+	engine->type->ext.call(NULL, &ptr, func, &list);
 
 	RNA_parameter_list_free(&list);
 }
@@ -108,7 +108,7 @@ static void rna_RenderEngine_unregister(const bContext *C, StructRNA *type)
 	RNA_struct_free(&BLENDER_RNA, type);
 }
 
-static StructRNA *rna_RenderEngine_register(const bContext *C, ReportList *reports, void *data, const char *identifier, StructValidateFunc validate, StructCallbackFunc call, StructFreeFunc free)
+static StructRNA *rna_RenderEngine_register(bContext *C, ReportList *reports, void *data, const char *identifier, StructValidateFunc validate, StructCallbackFunc call, StructFreeFunc free)
 {
 	RenderEngineType *et, dummyet = {0};
 	RenderEngine dummyengine= {0};
@@ -124,7 +124,7 @@ static StructRNA *rna_RenderEngine_register(const bContext *C, ReportList *repor
 		return NULL;
 
 	if(strlen(identifier) >= sizeof(dummyet.idname)) {
-		BKE_reportf(reports, RPT_ERROR, "registering render engine class: '%s' is too long, maximum length is %d.", identifier, sizeof(dummyet.idname));
+		BKE_reportf(reports, RPT_ERROR, "registering render engine class: '%s' is too long, maximum length is %d.", identifier, (int)sizeof(dummyet.idname));
 		return NULL;
 	}
 

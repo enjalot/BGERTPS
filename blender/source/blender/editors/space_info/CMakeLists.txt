@@ -19,8 +19,9 @@
 #
 # ***** END GPL LICENSE BLOCK *****
 
-SET(INC
+set(INC
 	../include
+	../../blenfont
 	../../blenkernel
 	../../blenlib
 	../../imbuf
@@ -30,10 +31,16 @@ SET(INC
 	../../../../intern/guardedalloc
 )
 
-SET(SRC
+set(SRC
 	info_ops.c
 	info_stats.c
+	info_draw.c
+	info_report.c
+	textview.c
 	space_info.c
+
+	info_intern.h
+	textview.h
 )
 
-BLENDERLIB(bf_editor_space_info "${SRC}" "${INC}")
+blenderlib(bf_editor_space_info "${SRC}" "${INC}")

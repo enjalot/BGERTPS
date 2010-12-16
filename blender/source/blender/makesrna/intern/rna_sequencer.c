@@ -119,7 +119,7 @@ static void rna_Sequence_start_frame_set(PointerRNA *ptr, int value)
 	Sequence *seq= (Sequence*)ptr->data;
 	Scene *scene= (Scene*)ptr->id.data;
 	
-	seq->start= value;
+	seq_translate(scene, seq, value - seq->start);
 	rna_Sequence_frame_change_update(scene, seq);
 }
 
@@ -502,6 +502,12 @@ static void rna_Sequence_attenuation_set(PointerRNA *ptr, float value)
 }
 
 
+static int rna_Sequence_input_count_get(PointerRNA *ptr)
+{
+	Sequence *seq= (Sequence*)(ptr->data);
+
+	return get_sequence_effect_num_inputs(seq->type);
+}
 /*static void rna_SoundSequence_filename_set(PointerRNA *ptr, const char *value)
 {
 	Sequence *seq= (Sequence*)(ptr->data);
@@ -660,6 +666,16 @@ static void rna_def_strip_element(BlenderRNA *brna)
 	RNA_def_property_string_sdna(prop, NULL, "name");
 	RNA_def_property_ui_text(prop, "Filename", "");
 	RNA_def_property_update(prop, NC_SCENE|ND_SEQUENCER, "rna_Sequence_update");
+
+	prop= RNA_def_property(srna, "orig_width", PROP_INT, PROP_NONE);
+	RNA_def_property_int_sdna(prop, NULL, "orig_width");
+	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
+	RNA_def_property_ui_text(prop, "Orig Width", "Original image width");
+
+	prop= RNA_def_property(srna, "orig_height", PROP_INT, PROP_NONE);
+	RNA_def_property_int_sdna(prop, NULL, "orig_height");
+	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
+	RNA_def_property_ui_text(prop, "Orig Height", "Original image height");
 }
 
 static void rna_def_strip_crop(BlenderRNA *brna)
@@ -985,6 +1001,24 @@ static void rna_def_sequence(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Speed factor", "Multiply the current speed of the sequence with this number or remap current frame to this frame");
 	RNA_def_property_update(prop, NC_SCENE|ND_SEQUENCER, "rna_Sequence_update");
 
+	/* effect strip inputs */
+
+	prop= RNA_def_property(srna, "input_count", PROP_INT, PROP_UNSIGNED);
+	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
+	RNA_def_property_int_funcs(prop, "rna_Sequence_input_count_get", NULL, NULL);
+
+	prop= RNA_def_property(srna, "input_1",  PROP_POINTER, PROP_NONE);
+	RNA_def_property_pointer_sdna(prop, NULL, "seq1");
+	RNA_def_property_ui_text(prop, "Input 1", "First input for the effect strip");
+
+	prop= RNA_def_property(srna, "input_2",  PROP_POINTER, PROP_NONE);
+	RNA_def_property_pointer_sdna(prop, NULL, "seq2");
+	RNA_def_property_ui_text(prop, "Input 2", "Second input for the effect strip");
+
+	prop= RNA_def_property(srna, "input_3",  PROP_POINTER, PROP_NONE);
+	RNA_def_property_pointer_sdna(prop, NULL, "seq1");
+	RNA_def_property_ui_text(prop, "Input 3", "Third input for the effect strip");
+
 	RNA_api_sequence_strip(srna);
 }
 
@@ -1248,6 +1282,11 @@ static void rna_def_movie(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "MPEG Preseek", "For MPEG movies, preseek this many frames");
 	RNA_def_property_update(prop, NC_SCENE|ND_SEQUENCER, "rna_Sequence_update");
 
+	prop= RNA_def_property(srna, "elements", PROP_COLLECTION, PROP_NONE);
+	RNA_def_property_collection_sdna(prop, NULL, "strip->stripdata", "strip->len");
+	RNA_def_property_struct_type(prop, "SequenceElement");
+	RNA_def_property_ui_text(prop, "Elements", "");
+
 	prop= RNA_def_property(srna, "filepath", PROP_STRING, PROP_FILEPATH);
 	RNA_def_property_ui_text(prop, "File", "");
 	RNA_def_property_string_funcs(prop, "rna_Sequence_filepath_get", "rna_Sequence_filepath_length",
@@ -1281,7 +1320,7 @@ static void rna_def_sound(BlenderRNA *brna)
 
 	prop= RNA_def_property(srna, "attenuation", PROP_FLOAT, PROP_NONE);
 	RNA_def_property_range(prop, -100.0f, +40.0f);
-	RNA_def_property_ui_text(prop, "Attenuation/db", "Attenuation in dezibel");
+	RNA_def_property_ui_text(prop, "Attenuation/dB", "Attenuation in decibel");
 	RNA_def_property_float_funcs(prop, "rna_Sequence_attenuation_get", "rna_Sequence_attenuation_set", NULL); 
 
 	RNA_def_property_update(prop, NC_SCENE|ND_SEQUENCER, "rna_Sequence_update");

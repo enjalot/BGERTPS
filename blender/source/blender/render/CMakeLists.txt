@@ -25,9 +25,9 @@
 # ***** END GPL LICENSE BLOCK *****
 
 # remove warning until render branch merged.
-REMOVE_STRICT_FLAGS()
+remove_strict_flags()
 
-SET(INC 
+set(INC 
 	intern/include
 	extern/include
 	../blenlib
@@ -36,13 +36,12 @@ SET(INC
 	../makesrna
 	../blenkernel
 	../imbuf
-	../include
 	../../kernel/gen_messaging
 	../../../intern/smoke/extern
 	../../../intern/guardedalloc
 )
 
-SET(SRC
+set(SRC
 	intern/raytrace/rayobject.cpp
 	intern/raytrace/rayobject_qbvh.cpp
 	intern/raytrace/rayobject_rtbuild.cpp
@@ -76,26 +75,56 @@ SET(SRC
 	intern/source/volumetric.c
 	intern/source/voxeldata.c
 	intern/source/zbuf.c
+
+	extern/include/RE_pipeline.h
+	extern/include/RE_raytrace.h
+	extern/include/RE_render_ext.h
+	extern/include/RE_shader_ext.h
+	intern/include/envmap.h
+	intern/include/gammaCorrectionTables.h
+	intern/include/initrender.h
+	intern/include/occlusion.h
+	intern/include/pixelblending.h
+	intern/include/pixelshading.h
+	intern/include/pointdensity.h
+	intern/include/raycounter.h
+	intern/include/rayobject.h
+	intern/include/render_types.h
+	intern/include/rendercore.h
+	intern/include/renderdatabase.h
+	intern/include/renderpipeline.h
+	intern/include/shadbuf.h
+	intern/include/shading.h
+	intern/include/sss.h
+	intern/include/strand.h
+	intern/include/sunsky.h
+	intern/include/texture.h
+	intern/include/volume_precache.h
+	intern/include/volumetric.h
+	intern/include/voxeldata.h
+	intern/include/zbuf.h
+	intern/raytrace/bvh.h
+	intern/raytrace/rayobject_hint.h
+	intern/raytrace/rayobject_rtbuild.h
+	intern/raytrace/reorganize.h
+	intern/raytrace/svbvh.h
+	intern/raytrace/vbvh.h
 )
 
-IF(WIN32)
-	LIST(APPEND INC ${PTHREADS_INC})
-ENDIF(WIN32)
+if(WITH_IMAGE_OPENEXR)
+	add_definitions(-DWITH_OPENEXR)
+endif()
 
-IF(WITH_IMAGE_OPENEXR)
-	ADD_DEFINITIONS(-DWITH_OPENEXR)
-ENDIF(WITH_IMAGE_OPENEXR)
+if(WITH_CODEC_QUICKTIME)
+	list(APPEND INC ../quicktime ${QUICKTIME_INC})
+	add_definitions(-DWITH_QUICKTIME)
+endif()
 
-IF(WITH_QUICKTIME)
-	LIST(APPEND INC ../quicktime ${QUICKTIME_INC})
-	ADD_DEFINITIONS(-DWITH_QUICKTIME)
-ENDIF(WITH_QUICKTIME)
+if(APPLE)
+	if(CMAKE_OSX_ARCHITECTURES MATCHES "i386" OR CMAKE_OSX_ARCHITECTURES MATCHES "x86_64")
+		set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -mfpmath=sse")
+		set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -mfpmath=sse")
+	endif()
+endif()
 
-IF(APPLE)
-	IF(CMAKE_OSX_ARCHITECTURES MATCHES "i386" OR CMAKE_OSX_ARCHITECTURES MATCHES "x86_64")
-		SET(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -mfpmath=sse")
-		SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -mfpmath=sse")
-	ENDIF(CMAKE_OSX_ARCHITECTURES MATCHES "i386" OR CMAKE_OSX_ARCHITECTURES MATCHES "x86_64")
-ENDIF(APPLE)
-
-BLENDERLIB_NOLIST(bf_render "${SRC}" "${INC}")
+blenderlib_nolist(bf_render "${SRC}" "${INC}")

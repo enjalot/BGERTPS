@@ -73,7 +73,7 @@ typedef struct PoseTree
 extern "C" {
 #endif
 
-struct bArmature *add_armature(char *name);
+struct bArmature *add_armature(const char *name);
 struct bArmature *get_armature(struct Object *ob);
 void free_bonelist (struct ListBase *lb);
 void free_armature(struct bArmature *arm);
@@ -118,6 +118,10 @@ typedef struct Mat4 {
 } Mat4;
 
 Mat4 *b_bone_spline_setup(struct bPoseChannel *pchan, int rest);
+
+/* like EBONE_VISIBLE */
+#define PBONE_VISIBLE(arm, bone) (((bone)->layer & (arm)->layer) && !((bone)->flag & BONE_HIDDEN_P))
+#define _BONE_VISIBLE(arm, bone) (((bone)->layer & (arm)->layer) && !((bone)->flag & BONE_HIDDEN_P))
 
 #ifdef __cplusplus
 }

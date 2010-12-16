@@ -56,6 +56,7 @@
 #include "BKE_displist.h"
 #include "BKE_font.h"
 #include "BKE_mball.h"
+#include "BKE_modifier.h"
 
 #include "BLI_math.h"
 
@@ -277,33 +278,10 @@ static void rna_Object_update(Object *ob, Scene *sce, int object, int data, int 
 	if(data) flag |= OB_RECALC_DATA;
 	if(time) flag |= OB_RECALC_TIME;
 
-	DAG_id_flush_update(&ob->id, flag);
+	DAG_id_tag_update(&ob->id, flag);
 }
 
-static Object *rna_Object_find_armature(Object *ob)
-{
-	Object *ob_arm = NULL;
-
-	if (ob->type != OB_MESH) return NULL;
-
-	if (ob->parent && ob->partype == PARSKEL && ob->parent->type == OB_ARMATURE) {
-		ob_arm = ob->parent;
-	}
-	else {
-		ModifierData *mod = (ModifierData*)ob->modifiers.first;
-		while (mod) {
-			if (mod->type == eModifierType_Armature) {
-				ob_arm = ((ArmatureModifierData*)mod)->object;
-			}
-
-			mod = mod->next;
-		}
-	}
-
-	return ob_arm;
-}
-
-static PointerRNA rna_Object_add_shape_key(Object *ob, bContext *C, ReportList *reports, char *name, int from_mix)
+static PointerRNA rna_Object_shape_key_add(Object *ob, bContext *C, ReportList *reports, const char *name, int from_mix)
 {
 	Scene *scene= CTX_data_scene(C);
 	KeyBlock *kb= NULL;
@@ -365,7 +343,7 @@ static void rna_Mesh_assign_verts_to_group(Object *ob, bDeformGroup *group, int 
 
 void rna_Object_ray_cast(Object *ob, ReportList *reports, float ray_start[3], float ray_end[3], float r_location[3], float r_normal[3], int *index)
 {
-	BVHTreeFromMesh treeData;
+	BVHTreeFromMesh treeData= {0};
 	
 	if(ob->derivedFinal==NULL) {
 		BKE_reportf(reports, RPT_ERROR, "object \"%s\" has no mesh data to be used for ray casting.", ob->id.name+2);
@@ -447,13 +425,13 @@ void RNA_api_object(StructRNA *srna)
 	RNA_def_function_flag(func, FUNC_USE_REPORTS);
 
 	/* Armature */
-	func= RNA_def_function(srna, "find_armature", "rna_Object_find_armature");
+	func= RNA_def_function(srna, "find_armature", "modifiers_isDeformedByArmature");
 	RNA_def_function_ui_description(func, "Find armature influencing this object as a parent or via a modifier.");
 	parm= RNA_def_pointer(func, "ob_arm", "Object", "", "Armature object influencing this object or NULL.");
 	RNA_def_function_return(func, parm);
 
 	/* Shape key */
-	func= RNA_def_function(srna, "add_shape_key", "rna_Object_add_shape_key");
+	func= RNA_def_function(srna, "shape_key_add", "rna_Object_shape_key_add");
 	RNA_def_function_ui_description(func, "Add shape key to an object.");
 	RNA_def_function_flag(func, FUNC_USE_CONTEXT|FUNC_USE_REPORTS);
 	parm= RNA_def_string(func, "name", "Key", 0, "", "Unique name for the new keylock."); /* optional */

@@ -19,7 +19,7 @@
 #
 # ***** END GPL LICENSE BLOCK *****
 
-SET(INC
+set(INC
 	../include
 	../../blenkernel
 	../../blenlib
@@ -31,10 +31,12 @@ SET(INC
 	../../../../intern/opennl/extern
 )
 
-SET(SRC
+set(SRC
 	outliner.c
 	outliner_ops.c
 	space_outliner.c
+
+	outliner_intern.h
 )
 
-BLENDERLIB(bf_editor_space_outliner "${SRC}" "${INC}")
+blenderlib(bf_editor_space_outliner "${SRC}" "${INC}")

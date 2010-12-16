@@ -24,12 +24,15 @@
 #
 # ***** END GPL LICENSE BLOCK *****
 
-SET(INC
+set(INC
 	.
 )
 
-SET(SRC
-	./intern/STR_String.cpp
+set(SRC
+	intern/STR_String.cpp
+
+	STR_HashedString.h
+	STR_String.h
 )
 
-BLENDERLIB(bf_intern_string "${SRC}" "${INC}")
+blenderlib(bf_intern_string "${SRC}" "${INC}")

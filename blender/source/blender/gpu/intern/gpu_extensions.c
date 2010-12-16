@@ -67,10 +67,11 @@ static struct GPUGlobal {
 	int glslsupport;
 	int extdisabled;
 	int colordepth;
+	int npotdisabled; /* ATI 3xx-5xx (and more) chipsets support NPoT partially (== not enough) */
 	GPUDeviceType device;
 	GPUOSType os;
 	GPUDriverType driver;
-} GG = {1, 0, 0, 0};
+} GG = {1, 0, 0, 0, 0};
 
 /* GPU Types */
 
@@ -91,7 +92,7 @@ void GPU_extensions_init()
 	GLint r, g, b;
 	const char *vendor, *renderer;
 
-	/* can't avoid calling this multiple times, see wm_window_add_ghostwindow */	
+	/* can't avoid calling this multiple times, see wm_window_add_ghostwindow */
 	static char init= 0;
 	if(init) return;
 	init= 1;
@@ -119,6 +120,12 @@ void GPU_extensions_init()
 	if(strstr(vendor, "ATI")) {
 		GG.device = GPU_DEVICE_ATI;
 		GG.driver = GPU_DRIVER_OFFICIAL;
+
+		/* ATI X1xxx cards (R500 chipset) lack full support for npot textures
+		 * although they report the GLEW_ARB_texture_non_power_of_two extension.
+		 */
+		if(strstr(renderer, "X1"))
+			GG.npotdisabled = 1;
 	}
 	else if(strstr(vendor, "NVIDIA")) {
 		GG.device = GPU_DEVICE_NVIDIA;
@@ -131,9 +138,20 @@ void GPU_extensions_init()
 		GG.device = GPU_DEVICE_INTEL;
 		GG.driver = GPU_DRIVER_OFFICIAL;
 	}
-	else if(strstr(renderer, "Mesa DRI R")) {
+	else if(strstr(renderer, "Mesa DRI R") || (strstr(renderer, "Gallium ") && strstr(renderer, " on ATI "))) {
 		GG.device = GPU_DEVICE_ATI;
 		GG.driver = GPU_DRIVER_OPENSOURCE;
+		/* ATI 9500 to X2300 cards support NPoT textures poorly
+		 * Incomplete list http://dri.freedesktop.org/wiki/ATIRadeon
+		 * New IDs from MESA's src/gallium/drivers/r300/r300_screen.c
+		 */
+		if(strstr(renderer, "R3") || strstr(renderer, "RV3") ||
+		   strstr(renderer, "R4") || strstr(renderer, "RV4") ||
+		   strstr(renderer, "RS4") || strstr(renderer, "RC4") ||
+		   strstr(renderer, "R5") || strstr(renderer, "RV5") ||
+		   strstr(renderer, "RS600") || strstr(renderer, "RS690") ||
+		   strstr(renderer, "RS740"))
+			GG.npotdisabled = 1;
 	}
 	else if(strstr(renderer, "Nouveau") || strstr(vendor, "nouveau")) {
 		GG.device = GPU_DEVICE_NVIDIA;
@@ -177,6 +195,9 @@ int GPU_non_power_of_two_support()
 	if(GPU_type_matches(GPU_DEVICE_ATI, GPU_OS_MAC, GPU_DRIVER_OFFICIAL))
 		return 0;
 
+	if(GG.npotdisabled)
+		return 0;
+
 	return GLEW_ARB_texture_non_power_of_two;
 }
 
@@ -185,7 +206,7 @@ int GPU_color_depth()
     return GG.colordepth;
 }
 
-int GPU_print_error(char *str)
+int GPU_print_error(const char *str)
 {
 	GLenum errCode;
 
@@ -820,7 +841,7 @@ struct GPUOffScreen {
 	GPUTexture *depth;
 };
 
-GPUOffScreen *GPU_offscreen_create(int width, int height)
+GPUOffScreen *GPU_offscreen_create(int *width, int *height)
 {
 	GPUOffScreen *ofs;
 
@@ -832,18 +853,24 @@ GPUOffScreen *GPU_offscreen_create(int width, int height)
 		return NULL;
 	}
 
-	ofs->depth = GPU_texture_create_depth(width, height);
+	ofs->depth = GPU_texture_create_depth(*width, *height);
 	if(!ofs->depth) {
 		GPU_offscreen_free(ofs);
 		return NULL;
 	}
 
+	if(*width!=ofs->depth->w || *height!=ofs->depth->h) {
+		*width= ofs->depth->w;
+		*height= ofs->depth->h;
+		printf("Offscreen size differs from given size!\n");
+	}
+	
 	if(!GPU_framebuffer_texture_attach(ofs->fb, ofs->depth)) {
 		GPU_offscreen_free(ofs);
 		return NULL;
 	}
 
-	ofs->color = GPU_texture_create_2D(width, height, NULL);
+	ofs->color = GPU_texture_create_2D(*width, *height, NULL);
 	if(!ofs->color) {
 		GPU_offscreen_free(ofs);
 		return NULL;
@@ -894,7 +921,7 @@ struct GPUShader {
 	int totattrib;			/* total number of attributes */
 };
 
-static void shader_print_errors(char *task, char *log, const char *code)
+static void shader_print_errors(const char *task, char *log, const char *code)
 {
 	const char *c, *pos, *end = code + strlen(code);
 	int line = 1;
@@ -1043,7 +1070,7 @@ void GPU_shader_bind(GPUShader *shader)
 	GPU_print_error("Post Shader Bind");
 }
 
-void GPU_shader_unbind()
+void GPU_shader_unbind(GPUShader *UNUSED(shader))
 {
 	GPU_print_error("Pre Shader Unbind");
 	glUseProgramObjectARB(0);
@@ -1063,7 +1090,7 @@ void GPU_shader_free(GPUShader *shader)
 	MEM_freeN(shader);
 }
 
-int GPU_shader_get_uniform(GPUShader *shader, char *name)
+int GPU_shader_get_uniform(GPUShader *shader, const char *name)
 {
 	return glGetUniformLocationARB(shader->object, name);
 }

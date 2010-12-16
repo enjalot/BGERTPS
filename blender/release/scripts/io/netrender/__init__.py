@@ -30,6 +30,7 @@ if "init_data" in locals():
     reload(balancing)
     reload(ui)
     reload(repath)
+    reload(versioning)
 else:
     from netrender import model
     from netrender import operators
@@ -41,13 +42,14 @@ else:
     from netrender import balancing
     from netrender import ui
     from netrender import repath
+    from netrender import versioning
 
 jobs = []
 slaves = []
 blacklist = []
 
 init_file = ""
-init_address = True
+valid_address = False
 init_data = True
 
 

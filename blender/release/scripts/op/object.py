@@ -60,9 +60,7 @@ class SelectPattern(bpy.types.Operator):
 
     def invoke(self, context, event):
         wm = context.window_manager
-        # return wm.invoke_props_popup(self, event)
-        wm.invoke_props_popup(self, event)
-        return {'RUNNING_MODAL'}
+        return wm.invoke_props_popup(self, event)
 
     def draw(self, context):
         layout = self.layout
@@ -248,13 +246,13 @@ class ShapeTransfer(bpy.types.Operator):
 
         def ob_add_shape(ob, name):
             me = ob.data
-            key = ob.add_shape_key(from_mix=False)
+            key = ob.shape_key_add(from_mix=False)
             if len(me.shape_keys.keys) == 1:
                 key.name = "Basis"
-                key = ob.add_shape_key(from_mix=False)  # we need a rest
+                key = ob.shape_key_add(from_mix=False)  # we need a rest
             key.name = name
             ob.active_shape_key_index = len(me.shape_keys.keys) - 1
-            ob.show_shape_key = True
+            ob.show_only_shape_key = True
 
         from mathutils.geometry import BarycentricTransform
         from mathutils import Vector

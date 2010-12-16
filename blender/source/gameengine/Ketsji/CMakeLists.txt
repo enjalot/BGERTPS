@@ -24,7 +24,7 @@
 #
 # ***** END GPL LICENSE BLOCK *****
 
-SET(INC
+set(INC
 	.
 	../../../source/kernel/gen_system
 	../../../intern/string
@@ -54,7 +54,7 @@ SET(INC
 	../../../extern/glew/include
 )
 
-SET(SRC
+set(SRC
 	BL_BlenderShader.cpp
 	BL_Material.cpp
 	BL_Shader.cpp
@@ -122,35 +122,105 @@ SET(SRC
 	KX_VisibilityActuator.cpp
 	KX_WorldInfo.cpp
 	KX_WorldIpoController.cpp
-)
 
-ADD_DEFINITIONS(-DGLEW_STATIC)
+	KX_ArmatureSensor.h
+	KX_BlenderMaterial.h
+	KX_BulletPhysicsController.h
+	KX_Camera.h
+	KX_CameraActuator.h
+	KX_CameraIpoSGController.h
+	KX_ClientObjectInfo.h
+	KX_ConstraintActuator.h
+	KX_ConstraintWrapper.h
+	KX_ConvertPhysicsObject.h
+	KX_Dome.h
+	KX_EmptyObject.h
+	KX_GameActuator.h
+	KX_GameObject.h
+	KX_IInterpolator.h
+	KX_IPOTransform.h
+	KX_IPO_SGController.h
+	KX_IPhysicsController.h
+	KX_IScalarInterpolator.h
+	KX_ISceneConverter.h
+	KX_ISystem.h
+	KX_IpoActuator.h
+	KX_KetsjiEngine.h
+	KX_Light.h
+	KX_LightIpoSGController.h
+	KX_MaterialIpoController.h
+	KX_MeshProxy.h
+	KX_MotionState.h
+	KX_MouseFocusSensor.h
+	KX_NearSensor.h
+	KX_ObColorIpoSGController.h
+	KX_ObjectActuator.h
+	KX_OrientationInterpolator.h
+	KX_ParentActuator.h
+	KX_PhysicsEngineEnums.h
+	KX_PhysicsObjectWrapper.h
+	KX_PhysicsPropertiesobsolete.h
+	KX_PolyProxy.h
+	KX_PolygonMaterial.h
+	KX_PositionInterpolator.h
+	KX_PyConstraintBinding.h
+	KX_PyMath.h
+	KX_PythonInit.h
+	KX_PythonInitTypes.h
+	KX_PythonSeq.h
+	KX_RadarSensor.h
+	KX_RayCast.h
+	KX_RayEventManager.h
+	KX_RaySensor.h
+	KX_SCA_AddObjectActuator.h
+	KX_SCA_DynamicActuator.h
+	KX_SCA_EndObjectActuator.h
+	KX_SCA_ReplaceMeshActuator.h
+	KX_SG_BoneParentNodeRelationship.h
+	KX_SG_NodeRelationships.h
+	KX_ScalarInterpolator.h
+	KX_ScalingInterpolator.h
+	KX_Scene.h
+	KX_SceneActuator.h
+	KX_SoundActuator.h
+	KX_StateActuator.h
+	KX_TimeCategoryLogger.h
+	KX_TimeLogger.h
+	KX_TouchEventManager.h
+	KX_TouchSensor.h
+	KX_TrackToActuator.h
+	KX_VehicleWrapper.h
+	KX_VertexProxy.h
+	KX_VisibilityActuator.h
+	KX_WorldInfo.h
+	KX_WorldIpoController.h
+	BL_BlenderShader.h
+	BL_Material.h
+	BL_Shader.h
+	BL_Texture.h
+)
 
 IF(WITH_OPENCL)
 	LIST(APPEND INC ${OPENCL_INCLUDE_DIR})  
 	LIST(APPEND INC ${RTPS_INCLUDE_DIR})  
 ENDIF(WITH_OPENCL)
 
-IF(WITH_SDL)
-	SET(INC ${INC} ${SDL_INCLUDE_DIR})  
-ELSE(WITH_SDL)
-	ADD_DEFINITIONS(-DDISABLE_SDL)
-ENDIF(WITH_SDL)
+add_definitions(-DGLEW_STATIC)
 
-IF(WITH_PYTHON)
-	LIST(APPEND INC ${PYTHON_INC})
-ELSE(WITH_PYTHON)
-	ADD_DEFINITIONS(-DDISABLE_PYTHON)
-ENDIF(WITH_PYTHON)
+if(WITH_SDL)
+	set(INC ${INC} ${SDL_INCLUDE_DIR})  
+else()
+	add_definitions(-DDISABLE_SDL)
+endif()
 
-IF(WITH_FFMPEG)
-	ADD_DEFINITIONS(-DWITH_FFMPEG)
-ENDIF(WITH_FFMPEG)
+if(WITH_CODEC_FFMPEG)
+	add_definitions(-DWITH_FFMPEG)
+endif()
 
-IF(WITH_BULLET)
-	ADD_DEFINITIONS(-DUSE_BULLET)
-	LIST(APPEND INC ../../../extern/bullet2/src)
-	LIST(APPEND INC ../../../source/gameengine/Physics/Bullet )
-ENDIF(WITH_BULLET)
+if(WITH_BULLET)
+	add_definitions(-DUSE_BULLET)
+	list(APPEND INC ../../../extern/bullet2/src)
+	list(APPEND INC ../../../source/gameengine/Physics/Bullet )
+endif()
 
-BLENDERLIB(bf_ketsji "${SRC}" "${INC}")
+blenderlib(ge_logic_ketsji "${SRC}" "${INC}")

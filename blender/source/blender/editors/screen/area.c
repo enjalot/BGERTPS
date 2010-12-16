@@ -338,7 +338,7 @@ void ED_region_do_draw(bContext *C, ARegion *ar)
 		glClear(GL_COLOR_BUFFER_BIT);
 		
 		UI_ThemeColor(TH_TEXT);
-		BLF_draw_default(20, 8, 0.0f, ar->headerstr);
+		BLF_draw_default(20, 8, 0.0f, ar->headerstr, 65535); /* XXX, use real length */
 	}
 	else if(at->draw) {
 		at->draw(C, ar);
@@ -427,7 +427,7 @@ void ED_area_tag_refresh(ScrArea *sa)
 /* *************************************************************** */
 
 /* use NULL to disable it */
-void ED_area_headerprint(ScrArea *sa, char *str)
+void ED_area_headerprint(ScrArea *sa, const char *str)
 {
 	ARegion *ar;
 	
@@ -1130,7 +1130,7 @@ void ED_area_prevspace(bContext *C, ScrArea *sa)
 	WM_event_add_notifier(C, NC_SPACE|ND_SPACE_CHANGED, sa);
 }
 
-static char *editortype_pup(void)
+static const char *editortype_pup(void)
 {
 	return(
 		   "Editor type:%t"
@@ -1165,7 +1165,7 @@ static char *editortype_pup(void)
 		   
 		   "|%l"
 		   
-		   "|Console %x18"
+		   "|Python Console %x18"
 		   );
 }
 
@@ -1227,7 +1227,7 @@ int ED_area_header_standardbuttons(const bContext *C, uiBlock *block, int yco)
 
 /************************ standard UI regions ************************/
 
-void ED_region_panels(const bContext *C, ARegion *ar, int vertical, char *context, int contextnr)
+void ED_region_panels(const bContext *C, ARegion *ar, int vertical, const char *context, int contextnr)
 {
 	ScrArea *sa= CTX_wm_area(C);
 	uiStyle *style= U.uistyles.first;

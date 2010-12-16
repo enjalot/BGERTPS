@@ -63,7 +63,7 @@ static void itend(void)
 {
 	QueryPerformanceCounter(&_itend);
 }
-double itval()
+double itval(void)
 {
 	return ((double)_itend.QuadPart -
 			(double)_itstart.QuadPart)/((double)ifreq.QuadPart);
@@ -85,7 +85,7 @@ static void itend(void)
 {
 	gettimeofday(&_itend,&itz);
 }
-double itval()
+double itval(void)
 {
 	double t1, t2;
 	t1 =  (double)_itstart.tv_sec + (double)_itstart.tv_usec/(1000*1000);
@@ -1562,13 +1562,15 @@ static void cloth_calc_force(ClothModifierData *clmd, float UNUSED(frame), lfVec
 	unsigned int i	= 0;
 	float 		spring_air 	= clmd->sim_parms->Cvi * 0.01f; /* viscosity of air scaled in percent */
 	float 		gravity[3] = {0.0f, 0.0f, 0.0f};
-	float 		tm2[3][3] 	= {{-spring_air,0,0}, {0,-spring_air,0},{0,0,-spring_air}};
+	float 		tm2[3][3] 	= {{0}};
 	MFace 		*mfaces 	= cloth->mfaces;
 	unsigned int numverts = cloth->numverts;
 	LinkNode *search = cloth->springs;
 	lfVector *winvec;
 	EffectedPoint epoint;
 
+	tm2[0][0]= tm2[1][1]= tm2[2][2]= -spring_air;
+	
 	/* global acceleration (gravitation) */
 	if(clmd->scene->physics_settings.flag & PHYS_GLOBAL_GRAVITY) {
 		VECCOPY(gravity, clmd->scene->physics_settings.gravity);

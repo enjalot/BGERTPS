@@ -19,7 +19,7 @@
 #
 # ***** END GPL LICENSE BLOCK *****
 
-SET(INC
+set(INC
 	../include
 	../../blenfont
 	../../blenkernel
@@ -31,17 +31,15 @@ SET(INC
 	../../../../intern/guardedalloc
 )
 
-SET(SRC
+set(SRC
 	area.c
 	glutil.c
 	screen_context.c
 	screen_edit.c
 	screen_ops.c
 	screendump.c
+
+	screen_intern.h
 )
 
-IF(WIN32)
-	LIST(APPEND INC ${PTHREADS_INC})
-ENDIF(WIN32)
-
-BLENDERLIB(bf_editor_screen "${SRC}" "${INC}")
+blenderlib(bf_editor_screen "${SRC}" "${INC}")

@@ -68,6 +68,7 @@
 #include "BKE_pointcache.h"
 #include "BKE_bmesh.h"
 #include "BKE_scene.h"
+#include "BKE_report.h"
 
 
 #include "ED_anim_api.h"
@@ -445,7 +446,7 @@ static short apply_targetless_ik(Object *ob)
 
 				/* apply and decompose, doesn't work for constraints or non-uniform scale well */
 				{
-					float rmat3[3][3], qrmat[3][3], imat[3][3], smat[3][3];
+					float rmat3[3][3], qrmat[3][3], imat3[3][3], smat[3][3];
 					
 					copy_m3_m4(rmat3, rmat);
 					
@@ -472,8 +473,8 @@ static short apply_targetless_ik(Object *ob)
 						else
 							quat_to_mat3( qrmat,parchan->quat);
 						
-						invert_m3_m3(imat, qrmat);
-						mul_m3_m3m3(smat, rmat3, imat);
+						invert_m3_m3(imat3, qrmat);
+						mul_m3_m3m3(smat, rmat3, imat3);
 						mat3_to_size( parchan->size,smat);
 					}
 					
@@ -548,7 +549,7 @@ static void add_pose_transdata(TransInfo *t, bPoseChannel *pchan, Object *ob, Tr
 		
 		QUATCOPY(td->ext->iquat, pchan->quat);
 	}
-	td->rotOrder= pchan->rotmode;
+	td->ext->rotOrder= pchan->rotmode;
 	
 
 	/* proper way to get parent transform + own transform + constraints transform */
@@ -678,7 +679,7 @@ int count_set_pose_transflags(int *out_mode, short around, Object *ob)
 
 	for (pchan = ob->pose->chanbase.first; pchan; pchan = pchan->next) {
 		bone = pchan->bone;
-		if ((bone->layer & arm->layer) && !(pchan->bone->flag & BONE_HIDDEN_P)) {
+		if (PBONE_VISIBLE(arm, bone)) {
 			if ((bone->flag & BONE_SELECTED) && !(ob->proxy && pchan->bone->layer & arm->layer_protected))
 				bone->flag |= BONE_TRANSFORM;
 			else
@@ -2662,6 +2663,7 @@ static void createTransNlaData(bContext *C, TransInfo *t)
 	for (ale= anim_data.first; ale; ale= ale->next) {
 		/* only if a real NLA-track */
 		if (ale->type == ANIMTYPE_NLATRACK) {
+			AnimData *adt = ale->adt;
 			NlaTrack *nlt= (NlaTrack *)ale->data;
 			NlaStrip *strip;
 			
@@ -2686,7 +2688,7 @@ static void createTransNlaData(bContext *C, TransInfo *t)
 						tdn->id= ale->id;
 						tdn->oldTrack= tdn->nlt= nlt;
 						tdn->strip= strip;
-						tdn->trackIndex= BLI_findindex(&nlt->strips, strip);
+						tdn->trackIndex= BLI_findindex(&adt->nla_tracks, nlt);
 						
 						yval= (float)(tdn->trackIndex * NLACHANNEL_STEP);
 						
@@ -3349,7 +3351,7 @@ static void bezt_to_transdata (TransData *td, TransData2D *td2d, AnimData *adt, 
 
 static void createTransGraphEditData(bContext *C, TransInfo *t)
 {
-	SpaceIpo *sipo= CTX_wm_space_graph(C);
+	SpaceIpo *sipo = (SpaceIpo *)t->sa->spacedata.first;
 	Scene *scene= t->scene;
 	ARegion *ar= t->ar;
 	View2D *v2d= &ar->v2d;
@@ -3366,6 +3368,7 @@ static void createTransGraphEditData(bContext *C, TransInfo *t)
 	int count=0, i;
 	float cfra;
 	float mtx[3][3], smtx[3][3];
+	const short use_handle = !(sipo->flag & SIPO_NOHANDLES);
 	
 	/* determine what type of data we are operating on */
 	if (ANIM_animdata_get_context(C, &ac) == 0)
@@ -3409,13 +3412,17 @@ static void createTransGraphEditData(bContext *C, TransInfo *t)
 		/* only include BezTriples whose 'keyframe' occurs on the same side of the current frame as mouse */
 		for (i=0, bezt=fcu->bezt; i < fcu->totvert; i++, bezt++) {
 			if (FrameOnMouseSide(t->frame_side, bezt->vec[1][0], cfra)) {
+				const char sel1= use_handle ? bezt->f1 & SELECT : 0;
+				const char sel2= bezt->f2 & SELECT;
+				const char sel3= use_handle ? bezt->f3 & SELECT : 0;
+
 				if (ELEM3(t->mode, TFM_TRANSLATION, TFM_TIME_TRANSLATE, TFM_TIME_SLIDE)) {
 					/* for 'normal' pivots - just include anything that is selected.
 					   this works a bit differently in translation modes */
-					if (bezt->f2 & SELECT) count++;
+					if (sel2) count++;
 					else {
-						if (bezt->f1 & SELECT) count++;
-						if (bezt->f3 & SELECT) count++;
+						if (sel1) count++;
+						if (sel3) count++;
 					}
 				} 
 				else if (sipo->around == V3D_LOCAL) {
@@ -3423,17 +3430,17 @@ static void createTransGraphEditData(bContext *C, TransInfo *t)
 					 * don't get moved wrong
 					 */
 					if (bezt->ipo == BEZT_IPO_BEZ) {
-						if (bezt->f1 & SELECT) count++;
-						if (bezt->f3 & SELECT) count++;
+						if (sel1) count++;
+						if (sel3) count++;
 					}
-					/* else if (bezt->f2 & SELECT) count++; // TODO: could this cause problems? */
+					/* else if (sel2) count++; // TODO: could this cause problems? */
 					/* - yes this causes problems, because no td is created for the center point */
 				}
 				else {
 					/* for 'normal' pivots - just include anything that is selected */
-					if (bezt->f1 & SELECT) count++;
-					if (bezt->f2 & SELECT) count++;
-					if (bezt->f3 & SELECT) count++;
+					if (sel1) count++;
+					if (sel2) count++;
+					if (sel3) count++;
 				}
 			}
 		}
@@ -3498,21 +3505,25 @@ static void createTransGraphEditData(bContext *C, TransInfo *t)
 		/* only include BezTriples whose 'keyframe' occurs on the same side of the current frame as mouse (if applicable) */
 		for (i=0, bezt= fcu->bezt; i < fcu->totvert; i++, bezt++) {
 			if (FrameOnMouseSide(t->frame_side, bezt->vec[1][0], cfra)) {
+				const char sel1= use_handle ? bezt->f1 & SELECT : 0;
+				const char sel2= bezt->f2 & SELECT;
+				const char sel3= use_handle ? bezt->f3 & SELECT : 0;
+
 				TransDataCurveHandleFlags *hdata = NULL;
 				short h1=1, h2=1;
 				
 				/* only include handles if selected, irrespective of the interpolation modes.
 				 * also, only treat handles specially if the center point isn't selected. 
 				 */
-				if (!ELEM3(t->mode, TFM_TRANSLATION, TFM_TIME_TRANSLATE, TFM_TIME_SLIDE) || !(bezt->f2 & SELECT)) {
-					if (bezt->f1 & SELECT) {
+				if (!ELEM3(t->mode, TFM_TRANSLATION, TFM_TIME_TRANSLATE, TFM_TIME_SLIDE) || !(sel2)) {
+					if (sel1) {
 						hdata = initTransDataCurveHandles(td, bezt);
 						bezt_to_transdata(td++, td2d++, adt, bezt, 0, 1, 1, intvals, mtx, smtx);
 					} 
 					else
 						h1= 0;
 					
-					if (bezt->f3 & SELECT) {
+					if (sel3) {
 						if (hdata==NULL)
 							hdata = initTransDataCurveHandles(td, bezt);
 						bezt_to_transdata(td++, td2d++, adt, bezt, 2, 1, 1, intvals, mtx, smtx);
@@ -3522,16 +3533,16 @@ static void createTransGraphEditData(bContext *C, TransInfo *t)
 				}
 				
 				/* only include main vert if selected */
-				if (bezt->f2 & SELECT && (sipo->around != V3D_LOCAL || ELEM3(t->mode, TFM_TRANSLATION, TFM_TIME_TRANSLATE, TFM_TIME_SLIDE))) {
+				if (sel2 && (sipo->around != V3D_LOCAL || ELEM3(t->mode, TFM_TRANSLATION, TFM_TIME_TRANSLATE, TFM_TIME_SLIDE))) {
 
 					/* move handles relative to center */
 					if (ELEM3(t->mode, TFM_TRANSLATION, TFM_TIME_TRANSLATE, TFM_TIME_SLIDE)) {
-						if (bezt->f1 & SELECT) td->flag |= TD_MOVEHANDLE1;
-						if (bezt->f3 & SELECT) td->flag |= TD_MOVEHANDLE2;
+						if (sel1) td->flag |= TD_MOVEHANDLE1;
+						if (sel3) td->flag |= TD_MOVEHANDLE2;
 					}
 					
 					/* if handles were not selected, store their selection status */
-					if (!(bezt->f1 & SELECT) && !(bezt->f3 & SELECT)) {
+					if (!(sel1) && !(sel3)) {
 						if (hdata == NULL)
 							hdata = initTransDataCurveHandles(td, bezt);
 					}
@@ -3545,7 +3556,7 @@ static void createTransGraphEditData(bContext *C, TransInfo *t)
 				 *	- If so, change them auto-handles to aligned handles so that handles get affected too
 				 */
 				if ((bezt->h1 == HD_AUTO) && (bezt->h2 == HD_AUTO) && ELEM(t->mode, TFM_ROTATION, TFM_RESIZE)) {
-					if (hdata && (bezt->f1 & SELECT) && (bezt->f3 & SELECT)) {
+					if (hdata && (sel1) && (sel3)) {
 						bezt->h1= HD_ALIGN;
 						bezt->h2= HD_ALIGN;
 					}
@@ -3577,7 +3588,7 @@ typedef struct BeztMap {
 /* This function converts an FCurve's BezTriple array to a BeztMap array
  * NOTE: this allocates memory that will need to get freed later
  */
-static BeztMap *bezt_to_beztmaps (BezTriple *bezts, int totvert)
+static BeztMap *bezt_to_beztmaps (BezTriple *bezts, int totvert, const short UNUSED(use_handle))
 {
 	BezTriple *bezt= bezts;
 	BezTriple *prevbezt= NULL;
@@ -3604,7 +3615,7 @@ static BeztMap *bezt_to_beztmaps (BezTriple *bezts, int totvert)
 }
 
 /* This function copies the code of sort_time_ipocurve, but acts on BeztMap structs instead */
-static void sort_time_beztmaps (BeztMap *bezms, int totvert)
+static void sort_time_beztmaps (BeztMap *bezms, int totvert, const short UNUSED(use_handle))
 {
 	BeztMap *bezm;
 	int i, ok= 1;
@@ -3650,7 +3661,7 @@ static void sort_time_beztmaps (BeztMap *bezms, int totvert)
 }
 
 /* This function firstly adjusts the pointers that the transdata has to each BezTriple */
-static void beztmap_to_data (TransInfo *t, FCurve *fcu, BeztMap *bezms, int totvert)
+static void beztmap_to_data (TransInfo *t, FCurve *fcu, BeztMap *bezms, int totvert, const short use_handle)
 {
 	BezTriple *bezts = fcu->bezt;
 	BeztMap *bezm;
@@ -3677,7 +3688,7 @@ static void beztmap_to_data (TransInfo *t, FCurve *fcu, BeztMap *bezms, int totv
 			
 			/* only selected verts */
 			if (bezm->pipo == BEZT_IPO_BEZ) {
-				if (bezm->bezt->f1 & SELECT) {
+				if (use_handle && bezm->bezt->f1 & SELECT) {
 					if (td->loc2d == bezm->bezt->vec[0]) {
 						if (bezm->swapHs == 1)
 							td->loc2d= (bezts + bezm->newIndex)->vec[2];
@@ -3688,7 +3699,7 @@ static void beztmap_to_data (TransInfo *t, FCurve *fcu, BeztMap *bezms, int totv
 				}
 			}
 			if (bezm->cipo == BEZT_IPO_BEZ) {
-				if (bezm->bezt->f3 & SELECT) {
+				if (use_handle && bezm->bezt->f3 & SELECT) {
 					if (td->loc2d == bezm->bezt->vec[2]) {
 						if (bezm->swapHs == 1)
 							td->loc2d= (bezts + bezm->newIndex)->vec[0];
@@ -3726,7 +3737,9 @@ static void beztmap_to_data (TransInfo *t, FCurve *fcu, BeztMap *bezms, int totv
  */
 void remake_graph_transdata (TransInfo *t, ListBase *anim_data)
 {
+	SpaceIpo *sipo = (SpaceIpo *)t->sa->spacedata.first;
 	bAnimListElem *ale;
+	const short use_handle = !(sipo->flag & SIPO_NOHANDLES);
 	
 	/* sort and reassign verts */
 	for (ale= anim_data->first; ale; ale= ale->next) {
@@ -3736,9 +3749,9 @@ void remake_graph_transdata (TransInfo *t, ListBase *anim_data)
 			BeztMap *bezm;
 			
 			/* adjust transform-data pointers */
-			bezm= bezt_to_beztmaps(fcu->bezt, fcu->totvert);
-			sort_time_beztmaps(bezm, fcu->totvert);
-			beztmap_to_data(t, fcu, bezm, fcu->totvert);
+			bezm= bezt_to_beztmaps(fcu->bezt, fcu->totvert, use_handle);
+			sort_time_beztmaps(bezm, fcu->totvert, use_handle);
+			beztmap_to_data(t, fcu, bezm, fcu->totvert, use_handle);
 			
 			/* free mapping stuff */
 			MEM_freeN(bezm);
@@ -3868,8 +3881,13 @@ static void SeqTransInfo(TransInfo *t, Sequence *seq, int *recursive, int *count
 #ifdef XXX_DURIAN_ANIM_TX_HACK
 	/* hack */
 	if((seq->flag & SELECT)==0 && seq->type & SEQ_EFFECT) {
-		Sequence *seq_t[3] = {seq->seq1, seq->seq2, seq->seq3};
+		Sequence *seq_t[3];
 		int i;
+
+		seq_t[0]= seq->seq1;
+		seq_t[1]= seq->seq2;
+		seq_t[2]= seq->seq3;
+
 		for(i=0; i<3; i++) {
 			if (seq_t[i] && ((seq_t[i])->flag & SELECT) && !(seq_t[i]->flag & SEQ_LOCK) && !(seq_t[i]->flag & (SEQ_LEFTSEL|SEQ_RIGHTSEL)))
 				seq->flag |= SELECT;
@@ -4323,7 +4341,7 @@ static void ObjectToTransData(TransInfo *t, TransData *td, Object *ob)
 		QUATCOPY(td->ext->iquat, ob->quat);
 		QUATCOPY(td->ext->dquat, ob->dquat);
 	}
-	td->rotOrder=ob->rotmode;
+	td->ext->rotOrder=ob->rotmode;
 
 	td->ext->size = ob->size;
 	VECCOPY(td->ext->isize, ob->size);
@@ -4398,8 +4416,11 @@ static void set_trans_object_base_flags(TransInfo *t)
 			while(parsel) {
 				if(parsel->flag & SELECT) {
 					Base *parbase = object_in_scene(parsel, scene);
-					if TESTBASELIB_BGMODE(v3d, scene, parbase)
+					if(parbase) { /* in rare cases this can fail */
+						if TESTBASELIB_BGMODE(v3d, scene, parbase) {
 							break;
+						}
+					}
 				}
 				parsel= parsel->parent;
 			}
@@ -4537,6 +4558,7 @@ void autokeyframe_ob_cb_func(bContext *C, Scene *scene, View3D *v3d, Object *ob,
 	
 	// TODO: this should probably be done per channel instead...
 	if (autokeyframe_cfra_can_key(scene, id)) {
+		ReportList *reports = CTX_wm_reports(C);
 		KeyingSet *active_ks = ANIM_scene_get_active_keyingset(scene);
 		ListBase dsources = {NULL, NULL};
 		float cfra= (float)CFRA; // xxx this will do for now
@@ -4561,7 +4583,7 @@ void autokeyframe_ob_cb_func(bContext *C, Scene *scene, View3D *v3d, Object *ob,
 			if (adt && adt->action) {
 				for (fcu= adt->action->curves.first; fcu; fcu= fcu->next) {
 					fcu->flag &= ~FCURVE_SELECTED;
-					insert_keyframe(id, adt->action, ((fcu->grp)?(fcu->grp->name):(NULL)), fcu->rna_path, fcu->array_index, cfra, flag);
+					insert_keyframe(reports, id, adt->action, ((fcu->grp)?(fcu->grp->name):(NULL)), fcu->rna_path, fcu->array_index, cfra, flag);
 				}
 			}
 		}
@@ -4636,6 +4658,7 @@ void autokeyframe_pose_cb_func(bContext *C, Scene *scene, View3D *v3d, Object *o
 	
 	// TODO: this should probably be done per channel instead...
 	if (autokeyframe_cfra_can_key(scene, id)) {
+		ReportList *reports = CTX_wm_reports(C);
 		KeyingSet *active_ks = ANIM_scene_get_active_keyingset(scene);
 		float cfra= (float)CFRA;
 		short flag= 0;
@@ -4677,7 +4700,7 @@ void autokeyframe_pose_cb_func(bContext *C, Scene *scene, View3D *v3d, Object *o
 								 * NOTE: this will do constraints too, but those are ok to do here too?
 								 */
 								if (pchanName && strcmp(pchanName, pchan->name) == 0) 
-									insert_keyframe(id, act, ((fcu->grp)?(fcu->grp->name):(NULL)), fcu->rna_path, fcu->array_index, cfra, flag);
+									insert_keyframe(reports, id, act, ((fcu->grp)?(fcu->grp->name):(NULL)), fcu->rna_path, fcu->array_index, cfra, flag);
 									
 								if (pchanName) MEM_freeN(pchanName);
 							}
@@ -4849,9 +4872,9 @@ void special_aftertrans_update(bContext *C, TransInfo *t)
 			// fixme... some of this stuff is not good
 			if (ob) {
 				if (ob->pose || ob_get_key(ob))
-					DAG_id_flush_update(&ob->id, OB_RECALC_ALL);
+					DAG_id_tag_update(&ob->id, OB_RECALC_ALL);
 				else
-					DAG_id_flush_update(&ob->id, OB_RECALC_OB);
+					DAG_id_tag_update(&ob->id, OB_RECALC_OB);
 			}
 			
 			/* Do curve cleanups? */
@@ -4873,6 +4896,9 @@ void special_aftertrans_update(bContext *C, TransInfo *t)
 					scene_marker_tfm_translate(t->scene, floor(t->vec[0] + 0.5f), SELECT);
 				else if (ELEM(t->frame_side, 'L', 'R'))
 					scene_marker_tfm_extend(t->scene, floor(t->vec[0] + 0.5f), SELECT, t->scene->r.cfra, t->frame_side);
+			}
+			else if(t->mode == TFM_TIME_SCALE) {
+				scene_marker_tfm_scale(t->scene, t->vec[0], SELECT);
 			}
 		}
 
@@ -5017,15 +5043,15 @@ void special_aftertrans_update(bContext *C, TransInfo *t)
 		/* automatic inserting of keys and unkeyed tagging - only if transform wasn't cancelled (or TFM_DUMMY) */
 		if (!cancelled && (t->mode != TFM_DUMMY)) {
 			autokeyframe_pose_cb_func(C, t->scene, (View3D *)t->view, ob, t->mode, targetless_ik);
-			DAG_id_flush_update(&ob->id, OB_RECALC_DATA);
+			DAG_id_tag_update(&ob->id, OB_RECALC_DATA);
 		}
 		else if (arm->flag & ARM_DELAYDEFORM) {
 			/* old optimize trick... this enforces to bypass the depgraph */
-			DAG_id_flush_update(&ob->id, OB_RECALC_DATA);
+			DAG_id_tag_update(&ob->id, OB_RECALC_DATA);
 			ob->recalc= 0;	// is set on OK position already by recalcData()
 		}
 		else
-			DAG_id_flush_update(&ob->id, OB_RECALC_DATA);
+			DAG_id_tag_update(&ob->id, OB_RECALC_DATA);
 
 	}
 	else if(t->scene->basact && (ob = t->scene->basact->object) && (ob->mode & OB_MODE_PARTICLE_EDIT) && PE_get_current(t->scene, ob)) {
@@ -5036,10 +5062,10 @@ void special_aftertrans_update(bContext *C, TransInfo *t)
 
 		for (i = 0; i < t->total; i++) {
 			TransData *td = t->data + i;
-			Object *ob = td->ob;
 			ListBase pidlist;
 			PTCacheID *pid;
-			
+			ob = td->ob;
+
 			if (td->flag & TD_NOACTION)
 				break;
 			
@@ -5062,7 +5088,7 @@ void special_aftertrans_update(bContext *C, TransInfo *t)
 			/* Creates troubles for moving animated objects without */
 			/* autokey though, probably needed is an anim sys override? */
 			/* Please remove if some other solution is found. -jahka */
-			DAG_id_flush_update(&ob->id, OB_RECALC_OB);
+			DAG_id_tag_update(&ob->id, OB_RECALC_OB);
 
 			/* Set autokey if necessary */
 			if (!cancelled) {
@@ -5080,6 +5106,17 @@ void special_aftertrans_update(bContext *C, TransInfo *t)
 		if (C && recalcObPaths) {
 			//ED_objects_clear_paths(C); // XXX for now, don't need to clear
 			ED_objects_recalculate_paths(C, t->scene);
+
+			/* recalculating the frame positions means we loose our original transform if its not auto-keyed [#24451]
+			 * this hack re-applies it, which is annoying, only alternatives are...
+			 * - dont recalc paths.
+			 * - have an object_handle_update() which gives is the new transform without touching the objects.
+			 * - only recalc paths on auto-keying.
+			 * - ED_objects_recalculate_paths could backup/restore transforms.
+			 * - re-apply the transform which is simplest in this case. (2 lines below)
+			 */
+			t->redraw |= TREDRAW_HARD;
+			transformApply(C, t);
 		}
 	}
 
@@ -5138,7 +5175,7 @@ static void createTransObject(bContext *C, TransInfo *t)
 		td->flag = TD_SELECTED;
 		td->protectflag= ob->protectflag;
 		td->ext = tx;
-		td->rotOrder= ob->rotmode;
+		td->ext->rotOrder= ob->rotmode;
 		
 		if (base->flag & BA_TRANSFORM_CHILD)
 		{
@@ -5172,7 +5209,7 @@ static void createTransObject(bContext *C, TransInfo *t)
 			{
 				td->protectflag= ob->protectflag;
 				td->ext = tx;
-				td->rotOrder= ob->rotmode;
+				td->ext->rotOrder= ob->rotmode;
 				
 				ObjectToTransData(t, td, ob);
 				td->val = NULL;

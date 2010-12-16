@@ -352,14 +352,13 @@ static short bezt_nlamapping_apply(KeyframeEditData *ked, BezTriple *bezt)
  */
 void ANIM_nla_mapping_apply_fcurve (AnimData *adt, FCurve *fcu, short restore, short only_keys)
 {
-	KeyframeEditData ked;
+	KeyframeEditData ked= {{0}};
 	KeyframeEditFunc map_cb;
 	
 	/* init edit data 
 	 *	- AnimData is stored in 'data'
 	 *	- only_keys is stored in 'i1'
 	 */
-	memset(&ked, 0, sizeof(KeyframeEditData));
 	ked.data= (void *)adt;
 	ked.i1= (int)only_keys;
 	
@@ -393,7 +392,7 @@ float ANIM_unit_mapping_get_factor (Scene *scene, ID *id, FCurve *fcu, short res
 			if (RNA_SUBTYPE_UNIT(RNA_property_subtype(prop)) == PROP_UNIT_ROTATION)
 			{
 				/* if the radians flag is not set, default to using degrees which need conversions */
-				if ((scene) && (scene->unit.flag & USER_UNIT_ROT_RADIANS) == 0) {
+				if ((scene) && (scene->unit.system_rotation == USER_UNIT_ROT_RADIANS) == 0) {
 					if (restore)
 						return M_PI / 180.0f;	/* degrees to radians */
 					else

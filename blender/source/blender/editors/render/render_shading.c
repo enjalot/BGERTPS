@@ -79,7 +79,7 @@
 #include "render_intern.h"	// own include
 
 /***************************** Updates ***********************************
- * ED_render_id_flush_update gets called from DAG_id_flush_update, to do *
+ * ED_render_id_flush_update gets called from DAG_id_tag_update, to do *
  * editor level updates when the ID changes. when these ID blocks are in *
  * the dependency graph, we can get rid of the manual dependency checks  */
 
@@ -355,7 +355,7 @@ static int material_slot_assign_exec(bContext *C, wmOperator *UNUSED(op))
 		}
 	}
 
-	DAG_id_flush_update(&ob->id, OB_RECALC_DATA);
+	DAG_id_tag_update(&ob->id, OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GEOM|ND_DATA, ob->data);
 	
 	return OPERATOR_FINISHED;
@@ -399,36 +399,38 @@ static int material_slot_de_select(bContext *C, int select)
 		BezTriple *bezt;
 		int a;
 
-		for(nu= nurbs->first; nu; nu=nu->next) {
-			if(nu->mat_nr==ob->actcol-1) {
-				if(nu->bezt) {
-					a= nu->pntsu;
-					bezt= nu->bezt;
-					while(a--) {
-						if(bezt->hide==0) {
-							if(select) {
-								bezt->f1 |= SELECT;
-								bezt->f2 |= SELECT;
-								bezt->f3 |= SELECT;
+		if(nurbs) {
+			for(nu= nurbs->first; nu; nu=nu->next) {
+				if(nu->mat_nr==ob->actcol-1) {
+					if(nu->bezt) {
+						a= nu->pntsu;
+						bezt= nu->bezt;
+						while(a--) {
+							if(bezt->hide==0) {
+								if(select) {
+									bezt->f1 |= SELECT;
+									bezt->f2 |= SELECT;
+									bezt->f3 |= SELECT;
+								}
+								else {
+									bezt->f1 &= ~SELECT;
+									bezt->f2 &= ~SELECT;
+									bezt->f3 &= ~SELECT;
+								}
 							}
-							else {
-								bezt->f1 &= ~SELECT;
-								bezt->f2 &= ~SELECT;
-								bezt->f3 &= ~SELECT;
-							}
+							bezt++;
 						}
-						bezt++;
 					}
-				}
-				else if(nu->bp) {
-					a= nu->pntsu*nu->pntsv;
-					bp= nu->bp;
-					while(a--) {
-						if(bp->hide==0) {
-							if(select) bp->f1 |= SELECT;
-							else bp->f1 &= ~SELECT;
+					else if(nu->bp) {
+						a= nu->pntsu*nu->pntsv;
+						bp= nu->bp;
+						while(a--) {
+							if(bp->hide==0) {
+								if(select) bp->f1 |= SELECT;
+								else bp->f1 &= ~SELECT;
+							}
+							bp++;
 						}
-						bp++;
 					}
 				}
 			}
@@ -733,12 +735,12 @@ void SCENE_OT_render_layer_remove(wmOperatorType *ot)
 static int texture_slot_move(bContext *C, wmOperator *op)
 {
 	ID *id= CTX_data_pointer_get_type(C, "texture_slot", &RNA_TextureSlot).id.data;
-	Material *ma = (Material *)id;
 
 	if(id) {
 		MTex **mtex_ar, *mtexswap;
 		short act;
 		int type= RNA_enum_get(op->ptr, "type");
+		struct AnimData *adt= BKE_animdata_from_id(id);
 
 		give_active_mtex(id, &mtex_ar, &act);
 
@@ -748,9 +750,9 @@ static int texture_slot_move(bContext *C, wmOperator *op)
 				mtex_ar[act] = mtex_ar[act-1];
 				mtex_ar[act-1] = mtexswap;
 				
-				BKE_animdata_fix_paths_rename(id, ma->adt, "texture_slots", NULL, NULL, act-1, -1, 0);
-				BKE_animdata_fix_paths_rename(id, ma->adt, "texture_slots", NULL, NULL, act, act-1, 0);
-				BKE_animdata_fix_paths_rename(id, ma->adt, "texture_slots", NULL, NULL, -1, act, 0);
+				BKE_animdata_fix_paths_rename(id, adt, "texture_slots", NULL, NULL, act-1, -1, 0);
+				BKE_animdata_fix_paths_rename(id, adt, "texture_slots", NULL, NULL, act, act-1, 0);
+				BKE_animdata_fix_paths_rename(id, adt, "texture_slots", NULL, NULL, -1, act, 0);
 
 				if(GS(id->name)==ID_MA) {
 					Material *ma= (Material *)id;
@@ -770,9 +772,9 @@ static int texture_slot_move(bContext *C, wmOperator *op)
 				mtex_ar[act] = mtex_ar[act+1];
 				mtex_ar[act+1] = mtexswap;
 				
-				BKE_animdata_fix_paths_rename(id, ma->adt, "texture_slots", NULL, NULL, act+1, -1, 0);
-				BKE_animdata_fix_paths_rename(id, ma->adt, "texture_slots", NULL, NULL, act, act+1, 0);
-				BKE_animdata_fix_paths_rename(id, ma->adt, "texture_slots", NULL, NULL, -1, act, 0);
+				BKE_animdata_fix_paths_rename(id, adt, "texture_slots", NULL, NULL, act+1, -1, 0);
+				BKE_animdata_fix_paths_rename(id, adt, "texture_slots", NULL, NULL, act, act+1, 0);
+				BKE_animdata_fix_paths_rename(id, adt, "texture_slots", NULL, NULL, -1, act, 0);
 
 				if(GS(id->name)==ID_MA) {
 					Material *ma= (Material *)id;

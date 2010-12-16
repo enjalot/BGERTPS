@@ -170,7 +170,7 @@ char *get_valid_qtname(char *name)
 #endif /* _WIN32 */
 
 
-int anim_is_quicktime (char *name)
+int anim_is_quicktime (const char *name)
 {
 	FSSpec	theFSSpec;
 	char	theFullPath[255];
@@ -611,7 +611,7 @@ ImBuf  *imb_quicktime_decode(unsigned char *mem, int size, int flags)
 	ImageDescriptionHandle		desc;
 
 	ComponentInstance			dataHandler;
-	PointerDataRef dataref = (PointerDataRef)NewHandle(sizeof(PointerDataRefRecord));
+	PointerDataRef dataref;
 
 	int x, y, depth;
 	int have_gw = FALSE;
@@ -634,11 +634,12 @@ ImBuf  *imb_quicktime_decode(unsigned char *mem, int size, int flags)
 	unsigned char *from, *to;
 #endif
 
-	if (mem == NULL)
+	if (mem == NULL || !G.have_quicktime)
 		goto bail;
 	
 	if(QTIME_DEBUG) printf("qt: attempt to load mem as image\n");
 
+	dataref= (PointerDataRef)NewHandle(sizeof(PointerDataRefRecord));
 	(**dataref).data = mem;
 	(**dataref).dataLength = size;
 

@@ -28,7 +28,7 @@ try:
 except:
   bpy = None
 
-VERSION = bytes("0.9", encoding='utf8')
+VERSION = bytes("1.0", encoding='utf8')
 
 # Jobs status
 JOB_WAITING = 0 # before all data has been entered
@@ -56,6 +56,39 @@ FRAME_STATUS_TEXT = {
         DONE: "Done",
         ERROR: "Error"
         }
+
+class DirectoryContext:
+    def __init__(self, path):
+        self.path = path
+        
+    def __enter__(self):
+        self.curdir = os.path.abspath(os.curdir)
+        os.chdir(self.path)
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        os.chdir(self.curdir)
+
+class BreakableIncrementedSleep:
+    def __init__(self, increment, default_timeout, max_timeout, break_fct):
+        self.increment = increment
+        self.default = default_timeout
+        self.max = max_timeout
+        self.current = self.default
+        self.break_fct = break_fct
+        
+    def reset(self):
+        self.current = self.default
+
+    def increase(self):
+        self.current = min(self.current + self.increment, self.max)
+        
+    def sleep(self):
+        for i in range(self.current):
+            time.sleep(1)
+            if self.break_fct():
+                break
+            
+        self.increase()
 
 def responseStatus(conn):
     response = conn.getresponse()
@@ -119,12 +152,13 @@ def clientConnection(address, port, report = None, scan = True):
             else:
                 conn.close()
                 reporting(report, "Incorrect master version", ValueError)
-    except Exception as err:
+    except BaseException as err:
         if report:
             report('ERROR', str(err))
             return None
         else:
-            raise
+            print(err)
+            return None
 
 def clientVerifyVersion(conn):
     conn.request("GET", "/version")
@@ -216,16 +250,27 @@ def thumbnail(filename):
         scene = bpy.data.scenes[0] # FIXME, this is dodgy!
         scene.render.file_format = "JPEG"
         scene.render.file_quality = 90
+        
+        # remove existing image, if there's a leftover (otherwise open changes the name)
+        if imagename in bpy.data.images:
+            img = bpy.data.images[imagename]
+            bpy.data.images.remove(img)
+
         bpy.ops.image.open(filepath=filename)
         img = bpy.data.images[imagename]
+            
         img.save_render(thumbname, scene=scene)
+        
+        img.user_clear()
+        bpy.data.images.remove(img)
 
         try:
             process = subprocess.Popen(["convert", thumbname, "-resize", "300x300", thumbname])
             process.wait()
             return thumbname
-        except:
-            pass
+        except Exception as exp:
+            print("Error while generating thumbnail")
+            print(exp)
 
     return None
 

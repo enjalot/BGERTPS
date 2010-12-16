@@ -452,11 +452,13 @@ int set_listbasepointers(Main *main, ListBase **lb)
 {
 	int a = 0;
 
-	/* BACKWARDS! also watch order of free-ing! (mesh<->mat) */
-
+	/* BACKWARDS! also watch order of free-ing! (mesh<->mat), first items freed last.
+	 * This is important because freeing data decreases usercounts of other datablocks,
+	 * if this data is its self freed it can crash. */
 	lb[a++]= &(main->ipo);
 	lb[a++]= &(main->action); // xxx moved here to avoid problems when freeing with animato (aligorith)
 	lb[a++]= &(main->key);
+	lb[a++]= &(main->gpencil); /* referenced by nodes, objects, view, scene etc, before to free after. */
 	lb[a++]= &(main->nodetree);
 	lb[a++]= &(main->image);
 	lb[a++]= &(main->tex);
@@ -483,14 +485,13 @@ int set_listbasepointers(Main *main, ListBase **lb)
 	lb[a++]= &(main->brush);
 	lb[a++]= &(main->script);
 	lb[a++]= &(main->particle);
-	
+
 	lb[a++]= &(main->world);
 	lb[a++]= &(main->screen);
 	lb[a++]= &(main->object);
 	lb[a++]= &(main->scene);
 	lb[a++]= &(main->library);
 	lb[a++]= &(main->wm);
-	lb[a++]= &(main->gpencil);
 	
 	lb[a]= NULL;
 
@@ -619,24 +620,24 @@ void *alloc_libblock(ListBase *lb, short type, const char *name)
 
 /* by spec, animdata is first item after ID */
 /* and, trust that BKE_animdata_from_id() will only find AnimData for valid ID-types */
-static void id_copy_animdata(ID *id)
+static void id_copy_animdata(ID *id, const short do_action)
 {
 	AnimData *adt= BKE_animdata_from_id(id);
 	
 	if (adt) {
 		IdAdtTemplate *iat = (IdAdtTemplate *)id;
-		iat->adt= BKE_copy_animdata(iat->adt);
+		iat->adt= BKE_copy_animdata(iat->adt, do_action); /* could be set to FALSE, need to investigate */
 	}
 }
 
 /* material nodes use this since they are not treated as libdata */
-void copy_libblock_data(ID *id, const ID *id_from)
+void copy_libblock_data(ID *id, const ID *id_from, const short do_action)
 {
 	if (id_from->properties)
 		id->properties = IDP_CopyProperty(id_from->properties);
 
 	/* the duplicate should get a copy of the animdata */
-	id_copy_animdata(id);
+	id_copy_animdata(id, do_action);
 }
 
 /* used everywhere in blenkernel */
@@ -664,7 +665,7 @@ void *copy_libblock(void *rt)
 	id->newid= idn;
 	idn->flag |= LIB_NEW;
 
-	copy_libblock_data(idn, id);
+	copy_libblock_data(idn, id, FALSE);
 	
 	return idn;
 }
@@ -851,7 +852,7 @@ void free_main(Main *mainvar)
 /* ***************** ID ************************ */
 
 
-ID *find_id(char *type, char *name)		/* type: "OB" or "MA" etc */
+ID *find_id(const char *type, const char *name)		/* type: "OB" or "MA" etc */
 {
 	ListBase *lb= which_libbase(G.main, GS(type));
 	return BLI_findstring(lb, name, offsetof(ID, name) + 2);
@@ -940,7 +941,7 @@ static void IDnames_to_dyn_pupstring(DynStr *pupds, ListBase *lb, ID *link, shor
 
 /* used by headerbuttons.c buttons.c editobject.c editseq.c */
 /* if nr==NULL no MAX_IDPUP, this for non-header browsing */
-void IDnames_to_pupstring(char **str, char *title, char *extraops, ListBase *lb, ID *link, short *nr)
+void IDnames_to_pupstring(const char **str, const char *title, const char *extraops, ListBase *lb, ID *link, short *nr)
 {
 	DynStr *pupds= BLI_dynstr_new();
 
@@ -962,7 +963,7 @@ void IDnames_to_pupstring(char **str, char *title, char *extraops, ListBase *lb,
 }
 
 /* skips viewer images */
-void IMAnames_to_pupstring(char **str, char *title, char *extraops, ListBase *lb, ID *link, short *nr)
+void IMAnames_to_pupstring(const char **str, const char *title, const char *extraops, ListBase *lb, ID *link, short *nr)
 {
 	DynStr *pupds= BLI_dynstr_new();
 	
@@ -981,35 +982,6 @@ void IMAnames_to_pupstring(char **str, char *title, char *extraops, ListBase *lb
 	
 	*str= BLI_dynstr_get_cstring(pupds);
 	BLI_dynstr_free(pupds);
-}
-
-
-/* used by buttons.c library.c mball.c */
-int splitIDname(char *name, char *left, int *nr)
-{
-	int a;
-	
-	*nr= 0;
-	strncpy(left, name, 21);
-	
-	a= strlen(name);
-	if(a>1 && name[a-1]=='.') return a;
-	
-	while(a--) {
-		if( name[a]=='.' ) {
-			left[a]= 0;
-			*nr= atol(name+a+1);
-			return a;
-		}
-		if( isdigit(name[a])==0 ) break;
-		
-		left[a]= 0;
-	}
-
-	for(a= 0; name[a]; a++)
-		left[a]= name[a];
-
-	return a;
 }
 
 static void sort_alpha_id(ListBase *lb, ID *id)
@@ -1040,7 +1012,7 @@ static void sort_alpha_id(ListBase *lb, ID *id)
  * Check to see if there is an ID with the same name as 'name'.
  * Returns the ID if so, if not, returns NULL
  */
-static ID *is_dupid(ListBase *lb, ID *id, char *name)
+static ID *is_dupid(ListBase *lb, ID *id, const char *name)
 {
 	ID *idtest=NULL;
 	
@@ -1091,7 +1063,7 @@ static int check_for_dupid(ListBase *lb, ID *id, char *name)
 		memset(in_use, 0, sizeof(in_use));
 
 		/* get name portion, number portion ("name.number") */
-		left_len= splitIDname(name, left, &nr);
+		left_len= BLI_split_name_num(left, &nr, name, '.');
 
 		/* if new name will be too long, truncate it */
 		if(nr > 999 && left_len > 16) {
@@ -1108,7 +1080,7 @@ static int check_for_dupid(ListBase *lb, ID *id, char *name)
 					(idtest->lib == NULL) &&
 					(*name == *(idtest->name+2)) &&
 					(strncmp(name, idtest->name+2, left_len)==0) &&
-					(splitIDname(idtest->name+2, leftest, &nrtest) == left_len)
+					(BLI_split_name_num(leftest, &nrtest, idtest->name+2, '.') == left_len)
 			) {
 				if(nrtest < sizeof(in_use))
 					in_use[nrtest]= 1;	/* mark as used */
@@ -1389,11 +1361,11 @@ void text_idbutton(struct ID *id, char *text)
 	}
 }
 
-void rename_id(ID *id, char *name)
+void rename_id(ID *id, const char *name)
 {
 	ListBase *lb;
 
-	strncpy(id->name+2, name, 21);
+	BLI_strncpy(id->name+2, name, sizeof(id->name)-2);
 	lb= which_libbase(G.main, GS(id->name) );
 	
 	new_id(lb, id, name);				
@@ -1402,7 +1374,7 @@ void rename_id(ID *id, char *name)
 void name_uiprefix_id(char *name, ID *id)
 {
 	name[0] = id->lib ? 'L':' ';
-	name[1] = id->flag & LIB_FAKEUSER ? 'F':' ';
+	name[1] = id->flag & LIB_FAKEUSER ? 'F': (id->us==0)?'0':' ';
 	name[2] = ' ';
 
 	strcpy(name+3, id->name+2);

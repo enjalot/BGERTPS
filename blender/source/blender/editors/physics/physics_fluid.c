@@ -420,7 +420,7 @@ static void fluid_init_all_channels(bContext *C, Object *UNUSED(fsDomain), Fluid
 		/* Modifying the global scene isn't nice, but we can do it in 
 		 * this part of the process before a threaded job is created */
 		scene->r.cfra = (int)eval_time;
-		ED_update_for_newframe(C, 1);
+		ED_update_for_newframe(CTX_data_main(C), scene, CTX_wm_screen(C), 1);
 		
 		/* now scene data should be current according to animation system, so we fill the channels */
 		
@@ -633,7 +633,7 @@ static int fluid_init_filepaths(Object *fsDomain, char *targetDir, char *targetF
 	FILE *fileCfg;
 	int dirExist = 0;
 	char newSurfdataPath[FILE_MAXDIR+FILE_MAXFILE]; // modified output settings
-	char *suffixConfig = FLUID_SUFFIX_CONFIG;
+	const char *suffixConfig = FLUID_SUFFIX_CONFIG;
 	int outStringsChanged = 0;
 	
 	// prepare names...
@@ -665,7 +665,7 @@ static int fluid_init_filepaths(Object *fsDomain, char *targetDir, char *targetF
 		// invalid dir, reset to current/previous
 		strcpy(blendDir, G.main->name);
 		BLI_splitdirstring(blendDir, blendFile);
-		if(strlen(blendFile)>6){
+		if(BLI_strnlen(blendFile, 7) > 6){
 			int len = strlen(blendFile);
 			if( (blendFile[len-6]=='.')&& (blendFile[len-5]=='b')&& (blendFile[len-4]=='l')&&
 			   (blendFile[len-3]=='e')&& (blendFile[len-2]=='n')&& (blendFile[len-1]=='d') ){
@@ -813,8 +813,8 @@ int fluidsimBake(bContext *C, ReportList *reports, Object *fsDomain)
 	
 	int gridlevels = 0;
 	const char *strEnvName = "BLENDER_ELBEEMDEBUG"; // from blendercall.cpp
-	char *suffixConfig = FLUID_SUFFIX_CONFIG;
-	char *suffixSurface = FLUID_SUFFIX_SURFACE;
+	const char *suffixConfig = FLUID_SUFFIX_CONFIG;
+	const char *suffixSurface = FLUID_SUFFIX_SURFACE;
 
 	char targetDir[FILE_MAXDIR+FILE_MAXFILE];  // store & modify output settings
 	char targetFile[FILE_MAXDIR+FILE_MAXFILE]; // temp. store filename from targetDir for access
@@ -910,7 +910,7 @@ int fluidsimBake(bContext *C, ReportList *reports, Object *fsDomain)
 
 	/* reset to original current frame */
 	scene->r.cfra = origFrame;
-	ED_update_for_newframe(C, 1);
+	ED_update_for_newframe(CTX_data_main(C), scene, CTX_wm_screen(C), 1);
 	
 	
 	/* ---- XXX: No Time animation curve for now, leaving this code here for reference 

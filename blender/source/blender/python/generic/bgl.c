@@ -297,9 +297,9 @@ static PyObject *Buffer_slice(PyObject *self, int begin, int end)
 	  
 	list= PyList_New(end-begin);
 
-	for (count= begin; count<end; count++)
-		PyList_SetItem(list, count-begin, Buffer_item(self, count));
-	
+	for (count= begin; count<end; count++) {
+		PyList_SET_ITEM(list, count-begin, Buffer_item(self, count));
+	}
 	return list;
 }
 
@@ -391,11 +391,11 @@ static PyObject *Buffer_tolist(PyObject *self)
 {
 	int i, len= ((Buffer *)self)->dimensions[0];
 	PyObject *list= PyList_New(len);
-	
+
 	for (i=0; i<len; i++) {
-	  PyList_SetItem(list, i, Buffer_item(self, i));
+		PyList_SET_ITEM(list, i, Buffer_item(self, i));
 	}
-	
+
 	return list;
 }
 
@@ -404,11 +404,11 @@ static PyObject *Buffer_dimensions(PyObject *self)
 	Buffer *buffer= (Buffer *) self;
 	PyObject *list= PyList_New(buffer->ndimensions);
 	int i;
-	  
+  
 	for (i= 0; i<buffer->ndimensions; i++) {
-	  PyList_SetItem(list, i, PyLong_FromLong(buffer->dimensions[i]));
+		PyList_SET_ITEM(list, i, PyLong_FromLong(buffer->dimensions[i]));
 	}
-	
+
 	return list;
 }
 
@@ -1115,12 +1115,11 @@ static struct PyModuleDef BGL_module_def = {
 };
 
 
-PyObject *BGL_Init(void)
+PyObject *BPyInit_bgl(void)
 {
-	PyObject *mod, *dict, *item;
-	mod = PyModule_Create(&BGL_module_def);
-	PyDict_SetItemString(PyImport_GetModuleDict(), BGL_module_def.m_name, mod);
-	dict= PyModule_GetDict(mod);
+	PyObject *submodule, *dict, *item;
+	submodule= PyModule_Create(&BGL_module_def);
+	dict= PyModule_GetDict(submodule);
 	
 	if( PyType_Ready( &BGL_bufferType) < 0)
 		return NULL; /* should never happen */
@@ -1612,6 +1611,6 @@ PyObject *BGL_Init(void)
 	EXPP_ADDCONST(GL_TEXTURE_BINDING_1D);
 	EXPP_ADDCONST(GL_TEXTURE_BINDING_2D);
       
-	return mod;
+	return submodule;
 }
 

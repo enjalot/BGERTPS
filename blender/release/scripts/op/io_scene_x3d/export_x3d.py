@@ -65,8 +65,6 @@ class x3d_class:
         self.writingtexture = 0
         self.writingcoords = 0
         self.proto = 1
-        self.matonly = 0
-        self.share = 0
         self.billnode = 0
         self.halonode = 0
         self.collnode = 0
@@ -205,14 +203,14 @@ class x3d_class:
         # rot = (((rot[0]-90)*DEG2RAD), rot[1]*DEG2RAD, rot[2]*DEG2RAD)
         nRot = self.rotatePointForVRML( rot )
         # convert to Quaternion and to Angle Axis
-        Q  = self.eulerToQuaternions(nRot[0], nRot[1], nRot[2])
+        Q  = self.eulerToQuaternions(*nRot)
         Q1 = self.multiplyQuaternions(Q[0], Q[1])
         Qf = self.multiplyQuaternions(Q1, Q[2])
         angleAxis = self.quaternionToAngleAxis(Qf)
         self.file.write("<Viewpoint DEF=\"%s\" " % (self.cleanStr(ob.name)))
         self.file.write("description=\"%s\" " % (ob.name))
         self.file.write("centerOfRotation=\"0 0 0\" ")
-        self.file.write("position=\"%3.2f %3.2f %3.2f\" " % (loc[0], loc[1], loc[2]))
+        self.file.write("position=\"%3.2f %3.2f %3.2f\" " % loc)
         self.file.write("orientation=\"%3.2f %3.2f %3.2f %3.2f\" " % (angleAxis[0], angleAxis[1], -angleAxis[2], angleAxis[3]))
         self.file.write("fieldOfView=\"%.3f\" />\n\n" % (lens))
 
@@ -258,7 +256,7 @@ class x3d_class:
         # note  dy seems to equal om[3][2]
 
         #location=(ob.matrix_world*MATWORLD).translation_part() # now passed
-        location=(mtx*MATWORLD).translation_part()
+        location=(MATWORLD * mtx).translation_part()
 
         radius = lamp.distance*math.cos(beamWidth)
         # radius = lamp.dist*math.cos(beamWidth)
@@ -303,8 +301,7 @@ class x3d_class:
             ambi = 0
             ambientIntensity = 0
 
-        # location=(ob.matrix_world*MATWORLD).translation_part() # now passed
-        location= (mtx*MATWORLD).translation_part()
+        location= (MATWORLD * mtx).translation_part()
 
         self.file.write("<PointLight DEF=\"%s\" " % safeName)
         self.file.write("ambientIntensity=\"%s\" " % (round(ambientIntensity,self.cp)))
@@ -321,8 +318,8 @@ class x3d_class:
             return
         else:
             dx,dy,dz = self.computeDirection(mtx)
-            # location=(ob.matrix_world*MATWORLD).translation_part()
-            location=(mtx*MATWORLD).translation_part()
+            # location=(MATWORLD * ob.matrix_world).translation_part()
+            location=(MATWORLD * mtx).translation_part()
             self.writeIndented("<%s\n" % obname,1)
             self.writeIndented("direction=\"%s %s %s\"\n" % (round(dx,3),round(dy,3),round(dz,3)))
             self.writeIndented("location=\"%s %s %s\"\n" % (round(location[0],3), round(location[1],3), round(location[2],3)))
@@ -351,7 +348,6 @@ class x3d_class:
     def writeIndexedFaceSet(self, ob, mesh, mtx, world, EXPORT_TRI = False):
         imageMap={}   # set of used images
         sided={}	  # 'one':cnt , 'two':cnt
-        vColors={}	# 'multi':1
         meshName = self.cleanStr(ob.name)
 
         meshME = self.cleanStr(ob.data.name) # We dont care if its the mesh name or not
@@ -381,9 +377,6 @@ class x3d_class:
         # elif mode & Mesh.FaceModes.BILLBOARD and self.billnode == 0:
             self.writeIndented("<Billboard axisOfRotation=\"0 1 0\">\n",1)
             self.billnode = 1
-        elif 'OBJECT_COLOR' in mode and self.matonly == 0:
-        # elif mode & Mesh.FaceModes.OBCOL and self.matonly == 0:
-            self.matonly = 1
         # TF_TILES is marked as deprecated in DNA_meshdata_types.h
         # elif mode & Mesh.FaceModes.TILES and self.tilenode == 0:
         # 	self.tilenode = 1
@@ -392,7 +385,7 @@ class x3d_class:
             self.writeIndented("<Collision enabled=\"false\">\n",1)
             self.collnode = 1
 
-        nIFSCnt=self.countIFSSetsNeeded(mesh, imageMap, sided, vColors)
+        nIFSCnt=self.countIFSSetsNeeded(mesh, imageMap, sided)
 
         if nIFSCnt > 1:
             self.writeIndented("<Group DEF=\"%s%s\">\n" % ("G_", meshName),1)
@@ -402,8 +395,7 @@ class x3d_class:
         else:
             bTwoSided=0
 
-        # mtx = ob.matrix_world * MATWORLD # mtx is now passed
-        mtx = mtx * MATWORLD
+        mtx = MATWORLD * mtx
 
         loc= mtx.translation_part()
         sca= mtx.scale_part()
@@ -482,10 +474,9 @@ class x3d_class:
 
             #--- output textureCoordinates if UV texture used
             if mesh.uv_textures.active:
-                if self.matonly == 1 and self.share == 1:
-                    self.writeFaceColors(mesh)
-                elif hasImageTexture == True:
-                    self.writeTextureCoordinates(mesh)
+                self.writeTextureCoordinates(mesh)
+            if mesh.vertex_colors.active:
+                self.writeFaceColors(mesh)
             #--- output coordinates
             self.writeCoordinates(ob, mesh, meshName, EXPORT_TRI)
 
@@ -496,14 +487,10 @@ class x3d_class:
 
             #--- output textureCoordinates if UV texture used
             if mesh.uv_textures.active:
-            # if mesh.faceUV:
-                if hasImageTexture == True:
-                    self.writeTextureCoordinates(mesh)
-                elif self.matonly == 1 and self.share == 1:
-                    self.writeFaceColors(mesh)
+                self.writeTextureCoordinates(mesh)
+            if mesh.vertex_colors.active:
+                self.writeFaceColors(mesh)
             #--- output vertexColors
-        self.matonly = 0
-        self.share = 0
 
         self.writingcoords = 0
         self.writingtexture = 0
@@ -629,38 +616,46 @@ class x3d_class:
             self.matNames[matName]+=1
             return;
 
-        self.matNames[matName]=1
+        self.matNames[matName] = 1
 
-        ambient = mat.ambient/3
-        # ambient = mat.amb/3
-        diffuseR, diffuseG, diffuseB = tuple(mat.diffuse_color)
-        # diffuseR, diffuseG, diffuseB = mat.rgbCol[0], mat.rgbCol[1],mat.rgbCol[2]
+        ambient = mat.ambient / 3.0
+        diffuseR, diffuseG, diffuseB = mat.diffuse_color
         if world:
             ambi = world.ambient_color
-            # ambi = world.getAmb()
-            ambi0, ambi1, ambi2 = (ambi[0]*mat.ambient)*2, (ambi[1]*mat.ambient)*2, (ambi[2]*mat.ambient)*2
-            # ambi0, ambi1, ambi2 = (ambi[0]*mat.amb)*2, (ambi[1]*mat.amb)*2, (ambi[2]*mat.amb)*2
+            ambi0, ambi1, ambi2 = (ambi[0] * mat.ambient) * 2.0, (ambi[1] * mat.ambient) * 2.0, (ambi[2] * mat.ambient) * 2.0
         else:
-            ambi0, ambi1, ambi2 = 0, 0, 0
-        emisR, emisG, emisB = (diffuseR*mat.emit+ambi0)/2, (diffuseG*mat.emit+ambi1)/2, (diffuseB*mat.emit+ambi2)/2
+            ambi0, ambi1, ambi2 = 0.0, 0.0, 0.0
+
+        emisR, emisG, emisB = (diffuseR*mat.emit+ambi0) / 2.0, (diffuseG*mat.emit+ambi1) / 2.0, (diffuseB*mat.emit+ambi2) / 2.0
+        del ambi0, ambi1, ambi2
 
         shininess = mat.specular_hardness/512.0
-        # shininess = mat.hard/512.0
         specR = (mat.specular_color[0]+0.001)/(1.25/(mat.specular_intensity+0.001))
-        # specR = (mat.specCol[0]+0.001)/(1.25/(mat.spec+0.001))
         specG = (mat.specular_color[1]+0.001)/(1.25/(mat.specular_intensity+0.001))
-        # specG = (mat.specCol[1]+0.001)/(1.25/(mat.spec+0.001))
         specB = (mat.specular_color[2]+0.001)/(1.25/(mat.specular_intensity+0.001))
-        # specB = (mat.specCol[2]+0.001)/(1.25/(mat.spec+0.001))
-        transp = 1-mat.alpha
-        # matFlags = mat.getMode()
+
+        transp = 1.0 - mat.alpha
+
         if mat.use_shadeless:
-        # if matFlags & Blender.Material.Modes['SHADELESS']:
-          ambient = 1
-          shine = 1
-          specR = emitR = diffuseR
-          specG = emitG = diffuseG
-          specB = emitB = diffuseB
+            ambient = 1
+            shine = 1
+            specR = emitR = diffuseR
+            specG = emitG = diffuseG
+            specB = emitB = diffuseB
+
+        # Clamp to be safe
+        specR= max(min(specR, 1.0), 0.0)
+        specG= max(min(specG, 1.0), 0.0)
+        specB= max(min(specB, 1.0), 0.0)
+
+        diffuseR= max(min(diffuseR, 1.0), 0.0)
+        diffuseG= max(min(diffuseG, 1.0), 0.0)
+        diffuseB= max(min(diffuseB, 1.0), 0.0)
+
+        emitR= max(min(emitR, 1.0), 0.0)
+        emitG= max(min(emitG, 1.0), 0.0)
+        emitB= max(min(emitB, 1.0), 0.0)
+
         self.writeIndented("<Material DEF=\"MA_%s\" " % matName, 1)
         self.file.write("diffuseColor=\"%s %s %s\" " % (round(diffuseR,self.cp), round(diffuseG,self.cp), round(diffuseB,self.cp)))
         self.file.write("specularColor=\"%s %s %s\" " % (round(specR,self.cp), round(specG,self.cp), round(specB,self.cp)))
@@ -817,7 +812,6 @@ class x3d_class:
             # for ob, ob_mat in BPyObject.getDerivedObjects(ob_main):
                 objType=ob.type
                 objName=ob.name
-                self.matonly = 0
                 if objType == "CAMERA":
                 # if objType == "Camera":
                     self.writeViewpoint(ob, ob_mat, scene)
@@ -899,7 +893,7 @@ class x3d_class:
             newName=newName.replace(bad,'_')
         return newName
 
-    def countIFSSetsNeeded(self, mesh, imageMap, sided, vColors):
+    def countIFSSetsNeeded(self, mesh, imageMap, sided):
         """
         countIFFSetsNeeded() - should look at a blender mesh to determine
         how many VRML IndexFaceSets or IndexLineSets are needed.  A
@@ -997,7 +991,7 @@ class x3d_class:
     def computeDirection(self, mtx):
         x,y,z=(0,-1.0,0) # point down
 
-        ax,ay,az = (mtx*MATWORLD).to_euler()
+        ax,ay,az = (MATWORLD * mtx).to_euler()
 
         # ax *= DEG2RAD
         # ay *= DEG2RAD
@@ -1024,12 +1018,7 @@ class x3d_class:
     # swap Y and Z to handle axis difference between Blender and VRML
     #------------------------------------------------------------------------
     def rotatePointForVRML(self, v):
-        x = v[0]
-        y = v[2]
-        z = -v[1]
-
-        vrmlPoint=[x, y, z]
-        return vrmlPoint
+        return v[0], v[2], -v[1]
 
     # For writing well formed VRML code
     #------------------------------------------------------------------------

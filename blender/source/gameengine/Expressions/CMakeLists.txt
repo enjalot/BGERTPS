@@ -24,7 +24,7 @@
 #
 # ***** END GPL LICENSE BLOCK *****
 
-SET(INC
+set(INC
 	.
 	../../../source/kernel/gen_system
 	../../../intern/string
@@ -34,7 +34,7 @@ SET(INC
 	../../../source/blender/blenloader
 )
 
-SET(SRC
+set(SRC
 	BoolValue.cpp
 	ConstExpr.cpp
 	EXP_C-Api.cpp
@@ -54,12 +54,28 @@ SET(SRC
 	StringValue.cpp
 	Value.cpp
 	VectorValue.cpp
+
+	BoolValue.h
+	ConstExpr.h
+	EXP_C-Api.h
+	EmptyValue.h
+	ErrorValue.h
+	Expression.h
+	FloatValue.h
+	IdentifierExpr.h
+	IfExpr.h
+	InputParser.h
+	IntValue.h
+	KX_HashedPtr.h
+	KX_Python.h
+	ListValue.h
+	Operator1Expr.h
+	Operator2Expr.h
+	PyObjectPlus.h
+	StringValue.h
+	Value.h
+	VectorValue.h
+	VoidValue.h
 )
 
-IF(WITH_PYTHON)
-	LIST(APPEND INC ${PYTHON_INC})
-ELSE(WITH_PYTHON)
-	ADD_DEFINITIONS(-DDISABLE_PYTHON)
-ENDIF(WITH_PYTHON)
-
-BLENDERLIB(bf_expressions "${SRC}" "${INC}")
+blenderlib(ge_logic_expressions "${SRC}" "${INC}")

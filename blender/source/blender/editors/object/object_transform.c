@@ -120,7 +120,7 @@ void OBJECT_OT_location_clear(wmOperatorType *ot)
 	
 	/* api callbacks */
 	ot->exec= object_location_clear_exec;
-	ot->poll= ED_operator_object_active_editable;
+	ot->poll= ED_operator_scene_editable;
 	
 	/* flags */
 	ot->flag= OPTYPE_REGISTER|OPTYPE_UNDO;
@@ -265,7 +265,7 @@ void OBJECT_OT_rotation_clear(wmOperatorType *ot)
 	
 	/* api callbacks */
 	ot->exec= object_rotation_clear_exec;
-	ot->poll= ED_operator_object_active_editable;
+	ot->poll= ED_operator_scene_editable;
 	
 	/* flags */
 	ot->flag= OPTYPE_REGISTER|OPTYPE_UNDO;
@@ -331,7 +331,7 @@ void OBJECT_OT_scale_clear(wmOperatorType *ot)
 	
 	/* api callbacks */
 	ot->exec= object_scale_clear_exec;
-	ot->poll= ED_operator_object_active_editable;
+	ot->poll= ED_operator_scene_editable;
 	
 	/* flags */
 	ot->flag= OPTYPE_REGISTER|OPTYPE_UNDO;
@@ -373,7 +373,7 @@ void OBJECT_OT_origin_clear(wmOperatorType *ot)
 	
 	/* api callbacks */
 	ot->exec= object_origin_clear_exec;
-	ot->poll= ED_operator_object_active_editable;
+	ot->poll= ED_operator_scene_editable;
 	
 	/* flags */
 	ot->flag= OPTYPE_REGISTER|OPTYPE_UNDO;
@@ -391,7 +391,7 @@ static void ignore_parent_tx(Main *bmain, Scene *scene, Object *ob )
 	/* a change was made, adjust the children to compensate */
 	for(ob_child=bmain->object.first; ob_child; ob_child=ob_child->id.next) {
 		if(ob_child->parent == ob) {
-			object_apply_mat4(ob_child, ob_child->obmat, TRUE);
+			object_apply_mat4(ob_child, ob_child->obmat, TRUE, FALSE);
 			what_does_parent(scene, ob_child, &workob);
 			invert_m4_m4(ob_child->parentinv, workob.obmat);
 		}
@@ -557,7 +557,7 @@ static int apply_objects_internal(bContext *C, ReportList *reports, int apply_lo
 		where_is_object(scene, ob);
 		ignore_parent_tx(bmain, scene, ob);
 
-		DAG_id_flush_update(&ob->id, OB_RECALC_OB|OB_RECALC_DATA);
+		DAG_id_tag_update(&ob->id, OB_RECALC_OB|OB_RECALC_DATA);
 
 		change = 1;
 	}
@@ -577,9 +577,12 @@ static int visual_transform_apply_exec(bContext *C, wmOperator *UNUSED(op))
 	
 	CTX_DATA_BEGIN(C, Object*, ob, selected_editable_objects) {
 		where_is_object(scene, ob);
-		object_apply_mat4(ob, ob->obmat, TRUE);
+		object_apply_mat4(ob, ob->obmat, TRUE, TRUE);
 		where_is_object(scene, ob);
-		
+
+		/* update for any children that may get moved */
+		DAG_id_tag_update(&ob->id, OB_RECALC_OB);
+	
 		change = 1;
 	}
 	CTX_DATA_END;
@@ -600,7 +603,7 @@ void OBJECT_OT_visual_transform_apply(wmOperatorType *ot)
 	
 	/* api callbacks */
 	ot->exec= visual_transform_apply_exec;
-	ot->poll= ED_operator_object_active_editable;
+	ot->poll= ED_operator_scene_editable;
 	
 	/* flags */
 	ot->flag= OPTYPE_REGISTER|OPTYPE_UNDO;
@@ -620,7 +623,7 @@ void OBJECT_OT_location_apply(wmOperatorType *ot)
 	
 	/* api callbacks */
 	ot->exec= location_apply_exec;
-	ot->poll= ED_operator_object_active_editable;
+	ot->poll= ED_operator_scene_editable;
 	
 	/* flags */
 	ot->flag= OPTYPE_REGISTER|OPTYPE_UNDO;
@@ -640,7 +643,7 @@ void OBJECT_OT_scale_apply(wmOperatorType *ot)
 	
 	/* api callbacks */
 	ot->exec= scale_apply_exec;
-	ot->poll= ED_operator_object_active_editable;
+	ot->poll= ED_operator_scene_editable;
 	
 	/* flags */
 	ot->flag= OPTYPE_REGISTER|OPTYPE_UNDO;
@@ -660,7 +663,7 @@ void OBJECT_OT_rotation_apply(wmOperatorType *ot)
 	
 	/* api callbacks */
 	ot->exec= rotation_apply_exec;
-	ot->poll= ED_operator_object_active_editable;
+	ot->poll= ED_operator_scene_editable;
 	
 	/* flags */
 	ot->flag= OPTYPE_REGISTER|OPTYPE_UNDO;
@@ -777,7 +780,7 @@ static int object_origin_set_exec(bContext *C, wmOperator *op)
 
 			recalc_editnormals(em);
 			tot_change++;
-			DAG_id_flush_update(&obedit->id, OB_RECALC_DATA);
+			DAG_id_tag_update(&obedit->id, OB_RECALC_DATA);
 			BKE_mesh_end_editmesh(me, em);
 		}
 	}
@@ -869,7 +872,7 @@ static int object_origin_set_exec(bContext *C, wmOperator *op)
 
 				if(obedit) {
 					if (centermode == GEOMETRY_TO_ORIGIN) {
-						DAG_id_flush_update(&obedit->id, OB_RECALC_DATA);
+						DAG_id_tag_update(&obedit->id, OB_RECALC_DATA);
 					}
 					break;
 				}

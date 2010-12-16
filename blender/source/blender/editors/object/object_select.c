@@ -51,6 +51,7 @@
 #include "BKE_property.h"
 #include "BKE_report.h"
 #include "BKE_scene.h"
+#include "BKE_library.h"
 #include "BKE_deform.h"
 
 #include "WM_api.h"
@@ -148,7 +149,7 @@ void OBJECT_OT_select_by_type(wmOperatorType *ot)
 	/* api callbacks */
 	ot->invoke= WM_menu_invoke;
 	ot->exec= object_select_by_type_exec;
-	ot->poll= ED_operator_scene_editable;
+	ot->poll= ED_operator_objectmode;
 	
 	/* flags */
 	ot->flag= OPTYPE_REGISTER|OPTYPE_UNDO;
@@ -330,7 +331,7 @@ void OBJECT_OT_select_linked(wmOperatorType *ot)
 	/* api callbacks */
 	ot->invoke= WM_menu_invoke;
 	ot->exec= object_select_linked_exec;
-	ot->poll= ED_operator_scene_editable;
+	ot->poll= ED_operator_objectmode;
 	
 	/* flags */
 	ot->flag= OPTYPE_REGISTER|OPTYPE_UNDO;
@@ -618,7 +619,7 @@ void OBJECT_OT_select_grouped(wmOperatorType *ot)
 	/* api callbacks */
 	ot->invoke= WM_menu_invoke;
 	ot->exec= object_select_grouped_exec;
-	ot->poll= ED_operator_scene_editable;
+	ot->poll= ED_operator_objectmode;
 	
 	/* flags */
 	ot->flag= OPTYPE_REGISTER|OPTYPE_UNDO;
@@ -667,7 +668,7 @@ void OBJECT_OT_select_by_layer(wmOperatorType *ot)
 	/* api callbacks */
 	/*ot->invoke = XXX - need a int grid popup*/
 	ot->exec= object_select_by_layer_exec;
-	ot->poll= ED_operator_scene_editable;
+	ot->poll= ED_operator_objectmode;
 	
 	/* flags */
 	ot->flag= OPTYPE_REGISTER|OPTYPE_UNDO;
@@ -705,7 +706,7 @@ void OBJECT_OT_select_inverse(wmOperatorType *ot)
 	
 	/* api callbacks */
 	ot->exec= object_select_inverse_exec;
-	ot->poll= ED_operator_scene_editable;
+	ot->poll= ED_operator_objectmode;
 	
 	/* flags */
 	ot->flag= OPTYPE_REGISTER|OPTYPE_UNDO;
@@ -766,7 +767,7 @@ void OBJECT_OT_select_all(wmOperatorType *ot)
 	
 	/* api callbacks */
 	ot->exec= object_select_all_exec;
-	ot->poll= ED_operator_scene_editable;
+	ot->poll= ED_operator_objectmode;
 	
 	/* flags */
 	ot->flag= OPTYPE_REGISTER|OPTYPE_UNDO;
@@ -815,7 +816,7 @@ void OBJECT_OT_select_same_group(wmOperatorType *ot)
 	
 	/* api callbacks */
 	ot->exec= object_select_same_group_exec;
-	ot->poll= ED_operator_scene_editable;
+	ot->poll= ED_operator_objectmode;
 	
 	/* flags */
 	ot->flag= OPTYPE_REGISTER|OPTYPE_UNDO;
@@ -826,21 +827,26 @@ void OBJECT_OT_select_same_group(wmOperatorType *ot)
 /**************************** Select Mirror ****************************/
 static int object_select_mirror_exec(bContext *C, wmOperator *op)
 {
+	Scene *scene= CTX_data_scene(C);
 	short extend;
 	
 	extend= RNA_boolean_get(op->ptr, "extend");
 	
 	CTX_DATA_BEGIN(C, Base*, primbase, selected_bases) {
-
 		char tmpname[32];
-		flip_side_name(tmpname, primbase->object->id.name+2, TRUE);
 
-		CTX_DATA_BEGIN(C, Base*, secbase, visible_bases) {
-			if(!strcmp(secbase->object->id.name+2, tmpname)) {
-				ED_base_object_select(secbase, BA_SELECT);
+		flip_side_name(tmpname, primbase->object->id.name+2, TRUE);
+		
+		if(strcmp(tmpname, primbase->object->id.name+2)!=0) { /* names differ */
+			Object *ob= (Object *)find_id("OB", tmpname);
+			if(ob) {
+				Base *secbase= object_in_scene(ob, scene);
+
+				if(secbase) {
+					ED_base_object_select(secbase, BA_SELECT);
+				}
 			}
 		}
-		CTX_DATA_END;
 		
 		if (extend == 0) ED_base_object_select(primbase, BA_DESELECT);
 		
@@ -863,7 +869,7 @@ void OBJECT_OT_select_mirror(wmOperatorType *ot)
 	
 	/* api callbacks */
 	ot->exec= object_select_mirror_exec;
-	ot->poll= ED_operator_scene_editable;
+	ot->poll= ED_operator_objectmode;
 	
 	/* flags */
 	ot->flag= OPTYPE_REGISTER|OPTYPE_UNDO;
@@ -920,7 +926,7 @@ void OBJECT_OT_select_name(wmOperatorType *ot)
 
 	/* api callbacks */
 	ot->exec= object_select_name_exec;
-	ot->poll= ED_operator_scene_editable;
+	ot->poll= ED_operator_objectmode;
 
 	/* flags */
 	ot->flag= OPTYPE_REGISTER|OPTYPE_UNDO;
@@ -968,7 +974,7 @@ void OBJECT_OT_select_random(wmOperatorType *ot)
 	/* api callbacks */
 	/*ot->invoke= object_select_random_invoke XXX - need a number popup ;*/
 	ot->exec = object_select_random_exec;
-	ot->poll= ED_operator_scene_editable;
+	ot->poll= ED_operator_objectmode;
 	
 	/* flags */
 	ot->flag= OPTYPE_REGISTER|OPTYPE_UNDO;

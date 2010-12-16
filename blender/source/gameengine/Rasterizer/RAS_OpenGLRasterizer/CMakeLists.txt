@@ -24,7 +24,7 @@
 #
 # ***** END GPL LICENSE BLOCK *****
 
-SET(INC
+set(INC
 	../../../../source/kernel/gen_system
 	../../../../intern/string
 	../../../../intern/moto/include
@@ -39,18 +39,23 @@ SET(INC
 	../../../../source/blender/blenloader
 )
 
-SET(SRC
+set(SRC
 	RAS_GLExtensionManager.cpp
 	RAS_ListRasterizer.cpp
 	RAS_OpenGLRasterizer.cpp
 	RAS_VAOpenGLRasterizer.cpp
+
+	RAS_GLExtensionManager.h
+	RAS_ListRasterizer.h
+	RAS_OpenGLRasterizer.h
+	RAS_VAOpenGLRasterizer.h
 )
 
-ADD_DEFINITIONS(-DGLEW_STATIC)
+add_definitions(-DGLEW_STATIC)
 
 IF(WITH_OPENCL)
 	LIST(APPEND INC ${OPENCL_INCLUDE_DIR})  
 	LIST(APPEND INC ${RTPS_INCLUDE_DIR})  
 ENDIF(WITH_OPENCL)
 
-BLENDERLIB(bf_oglrasterizer "${SRC}" "${INC}")
+blenderlib(ge_oglrasterizer "${SRC}" "${INC}")

@@ -24,7 +24,7 @@
 #
 # ***** END GPL LICENSE BLOCK *****
 
-SET(INC
+set(INC
 	.
 	../../../source/gameengine/Ketsji
 	../../../source/gameengine/Expressions
@@ -48,7 +48,7 @@ SET(INC
 	../../../extern/glew/include
 )
 
-SET(SRC
+set(SRC
 	Exception.cpp
 	FilterBase.cpp
 	FilterBlueScreen.cpp
@@ -65,6 +65,23 @@ SET(SRC
 	VideoBase.cpp
 	VideoFFmpeg.cpp
 	blendVideoTex.cpp
+	BlendType.h
+	Common.h
+	Exception.h
+	FilterBase.h
+	FilterBlueScreen.h
+	FilterColor.h
+	FilterNormal.h
+	FilterSource.h
+	ImageBase.h
+	ImageBuff.h
+	ImageMix.h
+	ImageRender.h
+	ImageViewport.h
+	PyTypeList.h
+	Texture.h
+	VideoBase.h
+	VideoFFmpeg.h
 )
 
 IF(WITH_OPENCL)
@@ -72,16 +89,10 @@ IF(WITH_OPENCL)
 	LIST(APPEND INC ${RTPS_INCLUDE_DIR})  
 ENDIF(WITH_OPENCL)
 
-IF(WITH_FFMPEG)
-	SET(INC ${INC} ${FFMPEG_INC} ${PTHREADS_INC})
-	ADD_DEFINITIONS(-DWITH_FFMPEG)
-	ADD_DEFINITIONS(-D__STDC_CONSTANT_MACROS)
-ENDIF(WITH_FFMPEG)
+if(WITH_CODEC_FFMPEG)
+	set(INC ${INC} ${FFMPEG_INC} ${PTHREADS_INC})
+	add_definitions(-DWITH_FFMPEG)
+	add_definitions(-D__STDC_CONSTANT_MACROS)
+endif()
 
-IF(WITH_PYTHON)
-	LIST(APPEND INC ${PYTHON_INC})
-ELSE(WITH_PYTHON)
-	ADD_DEFINITIONS(-DDISABLE_PYTHON)
-ENDIF(WITH_PYTHON)
-
-BLENDERLIB(bf_videotex "${SRC}" "${INC}")
+blenderlib(ge_videotex "${SRC}" "${INC}")

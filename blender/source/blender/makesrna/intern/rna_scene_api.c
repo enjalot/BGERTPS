@@ -55,7 +55,12 @@ static void rna_Scene_frame_set(Scene *scene, int frame, float subframe)
 	CLAMP(scene->r.cfra, MINAFRAME, MAXFRAME);
 	scene_update_for_newframe(G.main, scene, (1<<20) - 1);
 
-	WM_main_add_notifier(NC_SCENE|ND_FRAME, scene);
+	/* cant use NC_SCENE|ND_FRAME because this casues wm_event_do_notifiers to call 
+	 * scene_update_for_newframe which will loose any un-keyed changes [#24690] */
+	/* WM_main_add_notifier(NC_SCENE|ND_FRAME, scene); */
+	
+	/* instead just redraw the views */
+	WM_main_add_notifier(NC_WINDOW, NULL);
 }
 
 static void rna_Scene_update_tagged(Scene *scene)
@@ -68,8 +73,21 @@ static void rna_SceneRender_get_frame_path(RenderData *rd, int frame, char *name
 	if(BKE_imtype_is_movie(rd->imtype))
 		BKE_makeanimstring(name, rd);
 	else
-		BKE_makepicstring(name, rd->pic, (frame==INT_MIN) ? rd->cfra : frame, rd->imtype, rd->scemode & R_EXTENSION);
+		BKE_makepicstring(name, rd->pic, (frame==INT_MIN) ? rd->cfra : frame, rd->imtype, rd->scemode & R_EXTENSION, TRUE);
 }
+
+#ifdef WITH_COLLADA
+
+#include "../../collada/collada.h"
+
+static void rna_Scene_collada_export(Scene *scene, const char *filepath)
+{
+	/* XXX not really nice, as this will bring essentially in COLLADA as dependency for
+	 * blenderplayer. For now stubbing in blc. */
+	collada_export(scene, filepath);
+}
+
+#endif
 
 #else
 
@@ -86,6 +104,14 @@ void RNA_api_scene(StructRNA *srna)
 
 	func= RNA_def_function(srna, "update", "rna_Scene_update_tagged");
 	RNA_def_function_ui_description(func, "Update data tagged to be updated from previous access to data or operators.");
+
+#ifdef WITH_COLLADA
+	func= RNA_def_function(srna, "collada_export", "rna_Scene_collada_export");
+	parm= RNA_def_string(func, "filepath", "", FILE_MAX, "File Path", "File path to write Collada file.");
+	RNA_def_property_flag(parm, PROP_REQUIRED);
+	RNA_def_property_subtype(parm, PROP_FILEPATH); /* allow non utf8 */
+	RNA_def_function_ui_description(func, "Export to collada file.");
+#endif
 }
 
 void RNA_api_scene_render(StructRNA *srna)
@@ -96,8 +122,9 @@ void RNA_api_scene_render(StructRNA *srna)
 	func= RNA_def_function(srna, "frame_path", "rna_SceneRender_get_frame_path");
 	RNA_def_function_ui_description(func, "Return the absolute path to the filename to be written for a given frame.");
 	parm= RNA_def_int(func, "frame", INT_MIN, INT_MIN, INT_MAX, "", "Frame number to use, if unset the current frame will be used.", MINAFRAME, MAXFRAME);
-	parm= RNA_def_string(func, "name", "", FILE_MAX, "File Name", "the resulting filename from the scenes render settings.");
+	parm= RNA_def_string(func, "filepath", "", FILE_MAX, "File Path", "the resulting filepath from the scenes render settings.");
 	RNA_def_property_flag(parm, PROP_THICK_WRAP); /* needed for string return value */
+	RNA_def_property_subtype(parm, PROP_FILEPATH); /* allow non utf8 */
 	RNA_def_function_output(func, parm);
 }
 

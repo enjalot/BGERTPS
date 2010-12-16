@@ -122,8 +122,6 @@ static int left = 1;
 static int initf = 0;
 static unsigned long *next;
 
-PyObject *Noise_Init(void);
-
 /* initializes state[N] with a seed */
 static void init_genrand(unsigned long s)
 {
@@ -176,7 +174,7 @@ static void setRndSeed(int seed)
 }
 
 /* float number in range [0, 1) using the mersenne twister rng */
-static float frand()
+static float frand(void)
 {
 	unsigned long y;
 
@@ -657,10 +655,9 @@ static struct PyModuleDef noise_module_def = {
 	0,  /* m_free */
 };
 
-PyObject *Noise_Init(void)
+PyObject *BPyInit_noise(void)
 {
 	PyObject *submodule = PyModule_Create(&noise_module_def);
-	PyDict_SetItemString(PyImport_GetModuleDict(), noise_module_def.m_name, submodule);
 
 	/* use current time as seed for random number generator by default */
 	setRndSeed(0);	
@@ -668,22 +665,22 @@ PyObject *Noise_Init(void)
 	/* Constant noisetype dictionary */
 	if(submodule) {
 		static PyStructSequence_Field noise_types_fields[] = {
-			{"BLENDER", ""},
-			{"STDPERLIN", ""},
-			{"NEWPERLIN", ""},
-			{"VORONOI_F1", ""},
-			{"VORONOI_F2", ""},
-			{"VORONOI_F3", ""},
-			{"VORONOI_F4", ""},
-			{"VORONOI_F2F1", ""},
-			{"VORONOI_CRACKLE", ""},
-			{"CELLNOISE", ""},
+			{(char *)"BLENDER", NULL},
+			{(char *)"STDPERLIN", NULL},
+			{(char *)"NEWPERLIN", NULL},
+			{(char *)"VORONOI_F1", NULL},
+			{(char *)"VORONOI_F2", NULL},
+			{(char *)"VORONOI_F3", NULL},
+			{(char *)"VORONOI_F4", NULL},
+			{(char *)"VORONOI_F2F1", NULL},
+			{(char *)"VORONOI_CRACKLE", NULL},
+			{(char *)"CELLNOISE", NULL},
 			{0}
 		};
 
 		static PyStructSequence_Desc noise_types_info_desc = {
-			"noise.types",     /* name */
-			"Noise type",    /* doc */
+			(char *)"noise.types",     /* name */
+			(char *)"Noise type",    /* doc */
 			noise_types_fields,    /* fields */
 			(sizeof(noise_types_fields)/sizeof(PyStructSequence_Field)) - 1
 		};
@@ -717,19 +714,19 @@ PyObject *Noise_Init(void)
 	
 	if(submodule) {
 		static PyStructSequence_Field distance_metrics_fields[] = {
-			{"DISTANCE", ""},
-			{"DISTANCE_SQUARED", ""},
-			{"MANHATTAN", ""},
-			{"CHEBYCHEV", ""},
-			{"MINKOVSKY_HALF", ""},
-			{"MINKOVSKY_FOUR", ""},
-			{"MINKOVSKY", ""},
+			{(char *)"DISTANCE", NULL},
+			{(char *)"DISTANCE_SQUARED", NULL},
+			{(char *)"MANHATTAN", NULL},
+			{(char *)"CHEBYCHEV", NULL},
+			{(char *)"MINKOVSKY_HALF", NULL},
+			{(char *)"MINKOVSKY_FOUR", NULL},
+			{(char *)"MINKOVSKY", NULL},
 			{0}
 		};
 
 		static PyStructSequence_Desc noise_types_info_desc = {
-			"noise.distance_metrics",     /* name */
-			"Distance Metrics for noise module.",    /* doc */
+			(char *)"noise.distance_metrics",     /* name */
+			(char *)"Distance Metrics for noise module.",    /* doc */
 			distance_metrics_fields,    /* fields */
 			(sizeof(distance_metrics_fields)/sizeof(PyStructSequence_Field)) - 1
 		};

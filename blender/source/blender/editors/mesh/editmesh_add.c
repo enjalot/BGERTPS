@@ -114,7 +114,7 @@ static int dupli_extrude_cursor(bContext *C, wmOperator *op, wmEvent *event)
 	float min[3], max[3];
 	int done= 0;
 	short use_proj;
-printf("%d\n", event->val);
+
 	em_setup_viewcontext(C, &vc);
 
 	use_proj= (vc.scene->toolsettings->snap_flag & SCE_SNAP) &&	(vc.scene->toolsettings->snap_mode==SCE_SNAP_MODE_FACE);
@@ -138,8 +138,11 @@ printf("%d\n", event->val);
 		float nor[3]= {0.0, 0.0, 0.0};
 		
 		/* 2D normal calc */
-		float mval_f[2]= {(float)event->mval[0], (float)event->mval[1]};
-		
+		float mval_f[2];
+
+		mval_f[0]= (float)event->mval[0];
+		mval_f[1]= (float)event->mval[1];
+
 		done= 0;
 
 		/* calculate the normal for selected edges */
@@ -234,7 +237,8 @@ printf("%d\n", event->val);
 		
 		recalc_editnormals(vc.em);
 	}
-	else {
+	else if(vc.em->selectmode & SCE_SELECT_VERTEX) {
+
 		float mat[3][3],imat[3][3];
 		float *curs= give_cursor(vc.scene, vc.v3d);
 		
@@ -257,7 +261,7 @@ printf("%d\n", event->val);
 		EM_project_snap_verts(C, vc.ar, vc.obedit, vc.em);
 
 	WM_event_add_notifier(C, NC_GEOM|ND_DATA, vc.obedit->data); 
-	DAG_id_flush_update(vc.obedit->data, OB_RECALC_DATA);
+	DAG_id_tag_update(vc.obedit->data, OB_RECALC_DATA);
 	
 	return OPERATOR_FINISHED;
 }
@@ -384,7 +388,7 @@ static int make_fgon_exec(bContext *C, wmOperator *op)
 	EditMesh *em= BKE_mesh_get_editmesh(((Mesh *)obedit->data));
 
 	if( make_fgon(em, op, 1) ) {
-		DAG_id_flush_update(obedit->data, OB_RECALC_DATA);	
+		DAG_id_tag_update(obedit->data, OB_RECALC_DATA);	
 		WM_event_add_notifier(C, NC_GEOM|ND_DATA, obedit->data);
 
 		BKE_mesh_end_editmesh(obedit->data, em);
@@ -416,7 +420,7 @@ static int clear_fgon_exec(bContext *C, wmOperator *op)
 	EditMesh *em= BKE_mesh_get_editmesh(((Mesh *)obedit->data));
 	
 	if( make_fgon(em, op, 0) ) {
-		DAG_id_flush_update(obedit->data, OB_RECALC_DATA);	
+		DAG_id_tag_update(obedit->data, OB_RECALC_DATA);	
 		WM_event_add_notifier(C, NC_GEOM|ND_DATA, obedit->data);
 		
 		BKE_mesh_end_editmesh(obedit->data, em);
@@ -705,7 +709,7 @@ void addfaces_from_edgenet(EditMesh *em)
 
 	EM_select_flush(em);
 	
-// XXX	DAG_id_flush_update(obedit->data, OB_RECALC_DATA);
+// XXX	DAG_id_tag_update(obedit->data, OB_RECALC_DATA);
 }
 
 static void addedgeface_mesh(EditMesh *em, wmOperator *op)
@@ -734,7 +738,7 @@ static void addedgeface_mesh(EditMesh *em, wmOperator *op)
 		eed= addedgelist(em, neweve[0], neweve[1], NULL);
 		EM_select_edge(eed, 1);
 
-		// XXX		DAG_id_flush_update(obedit->data, OB_RECALC_DATA);	
+		// XXX		DAG_id_tag_update(obedit->data, OB_RECALC_DATA);	
 		return;
 	}
 	else if(amount > 4) {
@@ -832,7 +836,7 @@ static int addedgeface_mesh_exec(bContext *C, wmOperator *op)
 	
 	addedgeface_mesh(em, op);
 	
-	DAG_id_flush_update(obedit->data, OB_RECALC_DATA);	
+	DAG_id_tag_update(obedit->data, OB_RECALC_DATA);	
 	WM_event_add_notifier(C, NC_GEOM|ND_DATA, obedit->data);
 	
 	BKE_mesh_end_editmesh(obedit->data, em);
@@ -1198,7 +1202,10 @@ static void make_prim(Object *obedit, int type, float mat[4][4], int tot, int se
 		else if(ext==0) 
 			depth= 0.0f;
 	
-		/* vertices */
+		/* first vertex at 0° for circular objects */
+		if( ELEM3(type, PRIM_CIRCLE,PRIM_CYLINDER,PRIM_CONE) )
+			phi = 0.0f;
+			
 		vtop= vdown= v1= v2= 0;
 		for(b=0; b<=ext; b++) {
 			for(a=0; a<tot; a++) {
@@ -1309,7 +1316,7 @@ static void make_prim(Object *obedit, int type, float mat[4][4], int tot, int se
 
 /* ********* add primitive operators ************* */
 
-static char *get_mesh_defname(int type)
+static const char *get_mesh_defname(int type)
 {
 	switch (type) {
 		case PRIM_PLANE: return "Plane";
@@ -1345,7 +1352,7 @@ static void make_prim_ext(bContext *C, float *loc, float *rot, int enter_editmod
 		ED_object_enter_editmode(C, EM_DO_UNDO|EM_IGNORE_LAYER); /* rare cases the active layer is messed up */
 		newob = 1;
 	}
-	else DAG_id_flush_update(&obedit->id, OB_RECALC_DATA);
+	else DAG_id_tag_update(&obedit->id, OB_RECALC_DATA);
 
 	scale= ED_object_new_primitive_matrix(C, obedit, loc, rot, mat);
 
@@ -1354,7 +1361,7 @@ static void make_prim_ext(bContext *C, float *loc, float *rot, int enter_editmod
 
 	make_prim(obedit, type, mat, tot, seg, subdiv, dia, depth, ext, fill);
 
-	DAG_id_flush_update(obedit->data, OB_RECALC_DATA);
+	DAG_id_tag_update(obedit->data, OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GEOM|ND_DATA, obedit->data);
 
 
@@ -1549,7 +1556,7 @@ void MESH_OT_primitive_cone_add(wmOperatorType *ot)
 	RNA_def_int(ot->srna, "vertices", 32, INT_MIN, INT_MAX, "Vertices", "", 2, 500);
 	RNA_def_float(ot->srna, "radius", 1.0f, 0.0, FLT_MAX, "Radius", "", 0.001, 100.00);
 	RNA_def_float(ot->srna, "depth", 2.0f, 0.0, FLT_MAX, "Depth", "", 0.001, 100.00);
-	RNA_def_boolean(ot->srna, "cap_end", 0, "Cap End", "");
+	RNA_def_boolean(ot->srna, "cap_end", 1, "Cap End", "");
 
 	ED_object_add_generic_props(ot, TRUE);
 }
@@ -1716,7 +1723,7 @@ static int mesh_duplicate_exec(bContext *C, wmOperator *UNUSED(op))
 
 	BKE_mesh_end_editmesh(ob->data, em);
 
-	DAG_id_flush_update(ob->data, OB_RECALC_DATA);
+	DAG_id_tag_update(ob->data, OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GEOM|ND_DATA, ob->data);
 	
 	return OPERATOR_FINISHED;

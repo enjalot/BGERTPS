@@ -19,7 +19,7 @@
 #
 # ***** END GPL LICENSE BLOCK *****
 
-SET(INC
+set(INC
 	../include
 	../../blenfont
 	../../blenkernel
@@ -33,7 +33,7 @@ SET(INC
 	../../../../intern/guardedalloc
 )
 
-SET(SRC
+set(SRC
 	interface.c
 	interface_anim.c
 	interface_draw.c
@@ -50,14 +50,16 @@ SET(SRC
 	resources.c
 	view2d.c
 	view2d_ops.c
+
+	interface_intern.h
 )
 
-IF(WITH_INTERNATIONAL)
-	ADD_DEFINITIONS(-DINTERNATIONAL)
-ENDIF(WITH_INTERNATIONAL)
+if(WITH_INTERNATIONAL)
+	add_definitions(-DINTERNATIONAL)
+endif()
 
-IF(NOT WITH_PYTHON)
-	ADD_DEFINITIONS(-DDISABLE_PYTHON)
-ENDIF(NOT WITH_PYTHON)
+if(WITH_PYTHON)
+	add_definitions(-DWITH_PYTHON)
+endif()
 
-BLENDERLIB(bf_editor_interface "${SRC}" "${INC}")
+blenderlib(bf_editor_interface "${SRC}" "${INC}")

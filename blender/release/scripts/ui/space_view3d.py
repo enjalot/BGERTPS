@@ -916,8 +916,14 @@ class VIEW3D_MT_make_links(bpy.types.Menu):
     def draw(self, context):
         layout = self.layout
 
-        layout.operator_menu_enum("object.make_links_scene", "scene", text="Objects to Scene...")
-        layout.operator_menu_enum("marker.make_links_scene", "scene", text="Markers to Scene...")
+        if(len(bpy.data.scenes) > 10):
+            layout.operator_context = 'INVOKE_DEFAULT'
+            layout.operator("object.make_links_scene", text="Objects to Scene...", icon='OUTLINER_OB_EMPTY')
+            layout.operator("object.make_links_scene", text="Markers to Scene...", icon='OUTLINER_OB_EMPTY')
+        else:
+            layout.operator_menu_enum("object.make_links_scene", "scene", text="Objects to Scene...")
+            layout.operator_menu_enum("marker.make_links_scene", "scene", text="Markers to Scene...")
+
         layout.operator_enums("object.make_links_data", "type")  # inline
 
 
@@ -1439,13 +1445,16 @@ class VIEW3D_OT_edit_mesh_extrude_individual_move(bpy.types.Operator):
         totvert = mesh.total_vert_sel
 
         if select_mode[2] and totface == 1:
-            return bpy.ops.mesh.extrude_region_move('INVOKE_REGION_WIN', TRANSFORM_OT_translate={"constraint_orientation": "NORMAL", "constraint_axis": [False, False, True]})
+            bpy.ops.mesh.extrude_region_move('INVOKE_REGION_WIN', TRANSFORM_OT_translate={"constraint_orientation": 'NORMAL', "constraint_axis": (False, False, True)})
         elif select_mode[2] and totface > 1:
-            return bpy.ops.mesh.extrude_faces_move('INVOKE_REGION_WIN')
+            bpy.ops.mesh.extrude_faces_move('INVOKE_REGION_WIN')
         elif select_mode[1] and totedge >= 1:
-            return bpy.ops.mesh.extrude_edges_move('INVOKE_REGION_WIN')
+            bpy.ops.mesh.extrude_edges_move('INVOKE_REGION_WIN')
         else:
-            return bpy.ops.mesh.extrude_vertices_move('INVOKE_REGION_WIN')
+            bpy.ops.mesh.extrude_vertices_move('INVOKE_REGION_WIN')
+
+        # ignore return from operators above because they are 'RUNNING_MODAL', and cause this one not to be freed. [#24671]
+        return {'FINISHED'}
 
     def invoke(self, context, event):
         return self.execute(context)
@@ -1464,11 +1473,14 @@ class VIEW3D_OT_edit_mesh_extrude_move(bpy.types.Operator):
         totvert = mesh.total_vert_sel
 
         if totface >= 1:
-            return bpy.ops.mesh.extrude_region_move('INVOKE_REGION_WIN', TRANSFORM_OT_translate={"constraint_orientation": "NORMAL", "constraint_axis": [False, False, True]})
+            bpy.ops.mesh.extrude_region_move('INVOKE_REGION_WIN', TRANSFORM_OT_translate={"constraint_orientation": 'NORMAL', "constraint_axis": (False, False, True)})
         elif totedge == 1:
-            return bpy.ops.mesh.extrude_region_move('INVOKE_REGION_WIN', TRANSFORM_OT_translate={"constraint_orientation": "NORMAL", "constraint_axis": [True, True, False]})
+            bpy.ops.mesh.extrude_region_move('INVOKE_REGION_WIN', TRANSFORM_OT_translate={"constraint_orientation": 'NORMAL', "constraint_axis": (True, True, False)})
         else:
-            return bpy.ops.mesh.extrude_region_move('INVOKE_REGION_WIN')
+            bpy.ops.mesh.extrude_region_move('INVOKE_REGION_WIN')
+
+        # ignore return from operators above because they are 'RUNNING_MODAL', and cause this one not to be freed. [#24671]
+        return {'FINISHED'}
 
     def invoke(self, context, event):
         return self.execute(context)
@@ -1708,7 +1720,7 @@ class VIEW3D_MT_edit_surface(bpy.types.Menu):
     draw = draw_curve
 
 
-class VIEW3D_MT_edit_text(bpy.types.Menu):
+class VIEW3D_MT_edit_font(bpy.types.Menu):
     bl_label = "Text"
 
     def draw(self, context):
@@ -1951,6 +1963,8 @@ class VIEW3D_PT_view3d_properties(bpy.types.Panel):
         col.prop(view, "lock_object", text="")
         if view.lock_object and view.lock_object.type == 'ARMATURE':
             col.prop_search(view, "lock_bone", view.lock_object.data, "bones", text="")
+        elif not view.lock_object:
+            col.prop(view, "lock_cursor", text="Lock to Cursor")
 
         col = layout.column(align=True)
         col.label(text="Clip:")
@@ -2005,7 +2019,8 @@ class VIEW3D_PT_view3d_display(bpy.types.Panel):
         layout = self.layout
 
         view = context.space_data
-        gs = context.scene.game_settings
+        scene = context.scene
+        gs = scene.game_settings
         ob = context.object
 
         col = layout.column()
@@ -2034,8 +2049,10 @@ class VIEW3D_PT_view3d_display(bpy.types.Panel):
         sub = col.column(align=True)
         sub.active = (display_all and view.show_floor)
         sub.prop(view, "grid_lines", text="Lines")
-        sub.prop(view, "grid_spacing", text="Spacing")
-        sub.prop(view, "grid_subdivisions", text="Subdivisions")
+        sub.prop(view, "grid_scale", text="Scale")
+        subsub = sub.column(align=True)
+        subsub.active = scene.unit_settings.system == 'NONE'
+        subsub.prop(view, "grid_subdivisions", text="Subdivisions")
 
         col = layout.column()
         col.label(text="Shading:")
@@ -2142,7 +2159,7 @@ class VIEW3D_PT_background_image(bpy.types.Panel):
         view = context.space_data
 
         col = layout.column()
-        col.operator("view3d.add_background_image", text="Add Image")
+        col.operator("view3d.background_image_add", text="Add Image")
 
         for i, bg in enumerate(view.background_images):
             layout.active = view.show_background_images
@@ -2153,7 +2170,7 @@ class VIEW3D_PT_background_image(bpy.types.Panel):
                 row.prop(bg.image, "name", text="", emboss=False)
             else:
                 row.label(text="Not Set")
-            row.operator("view3d.remove_background_image", text="", emboss=False, icon='X').index = i
+            row.operator("view3d.background_image_remove", text="", emboss=False, icon='X').index = i
 
             box.prop(bg, "view_axis", text="Axis")
 
@@ -2163,7 +2180,7 @@ class VIEW3D_PT_background_image(bpy.types.Panel):
                 if (bg.image):
                     box.template_image(bg, "image", bg.image_user, compact=True)
 
-                    box.prop(bg, "transparency", slider=True)
+                    box.prop(bg, "opacity", slider=True)
                     if bg.view_axis != 'CAMERA':
                         box.prop(bg, "size")
                         row = box.row(align=True)

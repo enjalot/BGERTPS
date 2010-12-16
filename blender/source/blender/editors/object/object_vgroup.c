@@ -79,7 +79,7 @@ static Lattice *vgroup_edit_lattice(Object *ob)
 	return NULL;
 }
 
-bDeformGroup *ED_vgroup_add_name(Object *ob, char *name)
+bDeformGroup *ED_vgroup_add_name(Object *ob, const char *name)
 {
 	bDeformGroup *defgroup;
 	
@@ -596,7 +596,7 @@ static void vgroup_select_verts(Object *ob, int select)
 static void vgroup_duplicate(Object *ob)
 {
 	bDeformGroup *dg, *cdg;
-	char name[32], s[32];
+	char name[sizeof(dg->name)];
 	MDeformWeight *org, *cpy;
 	MDeformVert *dvert, **dvert_array=NULL;
 	int i, idg, icdg, dvert_tot=0;
@@ -605,26 +605,17 @@ static void vgroup_duplicate(Object *ob)
 	if(!dg)
 		return;
 	
-	if(strstr(dg->name, "_copy")) {
-		BLI_strncpy(name, dg->name, 32); /* will be renamed _copy.001... etc */
+	if(!strstr(dg->name, "_copy")) {
+		BLI_snprintf(name, sizeof(name), "%s_copy", dg->name);
 	}
 	else {
-		BLI_snprintf(name, 32, "%s_copy", dg->name);
-		while(defgroup_find_name(ob, name)) {
-			if((strlen(name) + 6) > 32) {
-				if (G.f & G_DEBUG)
-					printf("Internal error: the name for the new vertex group is > 32 characters");
-				return;
-			}
-			strcpy(s, name);
-			BLI_snprintf(name, 32, "%s_copy", s);
-		}
-	}		
+		BLI_snprintf(name, sizeof(name), "%s", dg->name);
+	}
 
 	cdg = defgroup_duplicate(dg);
 	strcpy(cdg->name, name);
 	defgroup_unique_name(cdg, ob);
-	
+
 	BLI_addtail(&ob->defbase, cdg);
 
 	idg = (ob->actdef-1);
@@ -1443,7 +1434,7 @@ static int vertex_group_add_exec(bContext *C, wmOperator *UNUSED(op))
 	Object *ob= CTX_data_pointer_get_type(C, "object", &RNA_Object).data;
 
 	ED_vgroup_add(ob);
-	DAG_id_flush_update(&ob->id, OB_RECALC_DATA);
+	DAG_id_tag_update(&ob->id, OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GEOM|ND_DATA, ob->data);
 	WM_event_add_notifier(C, NC_OBJECT|ND_DRAW, ob);
 	
@@ -1473,7 +1464,7 @@ static int vertex_group_remove_exec(bContext *C, wmOperator *op)
 	else
 		vgroup_delete(ob);
 
-	DAG_id_flush_update(&ob->id, OB_RECALC_DATA);
+	DAG_id_tag_update(&ob->id, OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GEOM|ND_DATA, ob->data);
 	WM_event_add_notifier(C, NC_OBJECT|ND_DRAW, ob);
 	
@@ -1506,7 +1497,7 @@ static int vertex_group_assign_exec(bContext *C, wmOperator *op)
 		ED_vgroup_add(ob);
 
 	vgroup_assign_verts(ob, ts->vgroup_weight);
-	DAG_id_flush_update(&ob->id, OB_RECALC_DATA);
+	DAG_id_tag_update(&ob->id, OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GEOM|ND_DATA, ob->data);
 	
 	return OPERATOR_FINISHED;
@@ -1538,7 +1529,7 @@ static int vertex_group_remove_from_exec(bContext *C, wmOperator *op)
 	else
 		vgroup_active_remove_verts(ob, 0);
 
-	DAG_id_flush_update(&ob->id, OB_RECALC_DATA);
+	DAG_id_tag_update(&ob->id, OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GEOM|ND_DATA, ob->data);
 
 	return OPERATOR_FINISHED;
@@ -1617,7 +1608,7 @@ static int vertex_group_copy_exec(bContext *C, wmOperator *UNUSED(op))
 	Object *ob= CTX_data_pointer_get_type(C, "object", &RNA_Object).data;
 
 	vgroup_duplicate(ob);
-	DAG_id_flush_update(&ob->id, OB_RECALC_DATA);
+	DAG_id_tag_update(&ob->id, OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_OBJECT|ND_DRAW, ob);
 	WM_event_add_notifier(C, NC_GEOM|ND_DATA, ob->data);
 
@@ -1647,7 +1638,7 @@ static int vertex_group_levels_exec(bContext *C, wmOperator *op)
 	
 	vgroup_levels(ob, offset, gain);
 	
-	DAG_id_flush_update(&ob->id, OB_RECALC_DATA);
+	DAG_id_tag_update(&ob->id, OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_OBJECT|ND_DRAW, ob);
 	WM_event_add_notifier(C, NC_GEOM|ND_DATA, ob->data);
 	
@@ -1677,7 +1668,7 @@ static int vertex_group_normalize_exec(bContext *C, wmOperator *UNUSED(op))
 
 	vgroup_normalize(ob);
 
-	DAG_id_flush_update(&ob->id, OB_RECALC_DATA);
+	DAG_id_tag_update(&ob->id, OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_OBJECT|ND_DRAW, ob);
 	WM_event_add_notifier(C, NC_GEOM|ND_DATA, ob->data);
 
@@ -1705,7 +1696,7 @@ static int vertex_group_normalize_all_exec(bContext *C, wmOperator *op)
 
 	vgroup_normalize_all(ob, lock_active);
 
-	DAG_id_flush_update(&ob->id, OB_RECALC_DATA);
+	DAG_id_tag_update(&ob->id, OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_OBJECT|ND_DRAW, ob);
 	WM_event_add_notifier(C, NC_GEOM|ND_DATA, ob->data);
 
@@ -1735,7 +1726,7 @@ static int vertex_group_invert_exec(bContext *C, wmOperator *op)
 	int auto_remove= RNA_boolean_get(op->ptr,"auto_remove");
 
 	vgroup_invert(ob, auto_assign, auto_remove);
-	DAG_id_flush_update(&ob->id, OB_RECALC_DATA);
+	DAG_id_tag_update(&ob->id, OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_OBJECT|ND_DRAW, ob);
 	WM_event_add_notifier(C, NC_GEOM|ND_DATA, ob->data);
 
@@ -1766,7 +1757,7 @@ static int vertex_group_blend_exec(bContext *C, wmOperator *UNUSED(op))
 
 	vgroup_blend(ob);
 
-	DAG_id_flush_update(&ob->id, OB_RECALC_DATA);
+	DAG_id_tag_update(&ob->id, OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_OBJECT|ND_DRAW, ob);
 	WM_event_add_notifier(C, NC_GEOM|ND_DATA, ob->data);
 
@@ -1800,7 +1791,7 @@ static int vertex_group_clean_exec(bContext *C, wmOperator *op)
 	if(all_groups)	vgroup_clean_all(ob, limit, keep_single);
 	else			vgroup_clean(ob, limit, keep_single);
 
-	DAG_id_flush_update(&ob->id, OB_RECALC_DATA);
+	DAG_id_tag_update(&ob->id, OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_OBJECT|ND_DRAW, ob);
 	WM_event_add_notifier(C, NC_GEOM|ND_DATA, ob->data);
 
@@ -1833,7 +1824,7 @@ static int vertex_group_mirror_exec(bContext *C, wmOperator *op)
 
 	ED_vgroup_mirror(ob, RNA_boolean_get(op->ptr,"mirror_weights"), RNA_boolean_get(op->ptr,"flip_group_names"));
 
-	DAG_id_flush_update(&ob->id, OB_RECALC_DATA);
+	DAG_id_tag_update(&ob->id, OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_OBJECT|ND_DRAW, ob);
 	WM_event_add_notifier(C, NC_GEOM|ND_DATA, ob->data);
 
@@ -1845,7 +1836,7 @@ void OBJECT_OT_vertex_group_mirror(wmOperatorType *ot)
 	/* identifiers */
 	ot->name= "Mirror Vertex Group";
 	ot->idname= "OBJECT_OT_vertex_group_mirror";
-	ot->description= "Mirror weights, and flip vertex group names, copying when only one side is selected";
+	ot->description= "Mirror all vertex groups, flip weights and/or names, editing only selected vertices, flipping when both sides are selected otherwise copy from unselected";
 
 	/* api callbacks */
 	ot->poll= vertex_group_poll_edit;
@@ -1856,7 +1847,7 @@ void OBJECT_OT_vertex_group_mirror(wmOperatorType *ot)
 
 	/* properties */
 	RNA_def_boolean(ot->srna, "mirror_weights", TRUE, "Mirror Weights", "Mirror weights.");
-	RNA_def_boolean(ot->srna, "flip_group_names", TRUE, "Flip Groups", "Flip vertex group names while mirroring.");
+	RNA_def_boolean(ot->srna, "flip_group_names", TRUE, "Flip Groups", "Flip vertex group names.");
 
 }
 
@@ -1874,7 +1865,7 @@ static int vertex_group_copy_to_linked_exec(bContext *C, wmOperator *UNUSED(op))
 				BLI_duplicatelist(&base->object->defbase, &ob->defbase);
 				base->object->actdef= ob->actdef;
 
-				DAG_id_flush_update(&base->object->id, OB_RECALC_DATA);
+				DAG_id_tag_update(&base->object->id, OB_RECALC_DATA);
 				WM_event_add_notifier(C, NC_OBJECT|ND_DRAW, base->object);
 				WM_event_add_notifier(C, NC_GEOM|ND_DATA, base->object->data);
 
@@ -1941,7 +1932,7 @@ static int set_active_group_exec(bContext *C, wmOperator *op)
 
 	ob->actdef= nr+1;
 
-	DAG_id_flush_update(&ob->id, OB_RECALC_DATA);
+	DAG_id_tag_update(&ob->id, OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GEOM|ND_DATA, ob);
 
 	return OPERATOR_FINISHED;
@@ -2097,7 +2088,7 @@ static int vertex_group_sort_exec(bContext *C, wmOperator *op)
 	ret = vgroup_do_remap(ob, name_array, op);
 
 	if (ret != OPERATOR_CANCELLED) {
-		DAG_id_flush_update(&ob->id, OB_RECALC_DATA);
+		DAG_id_tag_update(&ob->id, OB_RECALC_DATA);
 		WM_event_add_notifier(C, NC_GEOM|ND_DATA, ob);
 	}
 
@@ -2151,7 +2142,7 @@ static int vgroup_move_exec(bContext *C, wmOperator *op)
 	if (name_array) MEM_freeN(name_array);
 
 	if (ret != OPERATOR_CANCELLED) {
-		DAG_id_flush_update(&ob->id, OB_RECALC_DATA);
+		DAG_id_tag_update(&ob->id, OB_RECALC_DATA);
 		WM_event_add_notifier(C, NC_GEOM|ND_DATA, ob);
 	}
 

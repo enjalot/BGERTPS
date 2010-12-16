@@ -24,14 +24,23 @@
 #
 # ***** END GPL LICENSE BLOCK *****
 
-SET(INC
+set(INC
 	.
 	..
 )
 
-SET(SRC
-	./intern/MEM_CacheLimiterC-Api.cpp
-	./intern/MEM_RefCountedC-Api.cpp
+set(SRC
+	intern/MEM_CacheLimiterC-Api.cpp
+	intern/MEM_RefCountedC-Api.cpp
+
+	MEM_Allocator.h
+	MEM_CacheLimiter.h
+	MEM_CacheLimiterC-Api.h
+	MEM_NonCopyable.h
+	MEM_RefCountPtr.h
+	MEM_RefCounted.h
+	MEM_RefCountedC-Api.h
+	MEM_SmartPtr.h
 )
 
-BLENDERLIB(bf_intern_memutil "${SRC}" "${INC}")
+blenderlib(bf_intern_memutil "${SRC}" "${INC}")

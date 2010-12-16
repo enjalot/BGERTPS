@@ -137,21 +137,28 @@ static void image_info(Image *ima, ImBuf *ibuf, char *str)
 	
 	if(ibuf->rect_float) {
 		if(ibuf->channels!=4) {
-			sprintf(str+ofs, "%d float channel(s)", ibuf->channels);
+			ofs+= sprintf(str+ofs, "%d float channel(s)", ibuf->channels);
 		}
 		else if(ibuf->depth==32)
-			strcat(str, " RGBA float");
+			ofs+= sprintf(str+ofs, " RGBA float");
 		else
-			strcat(str, " RGB float");
+			ofs+= sprintf(str+ofs, " RGB float");
 	}
 	else {
 		if(ibuf->depth==32)
-			strcat(str, " RGBA byte");
+			ofs+= sprintf(str+ofs, " RGBA byte");
 		else
-			strcat(str, " RGB byte");
+			ofs+= sprintf(str+ofs, " RGB byte");
 	}
 	if(ibuf->zbuf || ibuf->zbuf_float)
-		strcat(str, " + Z");
+		ofs+= sprintf(str+ofs, " + Z");
+
+	if(ima->source==IMA_SRC_SEQUENCE) {
+		char *file= BLI_last_slash(ibuf->name);
+		if(file==NULL)	file= ibuf->name;
+		else			file++;
+		sprintf(str+ofs, ", %s", file);
+	}
 	
 }
 
@@ -477,7 +484,7 @@ static void image_panel_preview(ScrArea *sa, short cntrl)	// IMAGE_HANDLER_PREVI
 
 /* ********************* callbacks for standard image buttons *************** */
 
-static char *slot_menu()
+static char *slot_menu(void)
 {
 	char *str;
 	int a, slot;
@@ -754,7 +761,7 @@ static void rna_update_cb(bContext *C, void *arg_cb, void *UNUSED(arg))
 	RNA_property_update(C, &cb->ptr, cb->prop);
 }
 
-void uiTemplateImage(uiLayout *layout, bContext *C, PointerRNA *ptr, char *propname, PointerRNA *userptr, int compact)
+void uiTemplateImage(uiLayout *layout, bContext *C, PointerRNA *ptr, const char *propname, PointerRNA *userptr, int compact)
 {
 	PropertyRNA *prop;
 	PointerRNA imaptr;
@@ -1012,6 +1019,7 @@ void IMAGE_OT_properties(wmOperatorType *ot)
 {
 	ot->name= "Properties";
 	ot->idname= "IMAGE_OT_properties";
+	ot->description= "Toggle display properties panel";
 	
 	ot->exec= image_properties;
 	ot->poll= ED_operator_image_active;
@@ -1035,6 +1043,7 @@ void IMAGE_OT_scopes(wmOperatorType *ot)
 {
 	ot->name= "Scopes";
 	ot->idname= "IMAGE_OT_scopes";
+	ot->description= "Toggle display scopes panel";
 	
 	ot->exec= image_scopes;
 	ot->poll= ED_operator_image_active;

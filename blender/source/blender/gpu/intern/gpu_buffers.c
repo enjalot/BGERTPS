@@ -491,7 +491,11 @@ void *GPU_build_mesh_buffers(GHash *map, MVert *mvert, MFace *mface,
 		if(tri_data) {
 			for(i = 0; i < totface; ++i) {
 				MFace *f = mface + face_indices[i];
-				int v[3] = {f->v1, f->v2, f->v3};
+				int v[3];
+
+				v[0]= f->v1;
+				v[1]= f->v2;
+				v[2]= f->v3;
 
 				for(j = 0; j < (f->v4 ? 2 : 1); ++j) {
 					for(k = 0; k < 3; ++k) {
@@ -1175,8 +1179,13 @@ void GPU_buffer_copy_uvedge(DerivedMesh *dm, float *varray, int *UNUSED(index), 
 GPUBuffer *GPU_buffer_uvedge( DerivedMesh *dm )
 {
 	DEBUG_VBO("GPU_buffer_uvedge\n");
-
-	return GPU_buffer_setup( dm, dm->drawObject, sizeof(float)*2*(dm->drawObject->nelements/3)*2, GL_ARRAY_BUFFER_ARB, 0, GPU_buffer_copy_uvedge);
+	/* logic here:
+	 * ...each face gets 3 'nelements'
+	 * ...3 edges per triangle
+	 * ...each edge has its own, non-shared coords.
+	 * so each tri corner needs minimum of 4 floats, quads used less so here we can over allocate and assume all tris.
+	 * */
+	return GPU_buffer_setup( dm, dm->drawObject, 4 * sizeof(float) * dm->drawObject->nelements, GL_ARRAY_BUFFER_ARB, 0, GPU_buffer_copy_uvedge);
 }
 
 
@@ -1487,7 +1496,7 @@ void GPU_interleaved_attrib_setup( GPUBuffer *buffer, GPUAttrib data[], int numd
 		glBindBufferARB( GL_ARRAY_BUFFER_ARB, buffer->id );
 		for( i = 0; i < numdata; i++ ) {
 			glEnableVertexAttribArrayARB( data[i].index );
-			glVertexAttribPointerARB( data[i].index, data[i].size, data[i].type, GL_TRUE, elementsize, (void *)offset );
+			glVertexAttribPointerARB( data[i].index, data[i].size, data[i].type, GL_FALSE, elementsize, (void *)offset );
 			offset += data[i].size*GPU_typesize(data[i].type);
 
 			attribData[i].index = data[i].index;
@@ -1499,7 +1508,7 @@ void GPU_interleaved_attrib_setup( GPUBuffer *buffer, GPUAttrib data[], int numd
 	else {
 		for( i = 0; i < numdata; i++ ) {
 			glEnableVertexAttribArrayARB( data[i].index );
-			glVertexAttribPointerARB( data[i].index, data[i].size, data[i].type, GL_TRUE, elementsize, (char *)buffer->pointer + offset );
+			glVertexAttribPointerARB( data[i].index, data[i].size, data[i].type, GL_FALSE, elementsize, (char *)buffer->pointer + offset );
 			offset += data[i].size*GPU_typesize(data[i].type);
 		}
 	}

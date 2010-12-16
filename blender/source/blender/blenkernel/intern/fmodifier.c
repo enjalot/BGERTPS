@@ -802,13 +802,13 @@ static void fcm_python_copy (FModifier *fcm, FModifier *src)
 
 static void fcm_python_evaluate (FCurve *UNUSED(fcu), FModifier *UNUSED(fcm), float *UNUSED(cvalue), float UNUSED(evaltime))
 {
-#ifndef DISABLE_PYTHON
+#ifdef WITH_PYTHON
 	//FMod_Python *data= (FMod_Python *)fcm->data;
 	
 	/* FIXME... need to implement this modifier...
 	 *	It will need it execute a script using the custom properties 
 	 */
-#endif /* DISABLE_PYTHON */
+#endif /* WITH_PYTHON */
 }
 
 static FModifierTypeInfo FMI_PYTHON = {
@@ -932,7 +932,7 @@ static FModifierTypeInfo *fmodifiersTypeInfo[FMODIFIER_NUM_TYPES];
 static short FMI_INIT= 1; /* when non-zero, the list needs to be updated */
 
 /* This function only gets called when FMI_INIT is non-zero */
-static void fmods_init_typeinfo () 
+static void fmods_init_typeinfo (void) 
 {
 	fmodifiersTypeInfo[0]=  NULL; 					/* 'Null' F-Curve Modifier */
 	fmodifiersTypeInfo[1]=  &FMI_GENERATOR; 		/* Generator F-Curve Modifier */

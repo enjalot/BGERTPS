@@ -35,6 +35,7 @@
 
 #include "BLI_math.h"
 #include "BLI_rect.h"
+#include "BLI_listbase.h"
 
 #include "BKE_anim.h"
 #include "BKE_action.h"
@@ -56,7 +57,7 @@
 #include "ED_screen.h"
 #include "ED_armature.h"
 
-#if GAMEBLENDER == 1
+#ifdef WITH_GAMEENGINE
 #include "SYS_System.h"
 #endif
 
@@ -139,8 +140,12 @@ void view3d_settings_from_ob(Object *ob, float *ofs, float *quat, float *dist, f
 	}
 
 	if (dist) {
-		float vec[3] = {0.0f, 0.0f, -(*dist)};
 		float tquat[4];
+		float vec[3];
+
+		vec[0]= 0.0f;
+		vec[1]= 0.0f;
+		vec[2]= -(*dist);
 
 		mat4_to_quat(tquat, ob->obmat);
 
@@ -175,10 +180,10 @@ void smooth_view(bContext *C, Object *oldcamera, Object *camera, float *ofs, flo
 {
 	View3D *v3d = CTX_wm_view3d(C);
 	RegionView3D *rv3d= CTX_wm_region_view3d(C);
-	struct SmoothViewStore sms;
+	struct SmoothViewStore sms= {0};
+	short ok= FALSE;
 	
 	/* initialize sms */
-	memset(&sms,0,sizeof(struct SmoothViewStore));
 	copy_v3_v3(sms.new_ofs, rv3d->ofs);
 	copy_qt_qt(sms.new_quat, rv3d->viewquat);
 	sms.new_dist= rv3d->dist;
@@ -266,18 +271,26 @@ void smooth_view(bContext *C, Object *oldcamera, Object *camera, float *ofs, flo
 			/* TIMER1 is hardcoded in keymap */
 			rv3d->smooth_timer= WM_event_add_timer(CTX_wm_manager(C), CTX_wm_window(C), TIMER1, 1.0/100.0);	/* max 30 frs/sec */
 			
-			return;
+			ok= TRUE;
 		}
 	}
 	
 	/* if we get here nothing happens */
-	if(sms.to_camera==0) {
-		copy_v3_v3(rv3d->ofs, sms.new_ofs);
-		copy_qt_qt(rv3d->viewquat, sms.new_quat);
-		rv3d->dist = sms.new_dist;
-		v3d->lens = sms.new_lens;
+	if(ok == FALSE) {
+		ARegion *ar= CTX_wm_region(C);
+
+		if(sms.to_camera==0) {
+			copy_v3_v3(rv3d->ofs, sms.new_ofs);
+			copy_qt_qt(rv3d->viewquat, sms.new_quat);
+			rv3d->dist = sms.new_dist;
+			v3d->lens = sms.new_lens;
+		}
+
+		if(rv3d->viewlock & RV3D_BOXVIEW)
+			view3d_boxview_copy(CTX_wm_area(C), ar);
+
+		ED_region_tag_redraw(ar);
 	}
-	ED_region_tag_redraw(CTX_wm_region(C));
 }
 
 /* only meant for timer usage */
@@ -344,6 +357,9 @@ static int view3d_smoothview_invoke(bContext *C, wmOperator *UNUSED(op), wmEvent
 		v3d->lens = sms->new_lens*step + sms->orig_lens*step_inv;
 	}
 	
+	if(rv3d->viewlock & RV3D_BOXVIEW)
+		view3d_boxview_copy(CTX_wm_area(C), CTX_wm_region(C));
+	
 	WM_event_add_notifier(C, NC_SPACE|ND_SPACE_VIEW3D, v3d);
 	
 	return OPERATOR_FINISHED;
@@ -391,7 +407,9 @@ static int view3d_setcameratoview_exec(bContext *C, wmOperator *UNUSED(op))
 
 	copy_qt_qt(rv3d->lviewquat, rv3d->viewquat);
 	rv3d->lview= rv3d->view;
-	rv3d->lpersp= rv3d->persp;
+	if(rv3d->persp != RV3D_CAMOB) {
+		rv3d->lpersp= rv3d->persp;
+	}
 
 	setcameratoview3d(rv3d, v3d->camera);
 	rv3d->persp = RV3D_CAMOB;
@@ -462,7 +480,7 @@ void VIEW3D_OT_object_as_camera(wmOperatorType *ot)
 	
 	/* api callbacks */
 	ot->exec= view3d_setobjectascamera_exec;	
-	ot->poll= ED_operator_region_view3d_active;
+	ot->poll= region3d_unlocked_poll;
 	
 	/* flags */
 	ot->flag= OPTYPE_REGISTER|OPTYPE_UNDO;
@@ -1021,6 +1039,17 @@ int get_view3d_viewplane(View3D *v3d, RegionView3D *rv3d, int winxi, int winyi, 
 		if(cam) {
 			float dx= 0.5*fac*rv3d->camdx*(x2-x1);
 			float dy= 0.5*fac*rv3d->camdy*(y2-y1);
+
+			/* shift offset */		
+			if(cam->type==CAM_ORTHO) {
+				dx += cam->shiftx * cam->ortho_scale;
+				dy += cam->shifty * cam->ortho_scale;
+			}
+			else {
+				dx += cam->shiftx * (cam->clipsta / cam->lens) * 32.0;
+				dy += cam->shifty * (cam->clipsta / cam->lens) * 32.0;
+			}
+
 			x1+= dx;
 			x2+= dx;
 			y1+= dy;
@@ -1193,6 +1222,11 @@ void setviewmatrixview3d(Scene *scene, View3D *v3d, RegionView3D *rv3d)
 				}
 			}
 			translate_m4( rv3d->viewmat,-vec[0], -vec[1], -vec[2]);
+		}
+		else if (v3d->ob_centre_cursor) {
+			float vec[3];
+			copy_v3_v3(vec, give_cursor(scene, v3d));
+			translate_m4(rv3d->viewmat, -vec[0], -vec[1], -vec[2]);
 		}
 		else translate_m4( rv3d->viewmat,rv3d->ofs[0], rv3d->ofs[1], rv3d->ofs[2]);
 	}
@@ -1479,7 +1513,6 @@ static void initlocalview(Main *bmain, Scene *scene, ScrArea *sa)
 				v3d->cursor[2]= -rv3d->ofs[2];
 			}
 		}
-		if (v3d->near> 0.1) v3d->near= 0.1;
 		
 		v3d->lay= locallay;
 	}
@@ -1594,12 +1627,11 @@ void VIEW3D_OT_localview(wmOperatorType *ot)
 	ot->poll= ED_operator_view3d_active;
 }
 
-#if GAMEBLENDER == 1
+#ifdef WITH_GAMEENGINE
 
 static ListBase queue_back;
-static void SaveState(bContext *C)
+static void SaveState(bContext *C, wmWindow *win)
 {
-	wmWindow *win= CTX_wm_window(C);
 	Object *obact = CTX_data_active_object(C);
 	
 	glPushAttrib(GL_ALL_ATTRIB_BITS);
@@ -1614,9 +1646,8 @@ static void SaveState(bContext *C)
 	//XXX waitcursor(1);
 }
 
-static void RestoreState(bContext *C)
+static void RestoreState(bContext *C, wmWindow *win)
 {
-	wmWindow *win= CTX_wm_window(C);
 	Object *obact = CTX_data_active_object(C);
 	
 	if(obact && obact->mode & OB_MODE_TEXTURE_PAINT)
@@ -1630,7 +1661,8 @@ static void RestoreState(bContext *C)
 	//XXX waitcursor(0);
 	//XXX G.qual= 0;
 	
-	win->queue= queue_back;
+	if(win) /* check because closing win can set to NULL */
+		win->queue= queue_back;
 	
 	GPU_state_init();
 	GPU_set_tpage(NULL, 0);
@@ -1686,7 +1718,7 @@ void game_set_commmandline_options(GameData *gm)
 /* maybe we need this defined somewhere else */
 extern void StartKetsjiShell(struct bContext *C, struct ARegion *ar, rcti *cam_frame, int always_use_expand_framing);
 
-#endif // GAMEBLENDER == 1
+#endif // WITH_GAMEENGINE
 
 int game_engine_poll(bContext *C)
 {
@@ -1738,7 +1770,7 @@ int ED_view3d_context_activate(bContext *C)
 
 static int game_engine_exec(bContext *C, wmOperator *op)
 {
-#if GAMEBLENDER == 1
+#ifdef WITH_GAMEENGINE
 	Scene *startscene = CTX_data_scene(C);
 	ScrArea *sa, *prevsa= CTX_wm_area(C);
 	ARegion *ar, *prevar= CTX_wm_region(C);
@@ -1762,7 +1794,7 @@ static int game_engine_exec(bContext *C, wmOperator *op)
 
 	if(rv3d->persp==RV3D_CAMOB && startscene->gm.framing.type == SCE_GAMEFRAMING_BARS && startscene->gm.stereoflag != STEREO_DOME) { /* Letterbox */
 		rctf cam_framef;
-		view3d_calc_camera_border(startscene, ar, rv3d, CTX_wm_view3d(C), &cam_framef);
+		view3d_calc_camera_border(startscene, ar, rv3d, CTX_wm_view3d(C), &cam_framef, FALSE);
 		cam_frame.xmin = cam_framef.xmin + ar->winrct.xmin;
 		cam_frame.xmax = cam_framef.xmax + ar->winrct.xmin;
 		cam_frame.ymin = cam_framef.ymin + ar->winrct.ymin;
@@ -1777,16 +1809,25 @@ static int game_engine_exec(bContext *C, wmOperator *op)
 	}
 
 
-	SaveState(C);
+	SaveState(C, prevwin);
 
 	StartKetsjiShell(C, ar, &cam_frame, 1);
+
+	/* window wasnt closed while the BGE was running */
+	if(BLI_findindex(&CTX_wm_manager(C)->windows, prevwin) == -1) {
+		prevwin= NULL;
+		CTX_wm_window_set(C, NULL);
+	}
 	
-	/* restore context, in case it changed in the meantime, for
-	   example by working in another window or closing it */
-	CTX_wm_region_set(C, prevar);
-	CTX_wm_window_set(C, prevwin);
-	CTX_wm_area_set(C, prevsa);
-	RestoreState(C);
+	if(prevwin) {
+		/* restore context, in case it changed in the meantime, for
+		   example by working in another window or closing it */
+		CTX_wm_region_set(C, prevar);
+		CTX_wm_window_set(C, prevwin);
+		CTX_wm_area_set(C, prevsa);
+	}
+
+	RestoreState(C, prevwin);
 
 	//XXX restore_all_scene_cfra(scene_cfra_store);
 	set_scene_bg(CTX_data_main(C), startscene);
@@ -1854,4 +1895,13 @@ void view3d_align_axis_to_vector(View3D *v3d, RegionView3D *rv3d, int axisidx, f
 int view3d_is_ortho(View3D *v3d, RegionView3D *rv3d)
 {
 	return (rv3d->persp == RV3D_ORTHO || (v3d->camera && ((Camera *)v3d->camera->data)->type == CAM_ORTHO));
+}
+
+float view3d_pixel_size(struct RegionView3D *rv3d, const float co[3])
+{
+	return  (rv3d->persmat[3][3] + (
+				rv3d->persmat[0][3]*co[0] +
+				rv3d->persmat[1][3]*co[1] +
+				rv3d->persmat[2][3]*co[2])
+			) * rv3d->pixsize;
 }

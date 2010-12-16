@@ -24,13 +24,15 @@
 #
 # ***** END GPL LICENSE BLOCK *****
 
-SET(INC
+set(INC
 	.
 	../common
 )
 
-SET(SRC
+set(SRC
 	DummyPhysicsEnvironment.cpp
+
+	DummyPhysicsEnvironment.h
 )
 
-BLENDERLIB(bf_dummy "${SRC}" "${INC}")
+blenderlib(ge_phys_dummy "${SRC}" "${INC}")

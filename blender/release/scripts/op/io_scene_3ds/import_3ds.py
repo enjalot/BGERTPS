@@ -19,7 +19,7 @@
 # <pep8 compliant>
 
 # Script copyright (C) Bob Holcomb
-# Contributors: Bob Holcomb, Richard L?rk?ng, Damien McGinnes, Campbell Barton, Mario Lapin
+# Contributors: Bob Holcomb, Richard L?rk?ng, Damien McGinnes, Campbell Barton, Mario Lapin, Dominique Lorre
 
 import os
 import time
@@ -109,8 +109,43 @@ OBJECT_MATERIAL =   0x4130      # This is found if the object has a material, ei
 OBJECT_UV       =   0x4140      # The UV texture coordinates
 OBJECT_TRANS_MATRIX  =   0x4160 # The Object Matrix
 
+#>------ sub defines of EDITKEYFRAME
+# ED_KEY_AMBIENT_NODE        =   0xB001
+ED_KEY_OBJECT_NODE         =   0xB002
+# ED_KEY_CAMERA_NODE         =   0xB003
+# ED_KEY_TARGET_NODE         =   0xB004
+# ED_KEY_LIGHT_NODE          =   0xB005
+# ED_KEY_L_TARGET_NODE       =   0xB006  
+# ED_KEY_SPOTLIGHT_NODE      =   0xB007
+#>------ sub defines of ED_KEY_OBJECT_NODE
+# EK_OB_KEYFRAME_SEG        =   0xB008
+# EK_OB_KEYFRAME_CURTIME    =   0xB009
+# EK_OB_KEYFRAME_HEADER     =   0xB00A
+EK_OB_NODE_HEADER         =   0xB010
+EK_OB_INSTANCE_NAME       =   0xB011
+# EK_OB_PRESCALE            =   0xB012
+# EK_OB_PIVOT               =   0xB013
+# EK_OB_BOUNDBOX            =   0xB014
+# EK_OB_MORPH_SMOOTH        =   0xB015
+EK_OB_POSITION_TRACK      =   0xB020
+EK_OB_ROTATION_TRACK      =   0xB021
+EK_OB_SCALE_TRACK         =   0xB022
+# EK_OB_CAMERA_FOV_TRACK =       0xB023
+# EK_OB_CAMERA_ROLL_TRACK   =   0xB024
+# EK_OB_COLOR_TRACK         =   0xB025
+# EK_OB_MORPH_TRACK         =   0xB026
+# EK_OB_HOTSPOT_TRACK       =   0xB027
+# EK_OB_FALLOF_TRACK        =   0xB028
+# EK_OB_HIDE_TRACK          =   0xB029
+# EK_OB_NODE_ID             =   0xB030
+
+ROOT_OBJECT         =   0xFFFF
+
 global scn
 scn = None
+global object_dictionary # dictionary for object hierarchy
+object_dictionary = {} 
+
 
 #the chunk class
 class chunk:
@@ -146,14 +181,16 @@ def read_chunk(file, chunk):
 def read_string(file):
     #read in the characters till we get a null character
     s = b''
-    while not s.endswith(b'\x00'):
-        s += struct.unpack('<c', file.read(1))[0]
+    while True:
+        c = struct.unpack('<c', file.read(1))[0]
+        if c == b'\x00':
+            break
+        s += c
         #print 'string: ',s
 
     #remove the null character from the string
-    s = str(s[:-1], 'ASCII')
 # 	print("read string", s)
-    return s
+    return str(s, "utf-8", "replace"), len(s) + 1
 
 ######################################################
 # IMPORT
@@ -218,16 +255,23 @@ def process_next_chunk(file, previous_chunk, importedObjects, IMAGE_SEARCH):
     STRUCT_SIZE_1CHAR = struct.calcsize('c')
     STRUCT_SIZE_2FLOAT = struct.calcsize('2f')
     STRUCT_SIZE_3FLOAT = struct.calcsize('3f')
+    STRUCT_SIZE_4FLOAT = struct.calcsize('4f')
     STRUCT_SIZE_UNSIGNED_SHORT = struct.calcsize('H')
     STRUCT_SIZE_4UNSIGNED_SHORT = struct.calcsize('4H')
     STRUCT_SIZE_4x3MAT = struct.calcsize('ffffffffffff')
     _STRUCT_SIZE_4x3MAT = struct.calcsize('fffffffffffff')
     # STRUCT_SIZE_4x3MAT = calcsize('ffffffffffff')
     # print STRUCT_SIZE_4x3MAT, ' STRUCT_SIZE_4x3MAT'
-
+    # only init once
+    object_list = [] # for hierarchy
+    object_parent = [] # index of parent in hierarchy, 0xFFFF = no parent
+    
     def putContextMesh(myContextMesh_vertls, myContextMesh_facels, myContextMeshMaterials):
-        
         bmesh = bpy.data.meshes.new(contextObName)
+
+        if myContextMesh_facels is None:
+            myContextMesh_facels = []
+
         if myContextMesh_vertls:
 
             bmesh.vertices.add(len(myContextMesh_vertls)//3)
@@ -278,7 +322,8 @@ def process_next_chunk(file, previous_chunk, importedObjects, IMAGE_SEARCH):
                     uf.uv3 = contextMeshUV[v3 * 2:(v3 * 2) + 2]
                     # always a tri
 
-        ob = bpy.data.objects.new(tempName, bmesh)
+        ob = bpy.data.objects.new(contextObName, bmesh)
+        object_dictionary[contextObName] = ob
         SCN.objects.link(ob)
         
         '''
@@ -287,7 +332,7 @@ def process_next_chunk(file, previous_chunk, importedObjects, IMAGE_SEARCH):
         '''
         
         if contextMatrix_rot:
-            ob.matrix_world = contextMatrix_rot
+            ob.matrix_local = contextMatrix_rot
 
         importedObjects.append(ob)
         bmesh.update()
@@ -317,9 +362,9 @@ def process_next_chunk(file, previous_chunk, importedObjects, IMAGE_SEARCH):
             read_chunk(file, temp_chunk)
 
             if (temp_chunk.ID == MAT_MAP_FILEPATH):
-                texture_name = read_string(file)
+                texture_name, read_str_len = read_string(file)
                 img = TEXTURE_DICT[contextMaterial.name] = load_image(texture_name, dirname)
-                new_chunk.bytes_read += (len(texture_name)+1) #plus one for the null character that gets removed
+                new_chunk.bytes_read += read_str_len #plus one for the null character that gets removed
 
             else:
                 skip_to_end(file, temp_chunk)
@@ -377,9 +422,8 @@ def process_next_chunk(file, previous_chunk, importedObjects, IMAGE_SEARCH):
                 #contextMatrix_tx = None
 
             CreateBlenderObject = True
-            tempName = read_string(file)
-            contextObName = tempName
-            new_chunk.bytes_read += len(tempName)+1
+            contextObName, read_str_len = read_string(file)
+            new_chunk.bytes_read += read_str_len
 
         #is it a material chunk?
         elif (new_chunk.ID == MATERIAL):
@@ -391,12 +435,12 @@ def process_next_chunk(file, previous_chunk, importedObjects, IMAGE_SEARCH):
 
         elif (new_chunk.ID == MAT_NAME):
             #print 'elif (new_chunk.ID == MAT_NAME):'
-            material_name = read_string(file)
+            material_name, read_str_len = read_string(file)
 
 # 			print("material name", material_name)
 
             #plus one for the null character that ended the string
-            new_chunk.bytes_read += len(material_name)+1
+            new_chunk.bytes_read += read_str_len
 
             contextMaterial.name = material_name.rstrip() # remove trailing  whitespace
             MATDICT[material_name]= (contextMaterial.name, contextMaterial)
@@ -484,6 +528,7 @@ def process_next_chunk(file, previous_chunk, importedObjects, IMAGE_SEARCH):
             x,y,z = struct.unpack('<3f', temp_data)
             new_chunk.bytes_read += STRUCT_SIZE_3FLOAT
 
+            # no lamp in dict that would be confusing
             ob = bpy.data.objects.new("Lamp", bpy.data.lamps.new("Lamp"))
             SCN.objects.link(ob)
 
@@ -537,8 +582,8 @@ def process_next_chunk(file, previous_chunk, importedObjects, IMAGE_SEARCH):
 
         elif (new_chunk.ID == OBJECT_MATERIAL):
             # print 'elif (new_chunk.ID == OBJECT_MATERIAL):'
-            material_name = read_string(file)
-            new_chunk.bytes_read += len(material_name)+1 # remove 1 null character.
+            material_name, read_str_len = read_string(file)
+            new_chunk.bytes_read += read_str_len # remove 1 null character.
 
             temp_data = file.read(STRUCT_SIZE_UNSIGNED_SHORT)
             num_faces_using_mat = struct.unpack('<H', temp_data)[0]
@@ -573,51 +618,8 @@ def process_next_chunk(file, previous_chunk, importedObjects, IMAGE_SEARCH):
              data[6:9] + [0],\
              data[9:] + [1])
 
-
-            '''
-            contextMatrix_rot = Blender.mathutils.Matrix(\
-             data[:3] + [0],\
-             data[3:6] + [0],\
-             data[6:9] + [0],\
-             [0,0,0,1])
-            '''
-
-            '''
-            contextMatrix_rot = Blender.mathutils.Matrix(\
-             data[:3] ,\
-             data[3:6],\
-             data[6:9])
-            '''
-
-            '''
-            contextMatrix_rot = Blender.mathutils.Matrix()
-            m = 0
-            for j in xrange(4):
-                for i in xrange(3):
-                    contextMatrix_rot[j][i] = data[m]
-                    m += 1
-
-            contextMatrix_rot[0][3]=0;
-            contextMatrix_rot[1][3]=0;
-            contextMatrix_rot[2][3]=0;
-            contextMatrix_rot[3][3]=1;
-            '''
-
-            #contextMatrix_rot.resize4x4()
-            #print "MTX"
-            #print contextMatrix_rot
-            contextMatrix_rot.invert()
-            #print contextMatrix_rot
-            #contextMatrix_tx = mathutils.Matrix.Translation(0.5 * Blender.mathutils.Vector(data[9:]))
-            #contextMatrix_tx.invert()
-
-            #tx.invert()
-
-            #contextMatrix = contextMatrix * tx
-            #contextMatrix = contextMatrix  *tx
-
         elif  (new_chunk.ID == MAT_MAP_FILEPATH):
-            texture_name = read_string(file)
+            texture_name, read_str_len = read_string(file)
             try:
                 TEXTURE_DICT[contextMaterial.name]
             except:
@@ -625,10 +627,97 @@ def process_next_chunk(file, previous_chunk, importedObjects, IMAGE_SEARCH):
                 img = TEXTURE_DICT[contextMaterial.name] = load_image(texture_name, dirname)
 # 				img = TEXTURE_DICT[contextMaterial.name]= BPyImage.comprehensiveImageLoad(texture_name, FILEPATH, PLACE_HOLDER=False, RECURSIVE=IMAGE_SEARCH)
 
-            new_chunk.bytes_read += len(texture_name)+1 #plus one for the null character that gets removed
+            new_chunk.bytes_read += read_str_len #plus one for the null character that gets removed
+        elif new_chunk.ID == EDITKEYFRAME:
+            pass
+
+        elif new_chunk.ID == ED_KEY_OBJECT_NODE: #another object is being processed
+            child = None
+
+        elif new_chunk.ID == EK_OB_NODE_HEADER:
+            object_name, read_str_len = read_string(file)
+            new_chunk.bytes_read += read_str_len
+            temp_data = file.read(STRUCT_SIZE_UNSIGNED_SHORT * 2)
+            new_chunk.bytes_read += 4			
+            temp_data = file.read(STRUCT_SIZE_UNSIGNED_SHORT)
+            hierarchy = struct.unpack('<H', temp_data)[0]
+            new_chunk.bytes_read += 2
+
+            child = object_dictionary.get(object_name)
+
+            if child is None:
+                child = bpy.data.objects.new(object_name, None) # create an empty object
+                SCN.objects.link(child)			
+
+            object_list.append(child)
+            object_parent.append(hierarchy)
+
+        elif new_chunk.ID == EK_OB_INSTANCE_NAME:
+            object_name, read_str_len = read_string(file)
+            child.name = object_name
+            object_dictionary[object_name] = child
+            new_chunk.bytes_read += read_str_len
+
+        elif new_chunk.ID == EK_OB_POSITION_TRACK: # translation
+            new_chunk.bytes_read += STRUCT_SIZE_UNSIGNED_SHORT * 5
+            temp_data = file.read(STRUCT_SIZE_UNSIGNED_SHORT * 5)
+            temp_data = file.read(STRUCT_SIZE_UNSIGNED_SHORT)
+            nkeys = struct.unpack('<H', temp_data)[0]
+            temp_data = file.read(STRUCT_SIZE_UNSIGNED_SHORT)
+            new_chunk.bytes_read += STRUCT_SIZE_UNSIGNED_SHORT * 2
+            for i in range(nkeys):
+                temp_data = file.read(STRUCT_SIZE_UNSIGNED_SHORT)
+                nframe = struct.unpack('<H', temp_data)[0]
+                new_chunk.bytes_read += STRUCT_SIZE_UNSIGNED_SHORT
+                temp_data = file.read(STRUCT_SIZE_UNSIGNED_SHORT * 2)
+                new_chunk.bytes_read += STRUCT_SIZE_UNSIGNED_SHORT * 2
+                temp_data = file.read(STRUCT_SIZE_3FLOAT)
+                loc = struct.unpack('<3f', temp_data)
+                new_chunk.bytes_read += STRUCT_SIZE_3FLOAT
+                if nframe == 0:
+                    child.location = loc
+
+        elif new_chunk.ID == EK_OB_ROTATION_TRACK: # rotation
+            new_chunk.bytes_read += STRUCT_SIZE_UNSIGNED_SHORT * 5
+            temp_data = file.read(STRUCT_SIZE_UNSIGNED_SHORT * 5)
+            temp_data = file.read(STRUCT_SIZE_UNSIGNED_SHORT)
+            nkeys = struct.unpack('<H', temp_data)[0]
+            temp_data = file.read(STRUCT_SIZE_UNSIGNED_SHORT)
+            new_chunk.bytes_read += STRUCT_SIZE_UNSIGNED_SHORT * 2
+            for i in range(nkeys):
+                temp_data = file.read(STRUCT_SIZE_UNSIGNED_SHORT)
+                nframe = struct.unpack('<H', temp_data)[0]
+                new_chunk.bytes_read += STRUCT_SIZE_UNSIGNED_SHORT
+                temp_data = file.read(STRUCT_SIZE_UNSIGNED_SHORT * 2)
+                new_chunk.bytes_read += STRUCT_SIZE_UNSIGNED_SHORT * 2
+                temp_data = file.read(STRUCT_SIZE_4FLOAT)
+                rad,axis_x,axis_y,axis_z = struct.unpack('<4f', temp_data)
+                new_chunk.bytes_read += STRUCT_SIZE_4FLOAT
+                if nframe == 0:
+                    child.rotation_euler = mathutils.Quaternion((axis_x, axis_y, axis_z), -rad).to_euler()   # why negative?
+
+        elif new_chunk.ID == EK_OB_SCALE_TRACK: # translation
+            new_chunk.bytes_read += STRUCT_SIZE_UNSIGNED_SHORT * 5
+            temp_data = file.read(STRUCT_SIZE_UNSIGNED_SHORT * 5)
+            temp_data = file.read(STRUCT_SIZE_UNSIGNED_SHORT)
+            nkeys = struct.unpack('<H', temp_data)[0]
+            temp_data = file.read(STRUCT_SIZE_UNSIGNED_SHORT)
+            new_chunk.bytes_read += STRUCT_SIZE_UNSIGNED_SHORT * 2
+            for i in range(nkeys):
+                temp_data = file.read(STRUCT_SIZE_UNSIGNED_SHORT)
+                nframe = struct.unpack('<H', temp_data)[0]
+                new_chunk.bytes_read += STRUCT_SIZE_UNSIGNED_SHORT
+                temp_data = file.read(STRUCT_SIZE_UNSIGNED_SHORT * 2)
+                new_chunk.bytes_read += STRUCT_SIZE_UNSIGNED_SHORT * 2
+                temp_data = file.read(STRUCT_SIZE_3FLOAT)
+                sca = struct.unpack('<3f', temp_data)
+                new_chunk.bytes_read += STRUCT_SIZE_3FLOAT
+                if nframe == 0:
+                    child.scale = sca
 
         else: #(new_chunk.ID!=VERSION or new_chunk.ID!=OBJECTINFO or new_chunk.ID!=OBJECT or new_chunk.ID!=MATERIAL):
             # print 'skipping to end of this chunk'
+            #print("unknown chunk: "+hex(new_chunk.ID))
             buffer_size = new_chunk.length - new_chunk.bytes_read
             binary_format='%ic' % buffer_size
             temp_data = file.read(struct.calcsize(binary_format))
@@ -646,14 +735,24 @@ def process_next_chunk(file, previous_chunk, importedObjects, IMAGE_SEARCH):
     if CreateBlenderObject:
         putContextMesh(contextMesh_vertls, contextMesh_facels, contextMeshMaterials)
 
-def load_3ds(filepath, context, IMPORT_CONSTRAIN_BOUNDS=10.0, IMAGE_SEARCH=True, APPLY_MATRIX=False):
+
+    # Assign parents to objects    
+    for ind, ob in enumerate(object_list):
+        parent = object_parent[ind]
+        if parent == ROOT_OBJECT:
+            ob.parent = None
+        else:
+            ob.parent = object_list[parent]
+
+
+def load_3ds(filepath, context, IMPORT_CONSTRAIN_BOUNDS=10.0, IMAGE_SEARCH=True, APPLY_MATRIX=True):
     global SCN
 
     # XXX
 # 	if BPyMessages.Error_NoFile(filepath):
 # 		return
 
-    print('\n\nImporting 3DS: %r' % (filepath))
+    print("importing 3DS: %r..." % (filepath), end="")
 
     time1 = time.clock()
 # 	time1 = Blender.sys.time()
@@ -702,6 +801,9 @@ def load_3ds(filepath, context, IMPORT_CONSTRAIN_BOUNDS=10.0, IMAGE_SEARCH=True,
 
     ##IMAGE_SEARCH
 
+    # fixme, make unglobal, clear incase
+    object_dictionary.clear()
+
     scn = context.scene
 # 	scn = bpy.data.scenes.active
     SCN = scn
@@ -711,18 +813,19 @@ def load_3ds(filepath, context, IMPORT_CONSTRAIN_BOUNDS=10.0, IMAGE_SEARCH=True,
     importedObjects = [] # Fill this list with objects
     process_next_chunk(file, current_chunk, importedObjects, IMAGE_SEARCH)
 
+    # fixme, make unglobal
+    object_dictionary.clear()
 
     # Link the objects into this scene.
     # Layers = scn.Layers
 
     # REMOVE DUMMYVERT, - remove this in the next release when blenders internal are fixed.
 
-    for ob in importedObjects:
-        if ob.type == 'MESH':
-            me = ob.data
-#           me.vertices.delete([me.vertices[0],]) # XXX, todo
-            if not APPLY_MATRIX:
-                me.transform(ob.matrix_world.copy().invert())
+    if APPLY_MATRIX:
+        for ob in importedObjects:
+            if ob.type == 'MESH':
+                me = ob.data
+                me.transform(ob.matrix_local.copy().invert())
 
     # Done DUMMYVERT
     """
@@ -776,16 +879,16 @@ def load_3ds(filepath, context, IMPORT_CONSTRAIN_BOUNDS=10.0, IMAGE_SEARCH=True,
                 SCALE/=10
 
             # SCALE Matrix
-            SCALE_MAT = mathutils.Matrix([SCALE,0,0,0],[0,SCALE,0,0],[0,0,SCALE,0],[0,0,0,1])
-# 			SCALE_MAT = Blender.mathutils.Matrix([SCALE,0,0,0],[0,SCALE,0,0],[0,0,SCALE,0],[0,0,0,1])
+            SCALE_MAT = mathutils.Matrix.Scale(SCALE, 4)
 
             for ob in importedObjects:
-                ob.matrix_world =  ob.matrix_world * SCALE_MAT
+                if ob.parent is None:
+                    ob.matrix_world =  ob.matrix_world * SCALE_MAT
 
         # Done constraining to bounds.
 
     # Select all new objects.
-    print('finished importing: %r in %.4f sec.' % (filepath, (time.clock()-time1)))
+    print(" done in %.4f sec." % (time.clock()-time1))
     file.close()
 
 

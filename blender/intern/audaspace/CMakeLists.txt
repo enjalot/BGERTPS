@@ -20,7 +20,7 @@
 #
 # ***** END LGPL LICENSE BLOCK *****
 
-SET(INC
+set(INC
 	.
 	intern
 	FX SRC
@@ -28,7 +28,7 @@ SET(INC
 	${LIBSAMPLERATE_INC}
 )
 
-SET(SRC
+set(SRC
 	FX/AUD_AccumulatorFactory.cpp
 	FX/AUD_BaseIIRFilterReader.cpp
 	FX/AUD_ButterworthFactory.cpp
@@ -61,8 +61,6 @@ SET(SRC
 	FX/AUD_SuperposeFactory.cpp
 	FX/AUD_SuperposeReader.cpp
 	FX/AUD_VolumeFactory.cpp
-	SRC/AUD_SRCResampleFactory.cpp
-	SRC/AUD_SRCResampleReader.cpp
 	intern/AUD_3DMath.h
 	intern/AUD_Buffer.cpp
 	intern/AUD_Buffer.h
@@ -120,68 +118,138 @@ SET(SRC
 	intern/AUD_Space.h
 	intern/AUD_StreamBufferFactory.cpp
 	intern/AUD_StreamBufferFactory.h
+
+	FX/AUD_AccumulatorFactory.h
+	FX/AUD_BaseIIRFilterReader.h
+	FX/AUD_ButterworthFactory.h
+	FX/AUD_CallbackIIRFilterReader.h
+	FX/AUD_DelayFactory.h
+	FX/AUD_DelayReader.h
+	FX/AUD_DoubleFactory.h
+	FX/AUD_DoubleReader.h
+	FX/AUD_EffectFactory.h
+	FX/AUD_EffectReader.h
+	FX/AUD_EnvelopeFactory.h
+	FX/AUD_FaderFactory.h
+	FX/AUD_FaderReader.h
+	FX/AUD_HighpassFactory.h
+	FX/AUD_IIRFilterFactory.h
+	FX/AUD_IIRFilterReader.h
+	FX/AUD_LimiterFactory.h
+	FX/AUD_LimiterReader.h
+	FX/AUD_LoopFactory.h
+	FX/AUD_LoopReader.h
+	FX/AUD_LowpassFactory.h
+	FX/AUD_PingPongFactory.h
+	FX/AUD_PitchFactory.h
+	FX/AUD_PitchReader.h
+	FX/AUD_RectifyFactory.h
+	FX/AUD_ReverseFactory.h
+	FX/AUD_ReverseReader.h
+	FX/AUD_SquareFactory.h
+	FX/AUD_SumFactory.h
+	FX/AUD_SuperposeFactory.h
+	FX/AUD_SuperposeReader.h
+	FX/AUD_VolumeFactory.h
 )
 
-IF(WITH_FFMPEG)
-	ADD_DEFINITIONS(-DWITH_FFMPEG)
-	LIST(APPEND INC ffmpeg ${FFMPEG_INC})
-	SET(FFMPEGSRC
+if(WITH_CODEC_FFMPEG)
+	add_definitions(-DWITH_FFMPEG)
+	list(APPEND INC ffmpeg ${FFMPEG_INC})
+	set(FFMPEGSRC
 		ffmpeg/AUD_FFMPEGFactory.cpp
 		ffmpeg/AUD_FFMPEGReader.cpp
-	)
-ENDIF(WITH_FFMPEG)
 
-IF(WITH_SDL)
-	ADD_DEFINITIONS(-DWITH_SDL)
-	LIST(APPEND INC SDL ${SDL_INCLUDE_DIR})
-	SET(SDLSRC
+		ffmpeg/AUD_FFMPEGFactory.h
+		ffmpeg/AUD_FFMPEGReader.h
+	)
+endif()
+
+if(WITH_SDL)
+	add_definitions(-DWITH_SDL)
+	list(APPEND INC SDL ${SDL_INCLUDE_DIR})
+	set(SDLSRC
 		SDL/AUD_SDLDevice.cpp
+
+		SDL/AUD_SDLDevice.h
 	)
-ENDIF(WITH_SDL)
+endif()
 
-IF(WITH_OPENAL)
-	ADD_DEFINITIONS(-DWITH_OPENAL)
-	LIST(APPEND INC OpenAL ${OPENAL_INCLUDE_DIR})
-	SET(OPENALSRC
+if(WITH_OPENAL)
+	add_definitions(-DWITH_OPENAL)
+	list(APPEND INC OpenAL ${OPENAL_INCLUDE_DIR})
+	set(OPENALSRC
 		OpenAL/AUD_OpenALDevice.cpp
-	)	
-ENDIF(WITH_OPENAL)
 
-IF(WITH_JACK)
-	ADD_DEFINITIONS(-DWITH_JACK)
-	LIST(APPEND INC jack ${JACK_INC})
-	SET(JACKSRC
+		OpenAL/AUD_OpenALDevice.h
+	)	
+endif()
+
+if(WITH_JACK)
+	add_definitions(-DWITH_JACK)
+	list(APPEND INC jack ${JACK_INC})
+	set(JACKSRC
 		jack/AUD_JackDevice.cpp
-	)	
-ENDIF(WITH_JACK)
 
-IF(WITH_SNDFILE)
-	ADD_DEFINITIONS(-DWITH_SNDFILE)
-	LIST(APPEND INC sndfile ${SNDFILE_INC})
-	SET(SNDFILESRC
+		jack/AUD_JackDevice.h
+	)	
+endif()
+
+if(WITH_CODEC_SNDFILE)
+	add_definitions(-DWITH_SNDFILE)
+	list(APPEND INC sndfile ${SNDFILE_INC})
+	set(SNDFILESRC
 		sndfile/AUD_SndFileFactory.cpp
 		sndfile/AUD_SndFileReader.cpp
+
+		sndfile/AUD_SndFileFactory.h
+		sndfile/AUD_SndFileReader.h
 	)
-ENDIF(WITH_SNDFILE)
+endif()
 
-#IF(WITH_FFTW3)
-#	ADD_DEFINITIONS(-DWITH_FFTW3)
-#	LIST(APPEND INC fftw ${FFTW3_INC})
-#	SET(FFTW3SRC
-#		fftw/AUD_BandPassFactory.cpp
-#		fftw/AUD_BandPassReader.cpp
-#	)
-#ENDIF(WITH_FFTW3)
+if(WITH_SAMPLERATE)
+	add_definitions(-DWITH_SAMPLERATE)
+	set(SRCFILESRC
+		SRC/AUD_SRCResampleFactory.cpp
+		SRC/AUD_SRCResampleReader.cpp
 
-IF(WITH_PYTHON)
-	LIST(APPEND INC Python ${PYTHON_INC})
-	SET(PYTHONSRC
+		SRC/AUD_SRCResampleFactory.h
+		SRC/AUD_SRCResampleReader.h
+	)
+endif()
+
+if(WITH_FFTW3 AND FALSE)
+	add_definitions(-DWITH_FFTW3)
+	list(APPEND INC fftw ${FFTW3_INC})
+	set(FFTW3SRC
+		fftw/AUD_BandPassFactory.cpp
+		fftw/AUD_BandPassReader.cpp
+
+		fftw/AUD_BandPassFactory.h
+		fftw/AUD_BandPassReader.h
+	)
+endif()
+
+if(WITH_PYTHON)
+	list(APPEND INC Python ${PYTHON_INC})
+	set(PYTHONSRC
 		Python/AUD_PyAPI.cpp
+
+		Python/AUD_PyAPI.h
 	)
-ELSE(WITH_PYTHON)
-	ADD_DEFINITIONS(-DDISABLE_PYTHON)
-ENDIF(WITH_PYTHON)
+	add_definitions(-DWITH_PYTHON)
+endif()
 
-SET(SRC ${SRC} ${FFMPEGSRC} ${SNDFILESRC} ${FFTW3SRC} ${SDLSRC} ${OPENALSRC} ${JACKSRC} ${PYTHONSRC})
+set(SRC
+	${SRC}
+	${FFMPEGSRC}
+	${SNDFILESRC}
+	${SRCFILESRC}
+	${FFTW3SRC}
+	${SDLSRC}
+	${OPENALSRC}
+	${JACKSRC}
+	${PYTHONSRC}
+)
 
-BLENDERLIB(bf_intern_audaspace "${SRC}" "${INC}")
+blenderlib(bf_intern_audaspace "${SRC}" "${INC}")

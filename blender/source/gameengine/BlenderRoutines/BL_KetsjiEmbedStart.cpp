@@ -142,7 +142,7 @@ extern "C" void StartKetsjiShell(struct bContext *C, struct ARegion *ar, rcti *c
 
 	BLI_strncpy(pathname, blenderdata->name, sizeof(pathname));
 	BLI_strncpy(oldsce, G.main->name, sizeof(oldsce));
-#ifndef DISABLE_PYTHON
+#ifdef WITH_PYTHON
 	resetGamePythonPath(); // need this so running a second time wont use an old blendfiles path
 	setGamePythonPath(G.main->name);
 
@@ -172,7 +172,7 @@ extern "C" void StartKetsjiShell(struct bContext *C, struct ARegion *ar, rcti *c
 		bool frameRate = (SYS_GetCommandLineInt(syshandle, "show_framerate", 0) != 0);
 		bool animation_record = (SYS_GetCommandLineInt(syshandle, "animation_record", 0) != 0);
 		bool displaylists = (SYS_GetCommandLineInt(syshandle, "displaylists", 0) != 0);
-#ifndef DISABLE_PYTHON
+#ifdef WITH_PYTHON
 		bool nodepwarnings = (SYS_GetCommandLineInt(syshandle, "ignore_deprecation_warnings", 0) != 0);
 #endif
 		bool novertexarrays = (SYS_GetCommandLineInt(syshandle, "novertexarrays", 0) != 0);
@@ -221,7 +221,7 @@ extern "C" void StartKetsjiShell(struct bContext *C, struct ARegion *ar, rcti *c
 		ketsjiengine->SetUseFixedTime(usefixed);
 		ketsjiengine->SetTimingDisplay(frameRate, profile, properties);
 
-#ifndef DISABLE_PYTHON
+#ifdef WITH_PYTHON
 		CValue::SetDeprecationWarnings(nodepwarnings);
 #endif
 
@@ -235,21 +235,7 @@ extern "C" void StartKetsjiShell(struct bContext *C, struct ARegion *ar, rcti *c
 		}
 
 		// some blender stuff
-		MT_CmMatrix4x4 projmat;
-		MT_CmMatrix4x4 viewmat;
 		float camzoom;
-		int i;
-
-		for (i = 0; i < 16; i++)
-		{
-			float *viewmat_linear= (float*) rv3d->viewmat;
-			viewmat.setElem(i, viewmat_linear[i]);
-		}
-		for (i = 0; i < 16; i++)
-		{
-			float *projmat_linear= (float*) rv3d->winmat;
-			projmat.setElem(i, projmat_linear[i]);
-		}
 		
 		if(rv3d->persp==RV3D_CAMOB) {
 			if(startscene->gm.framing.type == SCE_GAMEFRAMING_BARS) { /* Letterbox */
@@ -265,7 +251,6 @@ extern "C" void StartKetsjiShell(struct bContext *C, struct ARegion *ar, rcti *c
 			camzoom = 2.0;
 		}
 
-		
 
 		ketsjiengine->SetDrawType(v3d->drawtype);
 		ketsjiengine->SetCameraZoom(camzoom);
@@ -311,7 +296,7 @@ extern "C" void StartKetsjiShell(struct bContext *C, struct ARegion *ar, rcti *c
 				if(blenderdata) {
 					BLI_strncpy(G.main->name, blenderdata->name, sizeof(G.main->name));
 					BLI_strncpy(pathname, blenderdata->name, sizeof(pathname));
-#ifndef DISABLE_PYTHON
+#ifdef WITH_PYTHON
 					setGamePythonPath(G.main->name);
 #endif
 				}
@@ -347,8 +332,8 @@ extern "C" void StartKetsjiShell(struct bContext *C, struct ARegion *ar, rcti *c
 			{
 				ketsjiengine->EnableCameraOverride(startscenename);
 				ketsjiengine->SetCameraOverrideUseOrtho((rv3d->persp == RV3D_ORTHO));
-				ketsjiengine->SetCameraOverrideProjectionMatrix(projmat);
-				ketsjiengine->SetCameraOverrideViewMatrix(viewmat);
+				ketsjiengine->SetCameraOverrideProjectionMatrix(MT_CmMatrix4x4(rv3d->winmat));
+				ketsjiengine->SetCameraOverrideViewMatrix(MT_CmMatrix4x4(rv3d->viewmat));
 				ketsjiengine->SetCameraOverrideClipping(v3d->near, v3d->far);
 				ketsjiengine->SetCameraOverrideLens(v3d->lens);
 			}
@@ -382,11 +367,11 @@ extern "C" void StartKetsjiShell(struct bContext *C, struct ARegion *ar, rcti *c
 				scene,
 				canvas);
 
-#ifndef DISABLE_PYTHON
+#ifdef WITH_PYTHON
 			// some python things
 			PyObject *gameLogic, *gameLogic_keys;
 			setupGamePython(ketsjiengine, startscene, blenderdata, pyGlobalDict, &gameLogic, &gameLogic_keys, 0, NULL);
-#endif // DISABLE_PYTHON
+#endif // WITH_PYTHON
 
 			//initialize Dome Settings
 			if(scene->gm.stereoflag == STEREO_DOME)
@@ -432,7 +417,7 @@ extern "C" void StartKetsjiShell(struct bContext *C, struct ARegion *ar, rcti *c
 					exitrequested = ketsjiengine->GetExitCode();
 					
 					// kick the engine
-					bool render = ketsjiengine->NextFrame(); // XXX 2.5 Bug, This is never true! FIXME-  Campbell
+					bool render = ketsjiengine->NextFrame();
 					
 					if (render)
 					{
@@ -471,13 +456,16 @@ extern "C" void StartKetsjiShell(struct bContext *C, struct ARegion *ar, rcti *c
 						wm_event_free(event);
 					}
 					
+					if(win != CTX_wm_window(C)) {
+						exitrequested= KX_EXIT_REQUEST_OUTSIDE; /* window closed while bge runs */
+					}
 				}
 				printf("Blender Game Engine Finished\n");
 				exitstring = ketsjiengine->GetExitString();
 
 
 				// when exiting the mainloop
-#ifndef DISABLE_PYTHON
+#ifdef WITH_PYTHON
 				// Clears the dictionary by hand:
 				// This prevents, extra references to global variables
 				// inside the GameLogic dictionary when the python interpreter is finalized.
@@ -499,7 +487,7 @@ extern "C" void StartKetsjiShell(struct bContext *C, struct ARegion *ar, rcti *c
 				gameLogic_keys_new = NULL;
 #endif
 				ketsjiengine->StopEngine();
-#ifndef DISABLE_PYTHON
+#ifdef WITH_PYTHON
 				exitGamePythonScripting();
 #endif
 				networkdevice->Disconnect();
@@ -510,7 +498,7 @@ extern "C" void StartKetsjiShell(struct bContext *C, struct ARegion *ar, rcti *c
 				sceneconverter = NULL;
 			}
 
-#ifndef DISABLE_PYTHON
+#ifdef WITH_PYTHON
 			Py_DECREF(gameLogic_keys);
 			gameLogic_keys = NULL;
 #endif
@@ -521,8 +509,11 @@ extern "C" void StartKetsjiShell(struct bContext *C, struct ARegion *ar, rcti *c
 			startscene->camera= tmp_camera;
 		}
 
-		// set the cursor back to normal
-		canvas->SetMouseState(RAS_ICanvas::MOUSE_NORMAL);
+		if(exitrequested != KX_EXIT_REQUEST_OUTSIDE)
+		{
+			// set the cursor back to normal
+			canvas->SetMouseState(RAS_ICanvas::MOUSE_NORMAL);
+		}
 		
 		// clean up some stuff
 		if (ketsjiengine)
@@ -575,7 +566,7 @@ extern "C" void StartKetsjiShell(struct bContext *C, struct ARegion *ar, rcti *c
 
 	BLI_strncpy(G.main->name, oldsce, sizeof(G.main->name));
 
-#ifndef DISABLE_PYTHON
+#ifdef WITH_PYTHON
 	Py_DECREF(pyGlobalDict);
 
 	// Release Python's GIL

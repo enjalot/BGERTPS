@@ -53,7 +53,7 @@
 #include "BKE_report.h"
 #include "BIK_api.h"
 
-#ifndef DISABLE_PYTHON
+#ifdef WITH_PYTHON
 #include "BPY_extern.h"
 #endif
 
@@ -154,7 +154,7 @@ void validate_pyconstraint_cb (void *arg1, void *arg2)
 	data->text = text;
 }
 
-#ifndef DISABLE_PYTHON
+#ifdef WITH_PYTHON
 /* this returns a string for the list of usable pyconstraint script names */
 char *buildmenu_pyconstraints (Text *con_text, int *pyconindex)
 {
@@ -195,12 +195,12 @@ char *buildmenu_pyconstraints (Text *con_text, int *pyconindex)
 	
 	return str;
 }
-#endif /* DISABLE_PYTHON */
+#endif /* WITH_PYTHON */
 
 /* this callback gets called when the 'refresh' button of a pyconstraint gets pressed */
 void update_pyconstraint_cb (void *arg1, void *arg2)
 {
-#ifdef DISABLE_PYTHON
+#ifndef WITH_PYTHON
 	(void)arg1; /* unused */
 	(void)arg2; /* unused */
 #else
@@ -212,7 +212,7 @@ void update_pyconstraint_cb (void *arg1, void *arg2)
 }
 
 /* helper function for add_constriant - sets the last target for the active constraint */
-static void set_constraint_nth_target (bConstraint *con, Object *target, char subtarget[], int index)
+static void set_constraint_nth_target (bConstraint *con, Object *target, const char subtarget[], int index)
 {
 	bConstraintTypeInfo *cti= constraint_get_typeinfo(con);
 	ListBase targets = {NULL, NULL};
@@ -726,6 +726,11 @@ static int childof_clear_inverse_exec (bContext *C, wmOperator *op)
 	bConstraint *con = edit_constraint_property_get(op, ob, CONSTRAINT_TYPE_CHILDOF);
 	bChildOfConstraint *data= (con) ? (bChildOfConstraint *)con->data : NULL;
 	
+	if(data==NULL) {
+		BKE_report(op->reports, RPT_ERROR, "Childof constraint not found.");
+		return OPERATOR_CANCELLED;
+	}
+	
 	/* simply clear the matrix */
 	unit_m4(data->invmat);
 	
@@ -779,8 +784,8 @@ void ED_object_constraint_update(Object *ob)
 
 	object_test_constraints(ob);
 
-	if(ob->type==OB_ARMATURE) DAG_id_flush_update(&ob->id, OB_RECALC_DATA|OB_RECALC_OB);
-	else DAG_id_flush_update(&ob->id, OB_RECALC_OB);
+	if(ob->type==OB_ARMATURE) DAG_id_tag_update(&ob->id, OB_RECALC_DATA|OB_RECALC_OB);
+	else DAG_id_tag_update(&ob->id, OB_RECALC_OB);
 }
 
 void ED_object_constraint_dependency_update(Main *bmain, Scene *scene, Object *ob)
@@ -953,7 +958,7 @@ static int pose_constraints_clear_exec(bContext *C, wmOperator *UNUSED(op))
 	DAG_scene_sort(bmain, scene);		/* sort order of objects */	
 	
 	/* do updates */
-	DAG_id_flush_update(&ob->id, OB_RECALC_DATA);
+	DAG_id_tag_update(&ob->id, OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_OBJECT|ND_CONSTRAINT, ob);
 	
 	return OPERATOR_FINISHED;
@@ -981,7 +986,7 @@ static int object_constraints_clear_exec(bContext *C, wmOperator *UNUSED(op))
 	CTX_DATA_BEGIN(C, Object*, ob, selected_editable_objects) 
 	{
 		free_constraints(&ob->constraints);
-		DAG_id_flush_update(&ob->id, OB_RECALC_OB);
+		DAG_id_tag_update(&ob->id, OB_RECALC_OB);
 	}
 	CTX_DATA_END;
 	
@@ -1024,14 +1029,19 @@ static int pose_constraint_copy_exec(bContext *C, wmOperator *op)
 	CTX_DATA_BEGIN(C, bPoseChannel*, chan, selected_pose_bones) 
 	{
 		/* if we're not handling the object we're copying from, copy all constraints over */
-		if (pchan != chan)
+		if (pchan != chan) {
 			copy_constraints(&chan->constraints, &pchan->constraints, TRUE);
+			/* update flags (need to add here, not just copy) */
+			chan->constflag |= pchan->constflag;
+		}
 	}
 	CTX_DATA_END;
 	
 	/* force depsgraph to get recalculated since new relationships added */
 	DAG_scene_sort(bmain, scene);		/* sort order of objects/bones */
 
+	WM_event_add_notifier(C, NC_OBJECT|ND_CONSTRAINT, NULL);
+	
 	return OPERATOR_FINISHED;
 }
 
@@ -1297,7 +1307,7 @@ static int constraint_add_exec(bContext *C, wmOperator *op, Object *ob, ListBase
 			
 		case CONSTRAINT_TYPE_PYTHON: // FIXME: this code is not really valid anymore
 		{
-#ifndef DISABLE_PYTHON
+#ifdef WITH_PYTHON
 			char *menustr;
 			int scriptint= 0;
 			/* popup a list of usable scripts */
@@ -1331,10 +1341,10 @@ static int constraint_add_exec(bContext *C, wmOperator *op, Object *ob, ListBase
 	
 	if ((ob->type==OB_ARMATURE) && (pchan)) {
 		ob->pose->flag |= POSE_RECALC;	/* sort pose channels */
-		DAG_id_flush_update(&ob->id, OB_RECALC_DATA|OB_RECALC_OB);
+		DAG_id_tag_update(&ob->id, OB_RECALC_DATA|OB_RECALC_OB);
 	}
 	else
-		DAG_id_flush_update(&ob->id, OB_RECALC_DATA);
+		DAG_id_tag_update(&ob->id, OB_RECALC_DATA);
 	
 	/* notifiers for updates */
 	WM_event_add_notifier(C, NC_OBJECT|ND_CONSTRAINT|NA_ADDED, ob);
@@ -1574,7 +1584,7 @@ static int pose_ik_clear_exec(bContext *C, wmOperator *UNUSED(op))
 	CTX_DATA_END;
 	
 	/* refresh depsgraph */
-	DAG_id_flush_update(&ob->id, OB_RECALC_DATA);
+	DAG_id_tag_update(&ob->id, OB_RECALC_DATA);
 
 	/* note, notifier might evolve */
 	WM_event_add_notifier(C, NC_OBJECT|ND_CONSTRAINT|NA_REMOVED, ob);

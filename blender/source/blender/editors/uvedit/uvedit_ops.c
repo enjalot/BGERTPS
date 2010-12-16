@@ -51,6 +51,7 @@
 
 #include "ED_image.h"
 #include "ED_mesh.h"
+#include "ED_uvedit.h"
 #include "ED_object.h"
 #include "ED_screen.h"
 #include "ED_transform.h"
@@ -134,7 +135,7 @@ void ED_uvedit_assign_image(Scene *scene, Object *obedit, Image *ima, Image *pre
 
 	/* and update depdency graph */
 	if(update)
-		DAG_id_flush_update(obedit->data, OB_RECALC_DATA);
+		DAG_id_tag_update(obedit->data, OB_RECALC_DATA);
 
 	BKE_mesh_end_editmesh(obedit->data, em);
 }
@@ -167,7 +168,7 @@ static int uvedit_set_tile(Object *obedit, Image *ima, int curtile)
 			tf->tile= curtile; /* set tile index */
 	}
 
-	DAG_id_flush_update(obedit->data, OB_RECALC_DATA);
+	DAG_id_tag_update(obedit->data, OB_RECALC_DATA);
 	BKE_mesh_end_editmesh(obedit->data, em);
 
 	return 1;
@@ -1017,7 +1018,7 @@ static void weld_align_uv(bContext *C, int tool)
 		}
 	}
 
-	DAG_id_flush_update(obedit->data, OB_RECALC_DATA);
+	DAG_id_tag_update(obedit->data, OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GEOM|ND_DATA, obedit->data);
 
 	BKE_mesh_end_editmesh(obedit->data, em);
@@ -1240,7 +1241,7 @@ static int stitch_exec(bContext *C, wmOperator *op)
 		MEM_freeN(uv_average);
 	}
 
-	DAG_id_flush_update(obedit->data, OB_RECALC_DATA);
+	DAG_id_tag_update(obedit->data, OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GEOM|ND_DATA, obedit->data);
 
 	BKE_mesh_end_editmesh(obedit->data, em);
@@ -1701,7 +1702,7 @@ static int mouse_select(bContext *C, float co[2], int extend, int loop)
 		}
 	}
 	
-	DAG_id_flush_update(obedit->data, OB_RECALC_DATA);
+	DAG_id_tag_update(obedit->data, OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GEOM|ND_SELECT, obedit->data);
 	
 	BKE_mesh_end_editmesh(obedit->data, em);
@@ -1853,7 +1854,7 @@ static int select_linked_internal(bContext *C, wmOperator *op, wmEvent *event, i
 
 	select_linked(scene, ima, em, limit, hit_p, extend);
 
-	DAG_id_flush_update(obedit->data, OB_RECALC_DATA);
+	DAG_id_tag_update(obedit->data, OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GEOM|ND_SELECT, obedit->data);
 
 	BKE_mesh_end_editmesh(obedit->data, em);
@@ -1942,7 +1943,7 @@ static int unlink_selection_exec(bContext *C, wmOperator *op)
 		}
 	}
 	
-	DAG_id_flush_update(obedit->data, OB_RECALC_DATA);
+	DAG_id_tag_update(obedit->data, OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GEOM|ND_SELECT, obedit->data);
 
 	BKE_mesh_end_editmesh(obedit->data, em);
@@ -2623,7 +2624,7 @@ static int snap_selection_exec(bContext *C, wmOperator *op)
 	if(!change)
 		return OPERATOR_CANCELLED;
 	
-	DAG_id_flush_update(obedit->data, OB_RECALC_DATA);
+	DAG_id_tag_update(obedit->data, OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GEOM|ND_DATA, obedit->data);
 
 	return OPERATOR_FINISHED;
@@ -3029,6 +3030,9 @@ static int set_2d_cursor_exec(bContext *C, wmOperator *op)
 	SpaceImage *sima = CTX_wm_space_image(C);
 	float location[2];
 
+	if(!sima)
+		return OPERATOR_CANCELLED;
+
 	RNA_float_get_array(op->ptr, "location", location);
 	sima->cursor[0]= location[0];
 	sima->cursor[1]= location[1];
@@ -3182,6 +3186,7 @@ void ED_operatortypes_uvedit(void)
 void ED_keymap_uvedit(wmKeyConfig *keyconf)
 {
 	wmKeyMap *keymap;
+	wmKeyMapItem *kmi;
 	
 	keymap= WM_keymap_find(keyconf, "UV Editor", 0, 0);
 	keymap->poll= ED_operator_uvedit;
@@ -3233,6 +3238,19 @@ void ED_keymap_uvedit(wmKeyConfig *keyconf)
 	/* menus */
 	WM_keymap_add_menu(keymap, "IMAGE_MT_uvs_snap", SKEY, KM_PRESS, KM_SHIFT, 0);
 	WM_keymap_add_menu(keymap, "IMAGE_MT_uvs_select_mode", TABKEY, KM_PRESS, KM_CTRL, 0);
+
+	/* pivot */
+	kmi = WM_keymap_add_item(keymap, "WM_OT_context_set_enum", COMMAKEY, KM_PRESS, 0, 0);
+	RNA_string_set(kmi->ptr, "data_path", "space_data.uv_editor.pivot_point");
+	RNA_string_set(kmi->ptr, "value", "CENTER");
+
+	kmi = WM_keymap_add_item(keymap, "WM_OT_context_set_enum", COMMAKEY, KM_PRESS, KM_CTRL, 0);
+	RNA_string_set(kmi->ptr, "data_path", "space_data.uv_editor.pivot_point");
+	RNA_string_set(kmi->ptr, "value", "MEDIAN");
+
+	kmi = WM_keymap_add_item(keymap, "WM_OT_context_set_enum", PERIODKEY, KM_PRESS, 0, 0);
+	RNA_string_set(kmi->ptr, "data_path", "space_data.uv_editor.pivot_point");
+	RNA_string_set(kmi->ptr, "value", "CURSOR");
 
 	ED_object_generic_keymap(keyconf, keymap, 2);
 
