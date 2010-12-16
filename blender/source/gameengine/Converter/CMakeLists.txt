@@ -81,19 +81,6 @@ set(SRC
 	KX_ConvertSensors.cpp
 	KX_IpoConvert.cpp
 	KX_SoftBodyDeformer.cpp
-
-<<<<<<< HEAD
-IF(WITH_OPENCL)
-	LIST(APPEND INC ${OPENCL_INCLUDE_DIR})  
-	LIST(APPEND INC ${RTPS_INCLUDE_DIR})  
-ENDIF(WITH_OPENCL)
-
-IF(WITH_PYTHON)
-	LIST(APPEND INC ${PYTHON_INC})
-ELSE(WITH_PYTHON)
-	ADD_DEFINITIONS(-DDISABLE_PYTHON)
-ENDIF(WITH_PYTHON)
-=======
 	BL_ActionActuator.h
 	BL_ArmatureActuator.h
 	BL_ArmatureChannel.h
@@ -116,10 +103,15 @@ ENDIF(WITH_PYTHON)
 	KX_IpoConvert.h
 	KX_SoftBodyDeformer.h
 )
->>>>>>> 9b28302d9853b8fee3fc46f398f32a5d8ef01113
 
 if(WITH_BULLET)
 	add_definitions(-DUSE_BULLET)
 endif()
+
+IF(WITH_OPENCL)
+	LIST(APPEND INC ${OPENCL_INCLUDE_DIR})  
+	LIST(APPEND INC ${RTPS_INCLUDE_DIR})  
+ENDIF(WITH_OPENCL)
+
 
 blenderlib(ge_converter "${SRC}" "${INC}")

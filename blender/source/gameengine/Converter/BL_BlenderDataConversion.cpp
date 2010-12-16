@@ -1740,13 +1740,8 @@ static KX_GameObject *gameobject_from_blenderobject(
 		bool bHasDvert = mesh->dvert != NULL && ob->defbase.first;
 		bool bHasArmature = (BL_ModifierDeformer::HasArmatureDeformer(ob) && ob->parent && ob->parent->type == OB_ARMATURE && bHasDvert);
 		bool bHasModifier = BL_ModifierDeformer::HasCompatibleDeformer(ob);
-<<<<<<< HEAD
-        
 		bool bIsRTPS = BL_ModifierDeformer::HasRTPSDeformer(ob);    //RTPS
-
-=======
 #ifdef USE_BULLET
->>>>>>> 9b28302d9853b8fee3fc46f398f32a5d8ef01113
 		bool bHasSoftBody = (!ob->parent && (ob->gameflag & OB_SOFT_BODY));
 #endif
 		if (bHasModifier) {
