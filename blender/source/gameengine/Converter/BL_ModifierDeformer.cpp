@@ -56,6 +56,7 @@
 #include "MT_Point3.h"
 
 #include "RTPS.h"
+#include "timege.h"
 //These KX might not belong here...
 //this should be addressed when moving away from a modifier
 #include "KX_Scene.h"   //for getting the camera
@@ -206,6 +207,10 @@ bool BL_ModifierDeformer::Update(void)
     
     if(m_bIsRTPS)
     {
+        for(int i = 0; i < 10; i++)
+        {
+            timers[TI_UPDATE]->start();
+        }
         int nmat = m_pMeshObject->NumMaterials();
 
         for(int imat=0; imat<nmat; imat++)
@@ -241,8 +246,16 @@ bool BL_ModifierDeformer::Update(void)
                     //loop through the objects looking for objects with collider property
                     CListValue* oblist = kxs->GetObjectList();
                     int num_objects = oblist->GetCount();
+
+                    for(int i = 0; i < 50; i++)
+                    {
+                        timers[TI_EMIT]->start();
+                    }
+
+
                     for(int iob = 0; iob < num_objects; iob++)
                     {
+                        
                         KX_GameObject* gobj = (KX_GameObject*)oblist->GetValue(iob);
                         //print out some info about the object
                         //int mesh_count = gobj->GetMeshCount();
@@ -260,12 +273,16 @@ bool BL_ModifierDeformer::Update(void)
 
 
                         using namespace rtps;
+
+                        
                         //Check if object is an emitter
                         //for now we are just doing boxes 
                         CIntValue* intprop = (CIntValue*)gobj->GetProperty("num");
                         if(intprop)
                         {
-                            //get the number of particles in this emitter
+
+                           
+                             //get the number of particles in this emitter
                             int num = (int)intprop->GetInt();
                             int nn = 0; //the number of particles to emit
                             if (num == 0) { continue;} //out of particles
@@ -295,7 +312,6 @@ bool BL_ModifierDeformer::Update(void)
                                 }
                                 ioff++;
                                 if(ioff >= freq) ioff = 0;
-                                printf("ioff: %d\n", ioff);
 				                CIntValue * newioffprop = new CIntValue(ioff);            
 
                                 gobj->SetProperty("ioff", newioffprop);
@@ -316,20 +332,42 @@ bool BL_ModifierDeformer::Update(void)
                             gobj->GetSGNode()->getAABBox(bbpts);
                             float4 min = float4(bbpts[0].x(), bbpts[0].y(), bbpts[0].z(), 0);
                             float4 max = float4(bbpts[7].x(), bbpts[7].y(), bbpts[7].z(), 0);
-                            rtps->system->addBox(nn, min, max, false);
 
-                        }
-                       
+                            rtps->system->addBox(nn, min, max, false);
+                            
+                        }//if emitters
+                        
                         //printf("obj: %s mesh_count: %d collider: %d\n", name.Ptr(), mesh_count, collider);
      
+                    }//for loop of objects
+
+                    for(int i = 0; i < 50; i++)
+                    {
+                        timers[TI_EMIT]->end();
                     }
+
+
                 }
                 
 
-
+                for(int i = 0; i < 10; i++)
+                {
+                    timers[TI_RTPSUP]->start();
+                }
                 (*slot)->m_pRTPS->update();
+                for(int i = 0; i < 10; i++)
+                {
+                    timers[TI_RTPSUP]->end();
+                }
+
+
 	        }
         }//for loop over materials
+        for(int i = 0; i < 10; i++)
+        {
+            timers[TI_UPDATE]->end();
+        }
+
     }//if(m_bIsRTPS)
 
 
