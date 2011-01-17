@@ -81,6 +81,15 @@ extern "C"{
 #define __NLA_DEFNORMALS
 //#undef __NLA_DEFNORMALS
 
+/* helper function declarations used to get data from
+ * blender to the RTPS library
+ */
+
+using namespace rtps;
+void getTriangle(MFace& face, MT_Matrix3x3& grot, MT_Point3& gp, DerivedMesh* dm, Triangle& tri);
+int makeEmitter(int num, KX_GameObject* gobj);
+int getTriangles(KX_GameObject* gobj, std::vector<Triangle> &triangles);
+
 
 BL_ModifierDeformer::~BL_ModifierDeformer()
 {
@@ -247,12 +256,10 @@ bool BL_ModifierDeformer::Update(void)
                     CListValue* oblist = kxs->GetObjectList();
                     int num_objects = oblist->GetCount();
 
-                    for(int i = 0; i < 50; i++)
-                    {
-                        timers[TI_EMIT]->start();
-                    }
+                    std::vector<Triangle> triangles;
 
-
+                    timers[TI_EMIT]->start();
+                    
                     for(int iob = 0; iob < num_objects; iob++)
                     {
                         
@@ -261,7 +268,6 @@ bool BL_ModifierDeformer::Update(void)
                         //int mesh_count = gobj->GetMeshCount();
                         STR_String name = gobj->GetName();
 
-
                         //Check if object is a collider
                         bool collider = false;
                         CBoolValue* boolprop = (CBoolValue*)gobj->GetProperty("collider");
@@ -269,98 +275,56 @@ bool BL_ModifierDeformer::Update(void)
                         {
                             printf("obj: %s, collider: %d\n", name.Ptr(), boolprop->GetBool());
                             collider = boolprop->GetBool();
+                            if(collider)
+                            {
+                                getTriangles(gobj, triangles);
+                                printf("triangles size: %d\n", triangles.size());
+                            }
                         }
 
-
-                        using namespace rtps;
-
-                        
                         //Check if object is an emitter
                         //for now we are just doing boxes 
                         CIntValue* intprop = (CIntValue*)gobj->GetProperty("num");
                         if(intprop)
-                        {
-
-                           
+                        {  
                              //get the number of particles in this emitter
                             int num = (int)intprop->GetInt();
-                            int nn = 0; //the number of particles to emit
                             if (num == 0) { continue;} //out of particles
-                            boolprop = (CBoolValue*)gobj->GetProperty("hose");
-                            if(boolprop && boolprop->GetBool())
-                            {
-                                //particles per frame
-                                intprop = (CIntValue*)gobj->GetProperty("ppf");
-                                int ppf = (int)intprop->GetInt();
-                                intprop = (CIntValue*)gobj->GetProperty("freq");
-                                int freq = (int)intprop->GetInt();
-                                intprop = (CIntValue*)gobj->GetProperty("ioff");
-                                int ioff = (int)intprop->GetInt();
-                                if(ioff == 0)
-                                {
-                                    num -= ppf;
-                                    if (num < 0)
-                                    {
-                                        //inject the remaining particles
-                                        nn = num + ppf;
-                                    }
-                                    else
-                                    {
-                                        //inject the number of particles for this frame
-                                        nn = ppf;
-                                    }
-                                }
-                                ioff++;
-                                if(ioff >= freq) ioff = 0;
-				                CIntValue * newioffprop = new CIntValue(ioff);            
 
-                                gobj->SetProperty("ioff", newioffprop);
-                            }
-                            else
-                            {
-                                //not a hose
-                                nn = num;
-                            }
-
-
-                            if(nn <= 0)
-                            {
-                                continue;
-                            }
+                            int nn = makeEmitter(num, gobj);
+                            if( nn == 0) {continue;}
                             printf("obj: %s, nn: %d\n", name.Ptr(), nn);
                             MT_Point3 bbpts[8];
                             gobj->GetSGNode()->getAABBox(bbpts);
+     
                             float4 min = float4(bbpts[0].x(), bbpts[0].y(), bbpts[0].z(), 0);
                             float4 max = float4(bbpts[7].x(), bbpts[7].y(), bbpts[7].z(), 0);
-
                             rtps->system->addBox(nn, min, max, false);
-                            
+                           
                         }//if emitters
                         
                         //printf("obj: %s mesh_count: %d collider: %d\n", name.Ptr(), mesh_count, collider);
      
                     }//for loop of objects
 
-                    for(int i = 0; i < 50; i++)
+                    timers[TI_EMIT]->end();
+
+
+                    if(triangles.size() > 0 && rtps->settings.tri_collision)
                     {
-                        timers[TI_EMIT]->end();
+                        printf("about to load triangles\n");
+                        printf("triangles size: %d\n", triangles.size());
+                        rtps->system->loadTriangles(triangles);
                     }
 
+                    timers[TI_RTPSUP]->start();
+                    (*slot)->m_pRTPS->update();
+                    timers[TI_RTPSUP]->end();
 
                 }
                 
 
-                for(int i = 0; i < 10; i++)
-                {
-                    timers[TI_RTPSUP]->start();
-                }
-                (*slot)->m_pRTPS->update();
-                for(int i = 0; i < 10; i++)
-                {
-                    timers[TI_RTPSUP]->end();
-                }
-
-
+   
 	        }
         }//for loop over materials
         for(int i = 0; i < 10; i++)
@@ -425,7 +389,7 @@ bool BL_ModifierDeformer::Apply(RAS_IPolyMaterial *mat)
                     }
                     else if (sys == rtps::RTPSettings::SPH) 
                     {
-                        rtps::RTPSettings settings(sys, rtmd->num, rtmd->dt, grid);
+                        rtps::RTPSettings settings(sys, rtmd->num, rtmd->dt, grid, rtmd->collision);
                         (*slot)->m_pRTPS = new rtps::RTPS(settings);
 
                         rtps::RTPS* rtps = (*slot)->m_pRTPS;
@@ -448,6 +412,7 @@ bool BL_ModifierDeformer::Apply(RAS_IPolyMaterial *mat)
                             {
                                 int nn = (int)intprop->GetInt();
                                 printf("obj: %s, emitter: %d\n", name.Ptr(), nn);
+
                                 MT_Point3 bbpts[8];
                                 gobj->GetSGNode()->getAABBox(bbpts);
                                 float4 min = float4(bbpts[0].x(), bbpts[0].y(), bbpts[0].z(), 0);
@@ -475,3 +440,110 @@ bool BL_ModifierDeformer::Apply(RAS_IPolyMaterial *mat)
 	}
 	return true;
 }
+
+
+int makeEmitter(int num, KX_GameObject* gobj)
+{
+    CIntValue* intprop;
+    CBoolValue* boolprop;
+
+    int nn = 0; //the number of particles to emit
+    boolprop = (CBoolValue*)gobj->GetProperty("hose");
+    if(boolprop && boolprop->GetBool())
+    {
+        //particles per frame
+        intprop = (CIntValue*)gobj->GetProperty("ppf");
+        int ppf = (int)intprop->GetInt();
+        intprop = (CIntValue*)gobj->GetProperty("freq");
+        int freq = (int)intprop->GetInt();
+        intprop = (CIntValue*)gobj->GetProperty("ioff");
+        int ioff = (int)intprop->GetInt();
+        if(ioff == 0)
+        {
+            num -= ppf;
+            if (num < 0)
+            {
+                //inject the remaining particles
+                nn = num + ppf;
+            }
+            else
+            {
+                //inject the number of particles for this frame
+                nn = ppf;
+            }
+        }
+        ioff++;
+        if(ioff >= freq) ioff = 0;
+        CIntValue *newioffprop = new CIntValue(ioff);            
+        gobj->SetProperty("ioff", newioffprop);
+
+        CIntValue *numprop = new CIntValue(num);
+        gobj->SetProperty("num", numprop);
+    }
+    else
+    {
+        //not a hose
+        nn = num;
+    }
+
+    return nn;
+
+}
+
+
+int getTriangles(KX_GameObject* gobj, std::vector<Triangle> &triangles)
+{
+    //get the mesh and the derived mesh so we can get faces/verts
+    RAS_MeshObject* meshobj = gobj->GetMesh(0);
+    Mesh* mesh = meshobj->GetMesh();
+    DerivedMesh *dm = CDDM_from_mesh(mesh, NULL);
+    
+    //for now we are assuming triangles
+    int n_faces = dm->getNumFaces(dm);
+    printf("**** num faces: %d\n", n_faces);
+    MFace* face = dm->getFaceArray(dm);
+    
+    MT_Matrix3x3 grot = gobj->NodeGetWorldOrientation();
+    MT_Point3 gp = gobj->NodeGetWorldPosition();
+
+    Triangle tri;
+    MT_Vector3 fv, ftv;
+
+    for(int i = 0; i < n_faces; i++)
+    {
+        getTriangle(face[i], grot, gp, dm, tri);
+        triangles.push_back(tri);
+    } 
+    printf("in getTriagnles: triangles.size(): %zd\n", triangles.size());
+
+    return triangles.size();
+
+}
+
+void getTriangle(MFace& face, MT_Matrix3x3& grot, MT_Point3& gp, DerivedMesh* dm, Triangle& tri)
+{
+    MT_Vector3 fv, ftv;
+    float mv[3];
+
+    dm->getVertCo(dm, face.v1, mv);
+    //rotate and translate by global rotation/translation to get global coords
+    fv = MT_Vector3(mv[0], mv[1], mv[2]);
+    ftv = grot*fv + gp;
+    tri.verts[0] = float4(ftv.x(), ftv.y(), ftv.z(), 1);
+
+    dm->getVertCo(dm, face.v2, mv);
+    fv = MT_Vector3(mv[0], mv[1], mv[2]);
+    ftv = grot*fv + gp;
+    tri.verts[1] = float4(ftv.x(), ftv.y(), ftv.z(), 1);
+
+    dm->getVertCo(dm, face.v3, mv);
+    fv = MT_Vector3(mv[0], mv[1], mv[2]);
+    ftv = grot*fv + gp;
+    tri.verts[2] = float4(ftv.x(), ftv.y(), ftv.z(), 1);
+    //printf("ftv: %f %f %f\n", ftv.x(), ftv.y(), ftv.z());
+
+    float4 e1 = float4(tri.verts[1].x - tri.verts[0].x, tri.verts[1].y - tri.verts[0].y, tri.verts[1].z - tri.verts[0].z, 0);
+    float4 e2 = float4(tri.verts[2].x - tri.verts[0].x, tri.verts[2].y - tri.verts[0].y, tri.verts[2].z - tri.verts[0].z, 0);
+    tri.normal = normalize(cross(e1, e2));
+}
+
