@@ -243,6 +243,13 @@ bool BL_ModifierDeformer::Update(void)
                 else
                 {
                     float scale = kxc->GetScale();
+                    /*
+                    int left = kxc->GetViewportLeft();
+                    int right= kxc->GetViewportRight();
+                    int bottom = kxc->GetViewportBottom();
+                    int top = kxc->GetViewportTop();
+                    printf("left %d right %d bottom %d top %d\n", left, right, bottom, top);
+                    */
                     //printf("SCALE: %g\n", scale);
                     //(*slot)->m_pEnjaParticles->point_scale = scale;
                 }
@@ -273,12 +280,12 @@ bool BL_ModifierDeformer::Update(void)
                         CBoolValue* boolprop = (CBoolValue*)gobj->GetProperty("collider");
                         if(boolprop)
                         {
-                            printf("obj: %s, collider: %d\n", name.Ptr(), boolprop->GetBool());
+                            //printf("obj: %s, collider: %d\n", name.Ptr(), boolprop->GetBool());
                             collider = boolprop->GetBool();
                             if(collider)
                             {
                                 getTriangles(gobj, triangles);
-                                printf("triangles size: %d\n", triangles.size());
+                                //printf("triangles size: %d\n", triangles.size());
                             }
                         }
 
@@ -293,7 +300,7 @@ bool BL_ModifierDeformer::Update(void)
 
                             int nn = makeEmitter(num, gobj);
                             if( nn == 0) {continue;}
-                            printf("obj: %s, nn: %d\n", name.Ptr(), nn);
+                            //printf("obj: %s, nn: %d\n", name.Ptr(), nn);
                             MT_Point3 bbpts[8];
                             gobj->GetSGNode()->getAABBox(bbpts);
      
@@ -312,8 +319,8 @@ bool BL_ModifierDeformer::Update(void)
 
                     if(triangles.size() > 0 && rtps->settings.tri_collision)
                     {
-                        printf("about to load triangles\n");
-                        printf("triangles size: %d\n", triangles.size());
+                        //printf("about to load triangles\n");
+                        //printf("triangles size: %d\n", triangles.size());
                         rtps->system->loadTriangles(triangles);
                     }
 
@@ -500,7 +507,7 @@ int getTriangles(KX_GameObject* gobj, std::vector<Triangle> &triangles)
     
     //for now we are assuming triangles
     int n_faces = dm->getNumFaces(dm);
-    printf("**** num faces: %d\n", n_faces);
+    //printf("**** num faces: %d\n", n_faces);
     MFace* face = dm->getFaceArray(dm);
     
     MT_Matrix3x3 grot = gobj->NodeGetWorldOrientation();
@@ -514,7 +521,7 @@ int getTriangles(KX_GameObject* gobj, std::vector<Triangle> &triangles)
         getTriangle(face[i], grot, gp, dm, tri);
         triangles.push_back(tri);
     } 
-    printf("in getTriagnles: triangles.size(): %zd\n", triangles.size());
+    //printf("in getTriangles: triangles.size(): %zd\n", triangles.size());
 
     return triangles.size();
 
