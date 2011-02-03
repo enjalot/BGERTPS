@@ -241,10 +241,7 @@ bool BL_ModifierDeformer::Update(void)
     
     if(m_bIsRTPS)
     {
-        for(int i = 0; i < 10; i++)
-        {
-            timers[TI_UPDATE]->start();
-        }
+        timers[TI_UPDATE]->start();
         int nmat = m_pMeshObject->NumMaterials();
 
         for(int imat=0; imat<nmat; imat++)
@@ -359,10 +356,7 @@ bool BL_ModifierDeformer::Update(void)
    
 	        }
         }//for loop over materials
-        for(int i = 0; i < 10; i++)
-        {
-            timers[TI_UPDATE]->end();
-        }
+        timers[TI_UPDATE]->end();
 
     }//if(m_bIsRTPS)
 
