@@ -149,9 +149,9 @@ set(SRC
 )
 
 if(WITH_PYTHON)
-	set(INC ${INC} ../python ${PYTHON_INC})
+	set(INC ${INC} ../python ${PYTHON_INCLUDE_DIRS})
 	add_definitions(-DWITH_PYTHON)
 endif()
 
-blenderlib(bf_nodes "${SRC}" "${INC}")
+blender_add_lib(bf_nodes "${SRC}" "${INC}")
 

@@ -1356,7 +1356,7 @@ bool GHOST_SystemCocoa::handleOpenDocumentRequest(void *filepathStr)
 
 	if (confirmOpen == NSAlertAlternateReturn)
 	{
-		filenameTextSize = [filepath lengthOfBytesUsingEncoding:NSISOLatin1StringEncoding];
+		filenameTextSize = [filepath lengthOfBytesUsingEncoding:NSUTF8StringEncoding];
 		
 		temp_buff = (char*) malloc(filenameTextSize+1); 
 		
@@ -1364,7 +1364,7 @@ bool GHOST_SystemCocoa::handleOpenDocumentRequest(void *filepathStr)
 			return GHOST_kFailure;
 		}
 		
-		strncpy(temp_buff, [filepath cStringUsingEncoding:NSISOLatin1StringEncoding], filenameTextSize);
+		strncpy(temp_buff, [filepath cStringUsingEncoding:NSUTF8StringEncoding], filenameTextSize);
 		
 		temp_buff[filenameTextSize] = '\0';
 
@@ -1796,67 +1796,3 @@ void GHOST_SystemCocoa::putClipboard(GHOST_TInt8 *buffer, bool selection) const
 	[pool drain];
 }
 
-#pragma mark Base directories retrieval
-
-const GHOST_TUns8* GHOST_SystemCocoa::getSystemDir() const
-{
-	static GHOST_TUns8 tempPath[512] = "";
-	NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
-	NSString *basePath;
-	NSArray *paths;
-	
-	paths = NSSearchPathForDirectoriesInDomains(NSApplicationSupportDirectory, NSLocalDomainMask, YES);
-	
-	if ([paths count] > 0)
-		basePath = [paths objectAtIndex:0];
-	else { 
-		[pool drain];
-		return NULL;
-	}
-	
-	strcpy((char*)tempPath, [basePath cStringUsingEncoding:NSASCIIStringEncoding]);
-	
-	[pool drain];
-	return tempPath;
-}
-
-const GHOST_TUns8* GHOST_SystemCocoa::getUserDir() const
-{
-	static GHOST_TUns8 tempPath[512] = "";
-	NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
-	NSString *basePath;
-	NSArray *paths;
-
-	paths = NSSearchPathForDirectoriesInDomains(NSApplicationSupportDirectory, NSUserDomainMask, YES);
-
-	if ([paths count] > 0)
-		basePath = [paths objectAtIndex:0];
-	else { 
-		[pool drain];
-		return NULL;
-	}
-
-	strcpy((char*)tempPath, [basePath cStringUsingEncoding:NSASCIIStringEncoding]);
-	
-	[pool drain];
-	return tempPath;
-}
-
-const GHOST_TUns8* GHOST_SystemCocoa::getBinaryDir() const
-{
-	static GHOST_TUns8 tempPath[512] = "";
-	NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
-	NSString *basePath;
-	
-	basePath = [[NSBundle mainBundle] bundlePath];
-	
-	if (basePath == nil) {
-		[pool drain];
-		return NULL;
-	}
-	
-	strcpy((char*)tempPath, [basePath cStringUsingEncoding:NSASCIIStringEncoding]);
-	
-	[pool drain];
-	return tempPath;
-}

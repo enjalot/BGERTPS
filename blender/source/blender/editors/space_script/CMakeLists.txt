@@ -39,8 +39,8 @@ set(SRC
 )
 
 if(WITH_PYTHON)
-	list(APPEND INC ${PYTHON_INC} ../../python)
+	list(APPEND INC ${PYTHON_INCLUDE_DIRS} ../../python)
 	add_definitions(-DWITH_PYTHON)
 endif()
 
-blenderlib(bf_editor_space_script "${SRC}" "${INC}")
+blender_add_lib(bf_editor_space_script "${SRC}" "${INC}")

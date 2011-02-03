@@ -57,9 +57,6 @@ typedef struct Brush {
 	struct ImBuf *icon_imbuf;
 	PreviewImage *preview;
 	char icon_filepath[240];
-	int icon_mode;			/* store paint mode for which brush's icon was last generated */
-	int pad;
-
 
 	float normal_weight;
 
@@ -129,6 +126,10 @@ typedef struct Brush {
 #define BRUSH_PLANE_TRIM (1<<26)
 #define BRUSH_FRONTFACE (1<<27)
 #define BRUSH_CUSTOM_ICON (1<<28)
+
+/* temporary flag which sets up autmatically for correct
+   brush drawing when inverted modal operator is running */
+#define BRUSH_INVERTED (1<<29)
 
 /* Brush.sculpt_tool */
 #define SCULPT_TOOL_DRAW        1

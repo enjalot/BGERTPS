@@ -28,8 +28,8 @@ set(INC
 	intern
 	../memutil
 	../../extern/bullet2/src
-	${PNG_INC}
-	${ZLIB_INC}
+	${PNG_INCLUDE_DIR}
+	${ZLIB_INCLUDE_DIRS}
 )
 
 set(SRC
@@ -89,5 +89,5 @@ if(WITH_FFTW3)
 	list(APPEND INC ${FFTW3_INC})
 endif()
 
-blenderlib(bf_intern_smoke "${SRC}" "${INC}")
+blender_add_lib(bf_intern_smoke "${SRC}" "${INC}")
 

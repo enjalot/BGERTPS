@@ -154,6 +154,10 @@ EnumPropertyItem image_type_items[] = {
 
 #include "MEM_guardedalloc.h"
 
+#include "BLI_threads.h"
+#include "BLI_editVert.h"
+#include "BLI_blenlib.h"
+
 #include "BKE_context.h"
 #include "BKE_global.h"
 #include "BKE_image.h"
@@ -168,10 +172,6 @@ EnumPropertyItem image_type_items[] = {
 #include "BKE_screen.h"
 #include "BKE_animsys.h"
 
-#include "BLI_threads.h"
-#include "BLI_editVert.h"
-#include "BLI_blenlib.h"
-
 #include "WM_api.h"
 
 #include "ED_info.h"
@@ -182,18 +182,19 @@ EnumPropertyItem image_type_items[] = {
 
 #include "RE_pipeline.h"
 
-static PointerRNA rna_Scene_object_bases_lookup_string(PointerRNA *ptr, const char *key)
+static int rna_Scene_object_bases_lookup_string(PointerRNA *ptr, const char *key, PointerRNA *r_ptr)
 {
 	Scene *scene= (Scene*)ptr->data;
 	Base *base;
 
 	for(base= scene->base.first; base; base= base->next) {
 		if(strncmp(base->object->id.name+2, key, sizeof(base->object->id.name)-2)==0) {
-			return rna_pointer_inherit_refine(ptr, &RNA_ObjectBase, base);
+			*r_ptr= rna_pointer_inherit_refine(ptr, &RNA_ObjectBase, base);
+			return TRUE;
 		}
 	}
 
-	return PointerRNA_NULL;
+	return FALSE;
 }
 
 static PointerRNA rna_Scene_objects_get(CollectionPropertyIterator *iter)
@@ -224,7 +225,7 @@ static Base *rna_Scene_object_link(Scene *scene, bContext *C, ReportList *report
 	if(scene == scene_act)
 		ob->lay= base->lay;
 
-	ob->recalc |= OB_RECALC_ALL;
+	ob->recalc |= OB_RECALC_OB|OB_RECALC_DATA|OB_RECALC_TIME;
 
 	/* slows down importers too much, run scene.update() */
 	/* DAG_scene_sort(G.main, scene); */
@@ -312,6 +313,12 @@ static void rna_Scene_view3d_update(Main *bmain, Scene *unused, PointerRNA *ptr)
 
 	BKE_screen_view3d_main_sync(&bmain->screen, scene);
 }
+
+static void rna_Scene_framelen_update(Main *bmain, Scene *scene, PointerRNA *ptr)
+{	
+	scene->r.framelen= (float)scene->r.framapto/(float)scene->r.images;
+}
+
 
 static void rna_Scene_current_frame_set(PointerRNA *ptr, int value)
 {
@@ -419,7 +426,7 @@ static int rna_Scene_active_keying_set_index_get(PointerRNA *ptr)
 }
 
 /* get KeyingSet index stuff for list of Keying Sets editing UI
- *	- value+1 since 0 is reserved for 'none'=
+ *	- value+1 since 0 is reserved for 'none'
  */
 static void rna_Scene_active_keying_set_index_set(PointerRNA *ptr, int value) 
 {
@@ -874,10 +881,10 @@ static void object_simplify_update(Object *ob)
 
 static void rna_Scene_use_simplify_update(Main *bmain, Scene *scene, PointerRNA *ptr)
 {
-	Scene *sce;
+	Scene *sce_iter;
 	Base *base;
 
-	for(SETLOOPER(scene, base))
+	for(SETLOOPER(scene, sce_iter, base))
 		object_simplify_update(base->object);
 	
 	DAG_ids_flush_update(bmain, 0);
@@ -1080,6 +1087,11 @@ static void rna_def_tool_settings(BlenderRNA  *brna)
 	RNA_def_property_ui_text(prop, "Proportional Editing Falloff", "Falloff type for proportional editing mode");
 	RNA_def_property_update(prop, NC_SCENE|ND_TOOLSETTINGS, NULL); /* header redraw */
 
+	prop= RNA_def_property(srna, "proportional_size", PROP_FLOAT, PROP_DISTANCE);
+	RNA_def_property_float_sdna(prop, NULL, "proportional_size");
+	RNA_def_property_ui_text(prop, "Proportional Size", "Display size for proportional editing circle");
+	RNA_def_property_range(prop, 0.00001, 5000.0);
+	
 	prop= RNA_def_property(srna, "normal_size", PROP_FLOAT, PROP_DISTANCE);
 	RNA_def_property_float_sdna(prop, NULL, "normalsize");
 	RNA_def_property_ui_text(prop, "Normal Size", "Display size for normals in the 3D view");
@@ -1126,7 +1138,13 @@ static void rna_def_tool_settings(BlenderRNA  *brna)
 	RNA_def_property_ui_text(prop, "Project Individual Elements", "Project individual elements on the surface of other objects");
 	RNA_def_property_ui_icon(prop, ICON_RETOPO, 0);
 	RNA_def_property_update(prop, NC_SCENE|ND_TOOLSETTINGS, NULL); /* header redraw */
-
+	
+	/* Grease Pencil */
+	prop = RNA_def_property(srna, "use_grease_pencil_sessions", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "gpencil_flags", GP_TOOL_FLAG_PAINTSESSIONS_ON);
+	RNA_def_property_ui_text(prop, "Use Sketching Sessions", "Allow drawing multiple strokes at a time with Grease Pencil");
+	RNA_def_property_update(prop, NC_SCENE|ND_TOOLSETTINGS, NULL); // xxx: need toolbar to be redrawn...
+	
 	/* Auto Keying */
 	prop= RNA_def_property(srna, "use_keyframe_insert_auto", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "autokey_mode", AUTOKEY_ON);
@@ -1730,8 +1748,8 @@ static void rna_def_scene_game_data(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Physics Gravity", "Gravitational constant used for physics simulation in the game engine");
 	RNA_def_property_update(prop, NC_SCENE, NULL);
 
-	prop= RNA_def_property(srna, "occlusion_culling_resolution", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_float_sdna(prop, NULL, "occlusionRes");
+	prop= RNA_def_property(srna, "occlusion_culling_resolution", PROP_INT, PROP_NONE);
+	RNA_def_property_int_sdna(prop, NULL, "occlusionRes");
 	RNA_def_property_range(prop, 128.0, 1024.0);
 	RNA_def_property_ui_text(prop, "Occlusion Resolution", "The size of the occlusion buffer in pixel, use higher value for better precision (slower)");
 	RNA_def_property_update(prop, NC_SCENE, NULL);
@@ -1792,6 +1810,10 @@ static void rna_def_scene_game_data(BlenderRNA *brna)
 	prop= RNA_def_property(srna, "show_physics_visualization", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GAME_SHOW_PHYSICS);
 	RNA_def_property_ui_text(prop, "Show Physics Visualization", "Show a visualization of physics bounds and interactions");
+
+	prop= RNA_def_property(srna, "show_mouse", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GAME_SHOW_MOUSE);
+	RNA_def_property_ui_text(prop, "Show Mouse", "Start player with a visible mouse cursor");
 
 	prop= RNA_def_property(srna, "use_frame_rate", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_negative_sdna(prop, NULL, "flag", GAME_ENABLE_ALL_FRAMES);
@@ -2401,14 +2423,14 @@ static void rna_def_scene_render_data(BlenderRNA *brna)
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_range(prop, 1, 900);
 	RNA_def_property_ui_text(prop, "Frame Map Old", "Specify old mapping value in frames");
-	RNA_def_property_update(prop, NC_SCENE|ND_RENDER_OPTIONS, NULL);
+	RNA_def_property_update(prop, NC_SCENE|ND_FRAME, "rna_Scene_framelen_update");
 	
 	prop= RNA_def_property(srna, "frame_map_new", PROP_INT, PROP_NONE);
 	RNA_def_property_int_sdna(prop, NULL, "images");
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_range(prop, 1, 900);
 	RNA_def_property_ui_text(prop, "Frame Map New", "Specify how many frames the Map Old will last");
-	RNA_def_property_update(prop, NC_SCENE|ND_RENDER_OPTIONS, NULL);
+	RNA_def_property_update(prop, NC_SCENE|ND_FRAME, "rna_Scene_framelen_update");
 
 	
 	prop= RNA_def_property(srna, "dither_intensity", PROP_FLOAT, PROP_NONE);
@@ -2669,11 +2691,6 @@ static void rna_def_scene_render_data(BlenderRNA *brna)
 	 RNA_def_property_boolean_funcs(prop, "rna_RenderSettings_full_sample_get", NULL);
 	RNA_def_property_ui_text(prop, "Full Sample","Save for every anti-aliasing sample the entire RenderLayer results. This solves anti-aliasing issues with compositing");
 	RNA_def_property_update(prop, NC_SCENE|ND_RENDER_OPTIONS, NULL);
-	
-	prop= RNA_def_property(srna, "use_backbuf", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "bufflag", R_BACKBUF);
-	RNA_def_property_ui_text(prop, "Back Buffer", "Render backbuffer image");
-	RNA_def_property_update(prop, NC_SCENE|ND_RENDER_OPTIONS, NULL);
 
 	prop= RNA_def_property(srna, "display_mode", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_bitflag_sdna(prop, NULL, "displaymode");
@@ -2681,7 +2698,7 @@ static void rna_def_scene_render_data(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Display", "Select where rendered images will be displayed");
 	RNA_def_property_update(prop, NC_SCENE|ND_RENDER_OPTIONS, NULL);
 	
-	prop= RNA_def_property(srna, "filepath", PROP_STRING, PROP_DIRPATH);
+	prop= RNA_def_property(srna, "filepath", PROP_STRING, PROP_FILEPATH);
 	RNA_def_property_string_sdna(prop, NULL, "pic");
 	RNA_def_property_ui_text(prop, "Output Path", "Directory/name to save animations, # characters defines the position and length of frame numbers");
 	RNA_def_property_update(prop, NC_SCENE|ND_RENDER_OPTIONS, NULL);
@@ -2758,6 +2775,11 @@ static void rna_def_scene_render_data(BlenderRNA *brna)
 	prop= RNA_def_property(srna, "use_stamp_camera", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "stamp", R_STAMP_CAMERA);
 	RNA_def_property_ui_text(prop, "Stamp Camera", "Include the name of the active camera in image metadata");
+	RNA_def_property_update(prop, NC_SCENE|ND_RENDER_OPTIONS, NULL);
+
+	prop= RNA_def_property(srna, "use_stamp_lens", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "stamp", R_STAMP_CAMERALENS);
+	RNA_def_property_ui_text(prop, "Stamp Lens", "Include the name of the active cameras lens in image metadata");
 	RNA_def_property_update(prop, NC_SCENE|ND_RENDER_OPTIONS, NULL);
 	
 	prop= RNA_def_property(srna, "use_stamp_scene", PROP_BOOLEAN, PROP_NONE);
@@ -2927,7 +2949,7 @@ static void rna_def_scene_objects(BlenderRNA *brna, PropertyRNA *cprop)
 	RNA_def_function_ui_description(func, "Link object to scene, run scene.update() after.");
 	RNA_def_function_flag(func, FUNC_USE_CONTEXT|FUNC_USE_REPORTS);
 	parm= RNA_def_pointer(func, "object", "Object", "", "Object to add to scene.");
-	RNA_def_property_flag(parm, PROP_REQUIRED);
+	RNA_def_property_flag(parm, PROP_REQUIRED|PROP_NEVER_NULL);
 	parm= RNA_def_pointer(func, "base", "ObjectBase", "", "The newly created base.");
 	RNA_def_function_return(func, parm);
 
@@ -2935,7 +2957,7 @@ static void rna_def_scene_objects(BlenderRNA *brna, PropertyRNA *cprop)
 	RNA_def_function_ui_description(func, "Unlink object from scene.");
 	RNA_def_function_flag(func, FUNC_USE_REPORTS);
 	parm= RNA_def_pointer(func, "object", "Object", "", "Object to remove from scene.");
-	RNA_def_property_flag(parm, PROP_REQUIRED);
+	RNA_def_property_flag(parm, PROP_REQUIRED|PROP_NEVER_NULL);
 
 	prop= RNA_def_property(srna, "active", PROP_POINTER, PROP_NONE);
 	RNA_def_property_struct_type(prop, "Object");

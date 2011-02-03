@@ -231,7 +231,7 @@ if(WITH_FFTW3 AND FALSE)
 endif()
 
 if(WITH_PYTHON)
-	list(APPEND INC Python ${PYTHON_INC})
+	list(APPEND INC Python ${PYTHON_INCLUDE_DIRS})
 	set(PYTHONSRC
 		Python/AUD_PyAPI.cpp
 
@@ -252,4 +252,4 @@ set(SRC
 	${PYTHONSRC}
 )
 
-blenderlib(bf_intern_audaspace "${SRC}" "${INC}")
+blender_add_lib(bf_intern_audaspace "${SRC}" "${INC}")

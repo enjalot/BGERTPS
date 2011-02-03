@@ -999,7 +999,7 @@ static void rna_def_property_actuator(BlenderRNA *brna)
 	RNA_def_property_update(prop, NC_LOGIC, NULL);
 
 	prop= RNA_def_property(srna, "value", PROP_STRING, PROP_NONE);
-	RNA_def_property_ui_text(prop, "Value", "The value to use, use \"\" around strings");
+	RNA_def_property_ui_text(prop, "Value", "The name of the property or the value to use (use \"\" around strings)");
 	RNA_def_property_update(prop, NC_LOGIC, NULL);
 
 	/* Copy Mode */
@@ -1591,7 +1591,7 @@ static void rna_def_visibility_actuator(BlenderRNA *brna)
 
 	prop= RNA_def_property(srna, "use_visible", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_negative_sdna(prop, NULL, "flag", ACT_VISIBILITY_INVISIBLE);
-	RNA_def_property_ui_text(prop, "Visible", "Set the objects visible. Initialized from the objects render restriction toggle (access in the outliner)");
+	RNA_def_property_ui_text(prop, "Visible", "Set the objects visible. Initialized from the object render restriction toggle in physics button");
 	RNA_def_property_update(prop, NC_LOGIC, NULL);
 
 	prop= RNA_def_property(srna, "use_occlusion", PROP_BOOLEAN, PROP_NONE);
@@ -1700,7 +1700,7 @@ static void rna_def_parent_actuator(BlenderRNA *brna)
 
 	prop= RNA_def_property(srna, "use_ghost", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", ACT_PARENT_GHOST);
-	RNA_def_property_ui_text(prop, "Ghost", "Make this object ghost while parented (only if not compound)");
+	RNA_def_property_ui_text(prop, "Ghost", "Make this object ghost while parented");
 	RNA_def_property_update(prop, NC_LOGIC, NULL);
 }
 

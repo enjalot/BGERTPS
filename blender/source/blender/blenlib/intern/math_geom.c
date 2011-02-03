@@ -30,8 +30,9 @@
 
 #include "BLI_math.h"
 #include "BLI_memarena.h"
+#include "BLI_utildefines.h"
 
-#include "BKE_utildefines.h"
+
 
 /********************************** Polygons *********************************/
 
@@ -235,51 +236,39 @@ float dist_to_line_segment_v3(float *v1, float *v2, float *v3)
 /* intersect Line-Line, shorts */
 int isect_line_line_v2_short(const short *v1, const short *v2, const short *v3, const short *v4)
 {
-	/* return:
-	-1: colliniar
-	 0: no intersection of segments
-	 1: exact intersection of segments
-	 2: cross-intersection of segments
-	*/
 	float div, labda, mu;
 	
 	div= (float)((v2[0]-v1[0])*(v4[1]-v3[1])-(v2[1]-v1[1])*(v4[0]-v3[0]));
-	if(div==0.0f) return -1;
+	if(div==0.0f) return ISECT_LINE_LINE_COLINEAR;
 	
 	labda= ((float)(v1[1]-v3[1])*(v4[0]-v3[0])-(v1[0]-v3[0])*(v4[1]-v3[1]))/div;
 	
 	mu= ((float)(v1[1]-v3[1])*(v2[0]-v1[0])-(v1[0]-v3[0])*(v2[1]-v1[1]))/div;
 	
 	if(labda>=0.0f && labda<=1.0f && mu>=0.0f && mu<=1.0f) {
-		if(labda==0.0f || labda==1.0f || mu==0.0f || mu==1.0f) return 1;
-		return 2;
+		if(labda==0.0f || labda==1.0f || mu==0.0f || mu==1.0f) return ISECT_LINE_LINE_EXACT;
+		return ISECT_LINE_LINE_CROSS;
 	}
-	return 0;
+	return ISECT_LINE_LINE_NONE;
 }
 
 /* intersect Line-Line, floats */
 int isect_line_line_v2(const float *v1, const float *v2, const float *v3, const float *v4)
 {
-	/* return:
-	-1: colliniar
-0: no intersection of segments
-1: exact intersection of segments
-2: cross-intersection of segments
-	*/
 	float div, labda, mu;
 	
 	div= (v2[0]-v1[0])*(v4[1]-v3[1])-(v2[1]-v1[1])*(v4[0]-v3[0]);
-	if(div==0.0) return -1;
+	if(div==0.0) return ISECT_LINE_LINE_COLINEAR;
 	
 	labda= ((float)(v1[1]-v3[1])*(v4[0]-v3[0])-(v1[0]-v3[0])*(v4[1]-v3[1]))/div;
 	
 	mu= ((float)(v1[1]-v3[1])*(v2[0]-v1[0])-(v1[0]-v3[0])*(v2[1]-v1[1]))/div;
 	
 	if(labda>=0.0 && labda<=1.0 && mu>=0.0 && mu<=1.0) {
-		if(labda==0.0 || labda==1.0 || mu==0.0 || mu==1.0) return 1;
-		return 2;
+		if(labda==0.0 || labda==1.0 || mu==0.0 || mu==1.0) return ISECT_LINE_LINE_EXACT;
+		return ISECT_LINE_LINE_CROSS;
 	}
-	return 0;
+	return ISECT_LINE_LINE_NONE;
 }
 
 /* get intersection point of two 2D segments and return intersection type:
@@ -629,7 +618,7 @@ static int getLowestRoot(float a, float b, float c, float maxR, float* root)
 	if (determinant >= 0.0f)
 	{
 		// calculate the two roots: (if determinant == 0 then
-		// x1==x2 but let’s disregard that slight optimization)
+		// x1==x2 but lets disregard that slight optimization)
 		float sqrtD = (float)sqrt(determinant);
 		float r1 = (-b - sqrtD) / (2.0f*a);
 		float r2 = (-b + sqrtD) / (2.0f*a);
@@ -661,7 +650,7 @@ int isect_sweeping_sphere_tri_v3(float p1[3], float p2[3], float radius, float v
 {
 	float e1[3], e2[3], e3[3], point[3], vel[3], /*dist[3],*/ nor[3], temp[3], bv[3];
 	float a, b, c, d, e, x, y, z, radius2=radius*radius;
-	float elen2,edotv,edotbv,nordotv,vel2;
+	float elen2,edotv,edotbv,nordotv;
 	float newLambda;
 	int found_by_sweep=0;
 
@@ -735,7 +724,7 @@ int isect_sweeping_sphere_tri_v3(float p1[3], float p2[3], float radius, float v
 	*lambda=1.0f;
 
 /*---test points---*/
-	a=vel2=dot_v3v3(vel,vel);
+	a=dot_v3v3(vel,vel);
 
 	/*v0*/
 	sub_v3_v3v3(temp,p1,v0);
@@ -824,10 +813,10 @@ int isect_sweeping_sphere_tri_v3(float p1[3], float p2[3], float radius, float v
 	}
 
 	/*e3*/
-	sub_v3_v3v3(bv,v0,p1);
-	elen2 = dot_v3v3(e1,e1);
-	edotv = dot_v3v3(e1,vel);
-	edotbv = dot_v3v3(e1,bv);
+	/* sub_v3_v3v3(bv,v0,p1); */ /* UNUSED */
+	/* elen2 = dot_v3v3(e1,e1); */ /* UNUSED */
+	/* edotv = dot_v3v3(e1,vel); */ /* UNUSED */
+	/* edotbv = dot_v3v3(e1,bv); */ /* UNUSED */
 
 	sub_v3_v3v3(bv,v1,p1);
 	elen2 = dot_v3v3(e3,e3);
@@ -972,7 +961,6 @@ int isect_line_line_strict_v3(float v1[3], float v2[3], float v3[3], float v4[3]
 {
 	float a[3], b[3], c[3], ab[3], cb[3], ca[3], dir1[3], dir2[3];
 	float d;
-	float d1;
 	
 	sub_v3_v3v3(c, v3, v1);
 	sub_v3_v3v3(a, v2, v1);
@@ -985,8 +973,6 @@ int isect_line_line_strict_v3(float v1[3], float v2[3], float v3[3], float v4[3]
 		/* colinear or one vector is zero-length*/
 		return 0;
 	}
-	
-	d1 = d;
 
 	cross_v3_v3v3(ab, a, b);
 	d = dot_v3v3(c, ab);
@@ -1033,7 +1019,7 @@ int isect_aabb_aabb_v3(float min1[3], float max1[3], float min2[3], float max2[3
 /* find closest point to p on line through l1,l2 and return lambda,
  * where (0 <= lambda <= 1) when cp is in the line segement l1,l2
  */
-float closest_to_line_v3(float cp[3],float p[3], float l1[3], float l2[3])
+float closest_to_line_v3(float cp[3], const float p[3], const float l1[3], const float l2[3])
 {
 	float h[3],u[3],lambda;
 	sub_v3_v3v3(u, l2, l1);
@@ -1042,6 +1028,17 @@ float closest_to_line_v3(float cp[3],float p[3], float l1[3], float l2[3])
 	cp[0] = l1[0] + u[0] * lambda;
 	cp[1] = l1[1] + u[1] * lambda;
 	cp[2] = l1[2] + u[2] * lambda;
+	return lambda;
+}
+
+float closest_to_line_v2(float cp[2],const float p[2], const float l1[2], const float l2[2])
+{
+	float h[2],u[2],lambda;
+	sub_v2_v2v2(u, l2, l1);
+	sub_v2_v2v2(h, p, l1);
+	lambda =dot_v2v2(u,h)/dot_v2v2(u,u);
+	cp[0] = l1[0] + u[0] * lambda;
+	cp[1] = l1[1] + u[1] * lambda;
 	return lambda;
 }
 

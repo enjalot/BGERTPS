@@ -34,10 +34,11 @@
 
 #include "BLI_math.h"
 #include "BLI_rect.h"
+#include "BLI_utildefines.h"
 
 #include "BKE_colortools.h"
 #include "BKE_texture.h"
-#include "BKE_utildefines.h"
+
 
 #include "IMB_imbuf.h"
 #include "IMB_imbuf_types.h"
@@ -517,7 +518,7 @@ static void ui_draw_but_CHARTAB(uiBut *but)
 	int result = 0;
 	int charmax = G.charmax;
 	
-	/* <builtin> font in use. There are TTF <builtin> and non-TTF <builtin> fonts */
+	/* FO_BUILTIN_NAME font in use. There are TTF FO_BUILTIN_NAME and non-TTF FO_BUILTIN_NAME fonts */
 	if(!strcmp(G.selfont->name, FO_BUILTIN_NAME))
 	{
 		if(G.ui_international == TRUE)
@@ -1342,7 +1343,7 @@ static void ui_draw_but_curve_grid(rcti *rect, float zoomx, float zoomy, float o
 	
 }
 
-static void glColor3ubvShade(char *col, int shade)
+static void glColor3ubvShade(unsigned char *col, int shade)
 {
 	glColor3ub(col[0]-shade>0?col[0]-shade:0, 
 			   col[1]-shade>0?col[1]-shade:0,
@@ -1379,7 +1380,7 @@ void ui_draw_but_CURVE(ARegion *ar, uiBut *but, uiWidgetColors *wcol, rcti *rect
 	
 	/* backdrop */
 	if(cumap->flag & CUMA_DO_CLIP) {
-		glColor3ubvShade(wcol->inner, -20);
+		glColor3ubvShade((unsigned char *)wcol->inner, -20);
 		glRectf(rect->xmin, rect->ymin, rect->xmax, rect->ymax);
 		glColor3ubv((unsigned char*)wcol->inner);
 		glRectf(rect->xmin + zoomx*(cumap->clipr.xmin-offsx),
@@ -1393,13 +1394,13 @@ void ui_draw_but_CURVE(ARegion *ar, uiBut *but, uiWidgetColors *wcol, rcti *rect
 	}
 		
 	/* grid, every .25 step */
-	glColor3ubvShade(wcol->inner, -16);
+	glColor3ubvShade((unsigned char *)wcol->inner, -16);
 	ui_draw_but_curve_grid(rect, zoomx, zoomy, offsx, offsy, 0.25f);
 	/* grid, every 1.0 step */
-	glColor3ubvShade(wcol->inner, -24);
+	glColor3ubvShade((unsigned char *)wcol->inner, -24);
 	ui_draw_but_curve_grid(rect, zoomx, zoomy, offsx, offsy, 1.0f);
 	/* axes */
-	glColor3ubvShade(wcol->inner, -50);
+	glColor3ubvShade((unsigned char *)wcol->inner, -50);
 	glBegin(GL_LINES);
 	glVertex2f(rect->xmin, rect->ymin + zoomy*(-offsy));
 	glVertex2f(rect->xmax, rect->ymin + zoomy*(-offsy));
@@ -1575,6 +1576,7 @@ void uiDrawBoxShadow(unsigned char alpha, float minx, float miny, float maxx, fl
 
 void ui_dropshadow(rctf *rct, float radius, float aspect, int select)
 {
+	int i;
 	float rad;
 	float a;
 	char alpha= 2;
@@ -1585,9 +1587,10 @@ void ui_dropshadow(rctf *rct, float radius, float aspect, int select)
 		rad= (rct->ymax-rct->ymin-10.0f)/2.0f;
 	else
 		rad= radius;
-	
-	if(select) a= 12.0f*aspect; else a= 12.0f*aspect;
-	for(; a>0.0f; a-=aspect) {
+
+	i= 12;
+	if(select) a= i*aspect; else a= i*aspect;
+	for(; i--; a-=aspect) {
 		/* alpha ranges from 2 to 20 or so */
 		glColor4ub(0, 0, 0, alpha);
 		alpha+= 2;
@@ -1598,7 +1601,7 @@ void ui_dropshadow(rctf *rct, float radius, float aspect, int select)
 	/* outline emphasis */
 	glEnable( GL_LINE_SMOOTH );
 	glColor4ub(0, 0, 0, 100);
-	uiDrawBox(GL_LINE_LOOP, rct->xmin-0.5f, rct->ymin-0.5f, rct->xmax+0.5f, rct->ymax+0.5f, radius);
+	uiDrawBox(GL_LINE_LOOP, rct->xmin-0.5f, rct->ymin-0.5f, rct->xmax+0.5f, rct->ymax+0.5f, radius+0.5f);
 	glDisable( GL_LINE_SMOOTH );
 	
 	glDisable(GL_BLEND);

@@ -34,6 +34,7 @@
 
 #include "BLI_math.h"
 #include "BLI_blenlib.h"
+#include "BLI_utildefines.h"
 #include "BLI_dynstr.h"
 #include "BLI_ghash.h"
 #include "BLI_pbvh.h"
@@ -58,7 +59,6 @@
 #include "BKE_paint.h"
 #include "BKE_report.h"
 
-#include "BIF_gl.h"
 #include "BIF_glutil.h"
 
 #include "WM_api.h"
@@ -71,9 +71,7 @@
 #include "RNA_access.h"
 #include "RNA_define.h"
 
-
 #include "RE_render_ext.h"
-#include "RE_shader_ext.h"
 
 #include "GPU_buffers.h"
 
@@ -84,10 +82,6 @@
 #ifdef _OPENMP
 #include <omp.h>
 #endif
-
-/* ==== FORWARD DEFINITIONS =====
- *
- */
 
 void ED_sculpt_force_update(bContext *C)
 {
@@ -151,10 +145,6 @@ int sculpt_modifiers_active(Scene *scene, Object *ob)
 
 	return 0;
 }
-
-/* ===== STRUCTS =====
- *
- */
 
 typedef enum StrokeFlags {
 	CLIP_X = 1,
@@ -225,32 +215,6 @@ typedef struct StrokeCache {
 
 	float plane_trim_squared;
 } StrokeCache;
-
-/* ===== OPENGL =====
- *
- * Simple functions to get data from the GL
- */
-
-/* Convert a point in model coordinates to 2D screen coordinates. */
-static void projectf(bglMats *mats, const float v[3], float p[2])
-{
-	double ux, uy, uz;
-
-	gluProject(v[0],v[1],v[2], mats->modelview, mats->projection,
-		   (GLint *)mats->viewport, &ux, &uy, &uz);
-	p[0]= ux;
-	p[1]= uy;
-}
-
-/*XXX: static void project(bglMats *mats, const float v[3], short p[2])
-{
-	float f[2];
-	projectf(mats, v, f);
-
-	p[0]= f[0];
-	p[1]= f[1];
-}
-*/
 
 /*** BVH Tree ***/
 
@@ -342,6 +306,7 @@ static void sculpt_brush_test_init(SculptSession *ss, SculptBrushTest *test)
 {
 	test->radius_squared= ss->cache->radius_squared;
 	copy_v3_v3(test->location, ss->cache->location);
+	test->dist= 0.0f;	/* just for initialize */
 }
 
 static int sculpt_brush_test(SculptBrushTest *test, float co[3])
@@ -411,7 +376,6 @@ static float frontface(Brush *brush, float sculpt_normal[3], short no[3], float 
 		else {
 			dot= dot_v3v3(fno, sculpt_normal);
 		}
-
 		return dot > 0 ? dot : 0;
 	}
 	else {
@@ -649,66 +613,6 @@ static float brush_strength(Sculpt *sd, StrokeCache *cache, float feather)
 	}
 }
 
-float get_tex_pixel(Brush* br, float u, float v)
-{
-	TexResult texres;
-	float co[3];
-	int hasrgb;
-
-	co[0] = u;
-	co[1] = v;
-	co[2] = 0;
-
-	memset(&texres, 0, sizeof(TexResult));
-	hasrgb = multitex_ext(br->mtex.tex, co, NULL, NULL, 1, &texres);
-
-	if (hasrgb & TEX_RGB)
-		texres.tin = (0.35*texres.tr + 0.45*texres.tg + 0.2*texres.tb)*texres.ta;
-
-	return texres.tin;
-}
-
-#if 0
-
-/* Get a pixel from the texcache at (px, py) */
-static unsigned char get_texcache_pixel(const SculptSession *ss, int px, int py)
-{
-	unsigned *p;
-	p = ss->texcache + py * ss->texcache_side + px;
-	return ((unsigned char*)(p))[0];
-}
-
-static float get_texcache_pixel_bilinear(const SculptSession *ss, float u, float v)
-{
-	unsigned x, y, x2, y2;
-	const int tc_max = ss->texcache_side - 1;
-	float urat, vrat, uopp;
-
-	if(u < 0) u = 0;
-	else if(u >= ss->texcache_side) u = tc_max;
-	if(v < 0) v = 0;
-	else if(v >= ss->texcache_side) v = tc_max;
-
-	x = floor(u);
-	y = floor(v);
-	x2 = x + 1;
-	y2 = y + 1;
-
-	if(x2 > ss->texcache_side) x2 = tc_max;
-	if(y2 > ss->texcache_side) y2 = tc_max;
-	
-	urat = u - x;
-	vrat = v - y;
-	uopp = 1 - urat;
-		
-	return ((get_texcache_pixel(ss, x, y) * uopp +
-		 get_texcache_pixel(ss, x2, y) * urat) * (1 - vrat) + 
-		(get_texcache_pixel(ss, x, y2) * uopp +
-		 get_texcache_pixel(ss, x2, y2) * urat) * vrat) / 255.0;
-}
-
-#endif
-
 /* Return a multiplier for brush strength on a particular vertex. */
 static float tex_strength(SculptSession *ss, Brush *br, float *point, const float len)
 {
@@ -792,7 +696,7 @@ static float tex_strength(SculptSession *ss, Brush *br, float *point, const floa
 		x += br->mtex.ofs[0];
 		y += br->mtex.ofs[1];
 
-		avg = get_tex_pixel(br, x, y);
+		avg = paint_get_tex_pixel(br, x, y);
 	}
 
 	avg += br->texture_sample_bias;
@@ -1331,9 +1235,14 @@ static void do_grab_brush(Sculpt *sd, SculptSession *ss, PBVHNode **nodes, int t
 	int n;
 	float len;
 
-	if (brush->normal_weight > 0 || brush->flag & BRUSH_FRONTFACE)
+	if (brush->normal_weight > 0 || brush->flag & BRUSH_FRONTFACE) {
+		int cache= 1;
+		/* grab brush requires to test on original data */
+		SWAP(int, ss->cache->original, cache);
 		calc_sculpt_normal(sd, ss, an, nodes, totnode);
-
+		SWAP(int, ss->cache->original, cache);
+	}
+	
 	copy_v3_v3(grab_delta, ss->cache->grab_delta_symmetry);
 
 	len = len_v3(grab_delta);
@@ -2434,87 +2343,45 @@ static void sculpt_combine_proxies(Sculpt *sd, SculptSession *ss)
 {
 	Brush *brush= paint_brush(&sd->paint);
 	PBVHNode** nodes;
-	int totnode;
-	int n;
+	int use_orco, totnode, n;
 
 	BLI_pbvh_gather_proxies(ss->pbvh, &nodes, &totnode);
 
-	switch (brush->sculpt_tool) {
-		case SCULPT_TOOL_GRAB:
-		case SCULPT_TOOL_ROTATE:
-		case SCULPT_TOOL_THUMB:
-			#pragma omp parallel for schedule(guided) if (sd->flags & SCULPT_USE_OPENMP)
-			for (n= 0; n < totnode; n++) {
-				PBVHVertexIter vd;
-				PBVHProxyNode* proxies;
-				int proxy_count;
-				float (*origco)[3];
+	if(!ELEM(brush->sculpt_tool, SCULPT_TOOL_SMOOTH, SCULPT_TOOL_LAYER)) {
+		/* these brushes start from original coordinates */
+		use_orco = (ELEM3(brush->sculpt_tool, SCULPT_TOOL_GRAB,
+				  SCULPT_TOOL_ROTATE, SCULPT_TOOL_THUMB));
 
-				origco= sculpt_undo_push_node(ss, nodes[n])->co;
+		#pragma omp parallel for schedule(guided) if (sd->flags & SCULPT_USE_OPENMP)
+		for (n= 0; n < totnode; n++) {
+			PBVHVertexIter vd;
+			PBVHProxyNode* proxies;
+			int proxy_count;
+			float (*orco)[3];
 
-				BLI_pbvh_node_get_proxies(nodes[n], &proxies, &proxy_count);
+			if(use_orco)
+				orco= sculpt_undo_push_node(ss, nodes[n])->co;
 
-				BLI_pbvh_vertex_iter_begin(ss->pbvh, nodes[n], vd, PBVH_ITER_UNIQUE) {
-					float val[3];
-					int p;
+			BLI_pbvh_node_get_proxies(nodes[n], &proxies, &proxy_count);
 
-					copy_v3_v3(val, origco[vd.i]);
+			BLI_pbvh_vertex_iter_begin(ss->pbvh, nodes[n], vd, PBVH_ITER_UNIQUE) {
+				float val[3];
+				int p;
 
-					for (p= 0; p < proxy_count; p++)
-						add_v3_v3(val, proxies[p].co[vd.i]);
-
-					sculpt_clip(sd, ss, vd.co, val);
-				}
-				BLI_pbvh_vertex_iter_end;
-
-				BLI_pbvh_node_free_proxies(nodes[n]);
-			}
-
-			break;
-
-		case SCULPT_TOOL_DRAW:
-		case SCULPT_TOOL_CLAY:
-		case SCULPT_TOOL_CLAY_TUBES:
-		case SCULPT_TOOL_CREASE:
-		case SCULPT_TOOL_BLOB:
-		case SCULPT_TOOL_FILL:
-		case SCULPT_TOOL_FLATTEN:
-		case SCULPT_TOOL_INFLATE:
-		case SCULPT_TOOL_NUDGE:
-		case SCULPT_TOOL_PINCH:
-		case SCULPT_TOOL_SCRAPE:
-		case SCULPT_TOOL_SNAKE_HOOK:
-			#pragma omp parallel for schedule(guided) if (sd->flags & SCULPT_USE_OPENMP)
-			for (n= 0; n < totnode; n++) {
-				PBVHVertexIter vd;
-				PBVHProxyNode* proxies;
-				int proxy_count;
-
-				BLI_pbvh_node_get_proxies(nodes[n], &proxies, &proxy_count);
-
-				BLI_pbvh_vertex_iter_begin(ss->pbvh, nodes[n], vd, PBVH_ITER_UNIQUE) {
-					float val[3];
-					int p;
-
+				if(use_orco)
+					copy_v3_v3(val, orco[vd.i]);
+				else
 					copy_v3_v3(val, vd.co);
 
-					for (p= 0; p < proxy_count; p++)
-						add_v3_v3(val, proxies[p].co[vd.i]);
+				for (p= 0; p < proxy_count; p++)
+					add_v3_v3(val, proxies[p].co[vd.i]);
 
-					sculpt_clip(sd, ss, vd.co, val);
-				}
-				BLI_pbvh_vertex_iter_end;
-
-				BLI_pbvh_node_free_proxies(nodes[n]);
-
+				sculpt_clip(sd, ss, vd.co, val);
 			}
+			BLI_pbvh_vertex_iter_end;
 
-			break;
-
-		case SCULPT_TOOL_SMOOTH:
-		case SCULPT_TOOL_LAYER:
-		default:
-			break;
+			BLI_pbvh_node_free_proxies(nodes[n]);
+		}
 	}
 
 	if (nodes)
@@ -2809,21 +2676,6 @@ static void SCULPT_OT_radial_control(wmOperatorType *ot)
 /**** Operator for applying a stroke (various attributes including mouse path)
 	  using the current brush. ****/
 
-static float unproject_brush_radius(Object *ob, ViewContext *vc, float center[3], float offset)
-{
-	float delta[3], scale, loc[3];
-
-	mul_v3_m4v3(loc, ob->obmat, center);
-
-	initgrabz(vc->rv3d, loc[0], loc[1], loc[2]);
-	window_to_3d_delta(vc->ar, delta, offset, 0);
-
-	scale= fabsf(mat4_to_scale(ob->obmat));
-	scale= (scale == 0.0f)? 1.0f: scale;
-
-	return len_v3(delta)/scale;
-}
-
 static void sculpt_cache_free(StrokeCache *cache)
 {
 	if(cache->face_norms)
@@ -2897,8 +2749,13 @@ static void sculpt_update_cache_invariants(bContext* C, Sculpt *sd, SculptSessio
 	}
 
 	mode = RNA_int_get(op->ptr, "mode");
-	cache->invert = mode == WM_BRUSHSTROKE_INVERT;
-	cache->alt_smooth = mode == WM_BRUSHSTROKE_SMOOTH;
+	cache->invert = mode == BRUSH_STROKE_INVERT;
+	cache->alt_smooth = mode == BRUSH_STROKE_SMOOTH;
+
+	/* not very nice, but with current events system implementation
+	   we can't handle brush appearance inversion hotkey separately (sergey) */
+	if(cache->invert) brush->flag |= BRUSH_INVERTED;
+	else brush->flag &= ~BRUSH_INVERTED;
 
 	/* Alt-Smooth */
 	if (ss->cache->alt_smooth) {
@@ -3059,7 +2916,13 @@ static void sculpt_update_cache_variants(bContext *C, Sculpt *sd, SculptSession 
 	cache->pen_flip = RNA_boolean_get(ptr, "pen_flip");
 	RNA_float_get_array(ptr, "mouse", cache->mouse);
 
-	cache->pressure = RNA_float_get(ptr, "pressure");
+	/* XXX: Use preassure value from first brush step for brushes which don't
+	        support strokes (grab, thumb). They depends on initial state and
+	        brush coord/pressure/etc.
+	        It's more an events design issue, which doesn't split coordinate/pressure/angle
+	        changing events. We should avoid this after events system re-design */
+	if(paint_space_stroke_enabled(brush) || cache->first_time)
+		cache->pressure = RNA_float_get(ptr, "pressure");
 
 	/* Truly temporary data that isn't stored in properties */
 
@@ -3071,7 +2934,7 @@ static void sculpt_update_cache_variants(bContext *C, Sculpt *sd, SculptSession 
 
 	if(cache->first_time) {
 		if (!brush_use_locked_size(brush)) {
-			cache->initial_radius= unproject_brush_radius(ss->ob, cache->vc, cache->true_location, brush_size(brush));
+			cache->initial_radius= paint_calc_object_space_radius(cache->vc, cache->true_location, brush_size(brush));
 			brush_set_unprojected_radius(brush, cache->initial_radius);
 		}
 		else {
@@ -3133,7 +2996,7 @@ static void sculpt_update_cache_variants(bContext *C, Sculpt *sd, SculptSession 
 		if (!hit)
 			copy_v2_v2(sd->anchored_initial_mouse, cache->initial_mouse);
 
-		cache->radius= unproject_brush_radius(ss->ob, paint_stroke_view_context(stroke), cache->true_location, cache->pixel_radius);
+		cache->radius= paint_calc_object_space_radius(paint_stroke_view_context(stroke), cache->true_location, cache->pixel_radius);
 		cache->radius_squared = cache->radius*cache->radius;
 
 		copy_v3_v3(sd->anchored_location, cache->true_location);
@@ -3448,14 +3311,17 @@ static void sculpt_stroke_done(bContext *C, struct PaintStroke *unused)
 
 	/* Finished */
 	if(ss->cache) {
+		Brush *brush= paint_brush(&sd->paint);
+		brush->flag &= ~BRUSH_INVERTED;
+
 		sculpt_stroke_modifiers_check(C, ss);
 
 		/* Alt-Smooth */
 		if (ss->cache->alt_smooth) {
 			Paint *p= &sd->paint;
-			Brush *br= (Brush *)find_id("BR", ss->cache->saved_active_brush_name);
-			if(br) {
-				paint_brush_set(p, br);
+			brush= (Brush *)find_id("BR", ss->cache->saved_active_brush_name);
+			if(brush) {
+				paint_brush_set(p, brush);
 			}
 		}
 
@@ -3537,10 +3403,10 @@ static int sculpt_brush_stroke_exec(bContext *C, wmOperator *op)
 static void SCULPT_OT_brush_stroke(wmOperatorType *ot)
 {
 	static EnumPropertyItem stroke_mode_items[] = {
-		{ WM_BRUSHSTROKE_NORMAL, "NORMAL", 0, "Normal", "Apply brush normally" },
-		{ WM_BRUSHSTROKE_INVERT, "INVERT", 0, "Invert", "Invert action of brush for duration of stroke" },
-		{ WM_BRUSHSTROKE_SMOOTH, "SMOOTH", 0, "Smooth", "Switch brush to smooth mode for duration of stroke" },
-		{ 0 }
+		{BRUSH_STROKE_NORMAL, "NORMAL", 0, "Normal", "Apply brush normally"},
+		{BRUSH_STROKE_INVERT, "INVERT", 0, "Invert", "Invert action of brush for duration of stroke"},
+		{BRUSH_STROKE_SMOOTH, "SMOOTH", 0, "Smooth", "Switch brush to smooth mode for duration of stroke"},
+		{0}
 	};
 
 	/* identifiers */
@@ -3561,7 +3427,7 @@ static void SCULPT_OT_brush_stroke(wmOperatorType *ot)
 	RNA_def_collection_runtime(ot->srna, "stroke", &RNA_OperatorStrokeElement,
 			"Stroke", "");
 
-	RNA_def_enum(ot->srna, "mode", stroke_mode_items, WM_BRUSHSTROKE_NORMAL, 
+	RNA_def_enum(ot->srna, "mode", stroke_mode_items, BRUSH_STROKE_NORMAL, 
 			"Sculpt Stroke Mode",
 			"Action taken when a sculpt stroke is made");
 

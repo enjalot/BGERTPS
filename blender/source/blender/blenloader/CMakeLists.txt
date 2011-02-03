@@ -33,7 +33,7 @@ set(INC
 	../makesrna
 	../render/extern/include
 	../../../intern/guardedalloc
-	${ZLIB_INC}
+	${ZLIB_INCLUDE_DIRS}
 )
 
 set(SRC
@@ -50,4 +50,8 @@ set(SRC
 	intern/readfile.h
 )
 
-blenderlib(bf_blenloader "${SRC}" "${INC}")
+if(WITH_BUILDINFO)
+	add_definitions(-DNAN_BUILDINFO)
+endif()
+
+blender_add_lib(bf_blenloader "${SRC}" "${INC}")

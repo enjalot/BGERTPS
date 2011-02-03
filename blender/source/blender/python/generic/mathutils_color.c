@@ -25,7 +25,9 @@
 #include "mathutils.h"
 
 #include "BLI_math.h"
-#include "BKE_utildefines.h"
+#include "BLI_utildefines.h"
+
+
 
 #define COLOR_SIZE 3
 
@@ -213,7 +215,7 @@ static int Color_ass_item(ColorObject * self, int i, PyObject * value)
 //sequence slice (get)
 static PyObject *Color_slice(ColorObject * self, int begin, int end)
 {
-	PyObject *list = NULL;
+	PyObject *tuple;
 	int count;
 
 	if(!BaseMath_ReadCallback(self))
@@ -222,14 +224,14 @@ static PyObject *Color_slice(ColorObject * self, int begin, int end)
 	CLAMP(begin, 0, COLOR_SIZE);
 	if (end<0) end= (COLOR_SIZE + 1) + end;
 	CLAMP(end, 0, COLOR_SIZE);
-	begin = MIN2(begin,end);
+	begin= MIN2(begin, end);
 
-	list = PyList_New(end - begin);
+	tuple= PyTuple_New(end - begin);
 	for(count= begin; count < end; count++) {
-		PyList_SET_ITEM(list, count - begin, PyFloat_FromDouble(self->col[count]));
+		PyTuple_SET_ITEM(tuple, count - begin, PyFloat_FromDouble(self->col[count]));
 	}
 
-	return list;
+	return tuple;
 }
 //----------------------------object[z:y]------------------------
 //sequence slice (set)
@@ -274,7 +276,7 @@ static PyObject *Color_subscript(ColorObject *self, PyObject *item)
 	} else if (PySlice_Check(item)) {
 		Py_ssize_t start, stop, step, slicelength;
 
-		if (PySlice_GetIndicesEx((PySliceObject*)item, COLOR_SIZE, &start, &stop, &step, &slicelength) < 0)
+		if (PySlice_GetIndicesEx((void *)item, COLOR_SIZE, &start, &stop, &step, &slicelength) < 0)
 			return NULL;
 
 		if (slicelength <= 0) {
@@ -307,7 +309,7 @@ static int Color_ass_subscript(ColorObject *self, PyObject *item, PyObject *valu
 	else if (PySlice_Check(item)) {
 		Py_ssize_t start, stop, step, slicelength;
 
-		if (PySlice_GetIndicesEx((PySliceObject*)item, COLOR_SIZE, &start, &stop, &step, &slicelength) < 0)
+		if (PySlice_GetIndicesEx((void *)item, COLOR_SIZE, &start, &stop, &step, &slicelength) < 0)
 			return -1;
 
 		if (step == 1)

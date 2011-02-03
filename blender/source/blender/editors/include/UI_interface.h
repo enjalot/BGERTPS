@@ -95,9 +95,9 @@ typedef struct uiLayout uiLayout;
 #define UI_BLOCK_REDRAW			2
 #define UI_BLOCK_RET_1			4		/* XXX 2.5 not implemented */
 #define UI_BLOCK_NUMSELECT		8
-#define UI_BLOCK_ENTER_OK		16
-#define UI_BLOCK_NOSHADOW		32
-#define UI_BLOCK_UNUSED			64
+/*#define UI_BLOCK_ENTER_OK		16*/ /*UNUSED*/
+/*#define UI_BLOCK_NOSHADOW		32*/ /*UNUSED*/
+/*#define UI_BLOCK_UNUSED			64*/ /*UNUSED*/
 #define UI_BLOCK_MOVEMOUSE_QUIT	128
 #define UI_BLOCK_KEEP_OPEN		256
 #define UI_BLOCK_POPUP			512
@@ -114,13 +114,8 @@ typedef struct uiLayout uiLayout;
 	/* block->flag bits 12-15 are identical to but->flag bits */
 
 /* panel controls */
-#define UI_PNL_TRANSP	1
 #define UI_PNL_SOLID	2
-
 #define UI_PNL_CLOSE	32
-#define UI_PNL_STOW		64
-#define UI_PNL_TO_MOUSE	128
-#define UI_PNL_UNSTOW	256
 #define UI_PNL_SCALE	512
 
 /* warning the first 6 flags are internal */
@@ -172,7 +167,7 @@ typedef struct uiLayout uiLayout;
 #define SHO	64
 #define INT	96
 #define FLO	128
-#define FUN	192
+/*#define FUN	192*/ /*UNUSED*/
 #define BIT	256
 
 #define BUTPOIN	(128+64+32)
@@ -216,6 +211,7 @@ typedef struct uiLayout uiLayout;
 #define TOGBUT		(37<<9)
 #define OPTION		(38<<9)
 #define OPTIONN		(39<<9)
+		/* buttons with value >= SEARCH_MENU don't get undo pushes */
 #define SEARCH_MENU	(40<<9)
 #define BUT_EXTRA	(41<<9)
 #define HSVCIRCLE	(42<<9)
@@ -271,7 +267,7 @@ typedef void (*uiMenuHandleFunc)(struct bContext *C, void *arg, int event);
  *
  * Functions used to create popup menus. For more extended menus the
  * uiPupMenuBegin/End functions can be used to define own items with
- * the uiItem functions inbetween. If it is a simple confirmation menu
+ * the uiItem functions in between. If it is a simple confirmation menu
  * or similar, popups can be created with a single function call. */
 
 typedef struct uiPopupMenu uiPopupMenu;
@@ -636,6 +632,9 @@ void UI_exit(void);
 /* uiLayoutOperatorButs flags */
 #define UI_LAYOUT_OP_SHOW_TITLE 1
 #define UI_LAYOUT_OP_SHOW_EMPTY 2
+
+/* for more readable function names */
+#define ICON_NULL 0
 
 uiLayout *uiBlockLayout(uiBlock *block, int dir, int type, int x, int y, int size, int em, struct uiStyle *style);
 void uiBlockSetCurLayout(uiBlock *block, uiLayout *layout);

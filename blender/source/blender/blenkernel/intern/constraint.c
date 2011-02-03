@@ -39,6 +39,7 @@
 #include "BLI_listbase.h"
 #include "BLI_math.h"
 #include "BLI_editVert.h"
+#include "BLI_utildefines.h"
 
 #include "DNA_armature_types.h"
 #include "DNA_constraint_types.h"
@@ -52,7 +53,7 @@
 #include "DNA_scene_types.h"
 #include "DNA_text_types.h"
 
-#include "BKE_utildefines.h"
+
 #include "BKE_action.h"
 #include "BKE_anim.h" /* for the curve calculation part */
 #include "BKE_armature.h"
@@ -371,10 +372,22 @@ void constraint_mat_convertspace (Object *ob, bPoseChannel *pchan, float mat[][4
 	else {
 		/* objects */
 		if (from==CONSTRAINT_SPACE_WORLD && to==CONSTRAINT_SPACE_LOCAL) {
-			/* check if object has a parent - otherwise this won't work */
+			/* check if object has a parent */
 			if (ob->parent) {
 				/* 'subtract' parent's effects from owner */
 				mul_m4_m4m4(diff_mat, ob->parentinv, ob->parent->obmat);
+				invert_m4_m4(imat, diff_mat);
+				copy_m4_m4(tempmat, mat);
+				mul_m4_m4m4(mat, tempmat, imat);
+			}
+			else {
+				/* Local space in this case will have to be defined as local to the owner's 
+				 * transform-property-rotated axes. So subtract this rotation component.
+				 */
+				object_to_mat4(ob, diff_mat);
+				normalize_m4(diff_mat);
+				zero_v3(diff_mat[3]);
+				
 				invert_m4_m4(imat, diff_mat);
 				copy_m4_m4(tempmat, mat);
 				mul_m4_m4m4(mat, tempmat, imat);
@@ -386,6 +399,17 @@ void constraint_mat_convertspace (Object *ob, bPoseChannel *pchan, float mat[][4
 				/* 'add' parent's effect back to owner */
 				copy_m4_m4(tempmat, mat);
 				mul_m4_m4m4(diff_mat, ob->parentinv, ob->parent->obmat);
+				mul_m4_m4m4(mat, tempmat, diff_mat);
+			}
+			else {
+				/* Local space in this case will have to be defined as local to the owner's 
+				 * transform-property-rotated axes. So add back this rotation component.
+				 */
+				object_to_mat4(ob, diff_mat);
+				normalize_m4(diff_mat);
+				zero_v3(diff_mat[3]);
+				
+				copy_m4_m4(tempmat, mat);
 				mul_m4_m4m4(mat, tempmat, diff_mat);
 			}
 		}
@@ -861,6 +885,7 @@ static void childof_evaluate (bConstraint *con, bConstraintOb *cob, ListBase *ta
 	}
 }
 
+/* XXX note, con->flag should be CONSTRAINT_SPACEONCE for bone-childof, patched in readfile.c */
 static bConstraintTypeInfo CTI_CHILDOF = {
 	CONSTRAINT_TYPE_CHILDOF, /* type */
 	sizeof(bChildOfConstraint), /* size */
@@ -2032,7 +2057,7 @@ static void pycon_evaluate (bConstraint *con, bConstraintOb *cob, ListBase *targ
 #endif
 	
 	/* Now, run the actual 'constraint' function, which should only access the matrices */
-	BPY_pyconstraint_eval(data, cob, targets);
+	BPY_pyconstraint_exec(data, cob, targets);
 #endif /* WITH_PYTHON */
 }
 
@@ -3423,7 +3448,7 @@ static void shrinkwrap_get_tarmat (bConstraint *con, bConstraintOb *cob, bConstr
 		float dist;
 		
 		SpaceTransform transform;
-		DerivedMesh *target = object_get_derived_final(cob->scene, ct->tar, CD_MASK_BAREMESH);
+		DerivedMesh *target = object_get_derived_final(ct->tar);
 		BVHTreeRayHit hit;
 		BVHTreeNearest nearest;
 		

@@ -38,9 +38,10 @@
 
 #include "DNA_material_types.h"
 
-#include "BKE_utildefines.h"
-
 #include "BLI_math.h"
+#include "BLI_utildefines.h"
+
+
 
 #include "rayobject.h"
 
@@ -973,10 +974,11 @@ static int RE_rayobject_octree_intersect(RayObject *tree, Isect *is)
 			ldz=0;
 			dz= 0;
 		}
-		
+
 		xo=ocx1; yo=ocy1; zo=ocz1;
-		labdao= ddalabda= MIN3(labdax,labday,labdaz);
-		
+		ddalabda= MIN3(labdax,labday,labdaz);
+		/*labdao= ddalabda;*/ /*NEVER READ*/
+
 		vec2[0]= ox1;
 		vec2[1]= oy1;
 		vec2[2]= oz1;

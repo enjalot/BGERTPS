@@ -80,6 +80,7 @@ typedef enum ModifierMode {
 	eModifierMode_OnCage = (1<<3),
 	eModifierMode_Expanded = (1<<4),
 	eModifierMode_Virtual = (1<<5),
+	eModifierMode_ApplyOnSpline = (1<<6),
 	eModifierMode_DisableTemporary = (1 << 31)
 } ModifierMode;
 
@@ -579,6 +580,7 @@ typedef struct MeshDeformModifierData {
 typedef enum {
 	eParticleSystemFlag_Pars =			(1<<0),
 	eParticleSystemFlag_psys_updated =	(1<<1),
+	eParticleSystemFlag_file_loaded =	(1<<2),
 } ParticleSystemModifierFlag;
 
 typedef struct ParticleSystemModifierData {

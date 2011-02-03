@@ -45,6 +45,7 @@
 #include "BLI_blenlib.h"
 #include "BLI_math.h"
 #include "BLI_rand.h"
+#include "BLI_utildefines.h"
 
 #include "BKE_anim.h"
 #include "BKE_context.h"
@@ -249,7 +250,7 @@ static void drawgrid(UnitSettings *unit, ARegion *ar, View3D *v3d, const char **
 	RegionView3D *rv3d= ar->regiondata;
 	float wx, wy, x, y, fw, fx, fy, dx;
 	float vec4[4];
-	char col[3], col2[3];
+	unsigned char col[3], col2[3];
 
 	vec4[0]=vec4[1]=vec4[2]=0.0; 
 	vec4[3]= 1.0;
@@ -397,17 +398,19 @@ static void drawgrid(UnitSettings *unit, ARegion *ar, View3D *v3d, const char **
 	setlinestyle(0);
 	
 	/* center cross */
+	/* horizontal line */
 	if( ELEM(rv3d->view, RV3D_VIEW_RIGHT, RV3D_VIEW_LEFT)) 
-		UI_make_axis_color(col, col2, 'y');
-	else UI_make_axis_color(col, col2, 'x');
-	glColor3ubv((GLubyte *)col2);
+		UI_make_axis_color(col, col2, 'Y');
+	else UI_make_axis_color(col, col2, 'X');
+	glColor3ubv(col2);
 	
 	fdrawline(0.0,  y,  (float)ar->winx,  y); 
 	
+	/* vertical line */
 	if( ELEM(rv3d->view, RV3D_VIEW_TOP, RV3D_VIEW_BOTTOM)) 
-		UI_make_axis_color(col, col2, 'y');
-	else UI_make_axis_color(col, col2, 'z');
-	glColor3ubv((GLubyte *)col2);
+		UI_make_axis_color(col, col2, 'Y');
+	else UI_make_axis_color(col, col2, 'Z');
+	glColor3ubv(col2);
 
 	fdrawline(x, 0.0, x, (float)ar->winy); 
 
@@ -419,7 +422,7 @@ static void drawfloor(Scene *scene, View3D *v3d, const char **grid_unit)
 {
 	float vert[3], grid, grid_scale;
 	int a, gridlines, emphasise;
-	char col[3], col2[3];
+	unsigned char col[3], col2[3];
 	short draw_line = 0;
 	
 	vert[2]= 0.0;
@@ -462,8 +465,8 @@ static void drawfloor(Scene *scene, View3D *v3d, const char **grid_unit)
 		if(a==0) {
 			/* check for the 'show Y axis' preference */
 			if (v3d->gridflag & V3D_SHOW_Y) { 
-				UI_make_axis_color(col, col2, 'y');
-				glColor3ubv((GLubyte *)col2);
+				UI_make_axis_color(col, col2, 'Y');
+				glColor3ubv(col2);
 				
 				draw_line = 1;
 			} else if (v3d->gridflag & V3D_SHOW_FLOOR) {
@@ -501,8 +504,8 @@ static void drawfloor(Scene *scene, View3D *v3d, const char **grid_unit)
 		if(a==0) {
 			/* check for the 'show X axis' preference */
 			if (v3d->gridflag & V3D_SHOW_X) { 
-				UI_make_axis_color(col, col2, 'x');
-				glColor3ubv((GLubyte *)col2);
+				UI_make_axis_color(col, col2, 'X');
+				glColor3ubv(col2);
 				
 				draw_line = 1;
 			} else if (v3d->gridflag & V3D_SHOW_FLOOR) {
@@ -538,8 +541,8 @@ static void drawfloor(Scene *scene, View3D *v3d, const char **grid_unit)
 	/* draw the Z axis line */	
 	/* check for the 'show Z axis' preference */
 	if (v3d->gridflag & V3D_SHOW_Z) {
-		UI_make_axis_color(col, col2, 'z');
-		glColor3ubv((GLubyte *)col2);
+		UI_make_axis_color(col, col2, 'Z');
+		glColor3ubv(col2);
 		
 		glBegin(GL_LINE_STRIP);
 		vert[0]= 0;
@@ -1726,7 +1729,6 @@ void draw_depth(Scene *scene, ARegion *ar, View3D *v3d, int (* func)(void *))
 {
 	RegionView3D *rv3d= ar->regiondata;
 	Base *base;
-	Scene *sce;
 	short zbuf= v3d->zbuf;
 	short flag= v3d->flag;
 	float glalphaclip= U.glalphaclip;
@@ -1759,7 +1761,8 @@ void draw_depth(Scene *scene, ARegion *ar, View3D *v3d, int (* func)(void *))
 	
 	/* draw set first */
 	if(scene->set) {
-		for(SETLOOPER(scene->set, base)) {
+		Scene *sce_iter;
+		for(SETLOOPER(scene->set, sce_iter, base)) {
 			if(v3d->lay & base->lay) {
 				if (func == NULL || func(base)) {
 					draw_object(scene, ar, v3d, base, 0);
@@ -1881,14 +1884,14 @@ static void gpu_update_lamps_shadows(Scene *scene, View3D *v3d)
 {
 	ListBase shadows;
 	View3DShadow *shadow;
-	Scene *sce;
+	Scene *sce_iter;
 	Base *base;
 	Object *ob;
 	
 	shadows.first= shadows.last= NULL;
 	
 	/* update lamp transform and gather shadow lamps */
-	for(SETLOOPER(scene, base)) {
+	for(SETLOOPER(scene, sce_iter, base)) {
 		ob= base->object;
 		
 		if(ob->type == OB_LAMP)
@@ -1948,8 +1951,10 @@ static void gpu_update_lamps_shadows(Scene *scene, View3D *v3d)
 /* *********************** customdata **************** */
 
 /* goes over all modes and view3d settings */
-static CustomDataMask get_viewedit_datamask(bScreen *screen, Scene *scene, Object *ob)
+CustomDataMask ED_viewedit_datamask(bScreen *screen)
 {
+	Scene *scene= screen->scene;
+	Object *ob= scene->basact ? scene->basact->object : NULL;
 	CustomDataMask mask = CD_MASK_BAREMESH;
 	ScrArea *sa;
 	
@@ -2009,7 +2014,7 @@ static void view3d_main_area_setup_view(Scene *scene, View3D *v3d, ARegion *ar, 
 	/* calculate pixelsize factor once, is used for lamps and obcenters */
 	{
 		/* note:  '1.0f / len_v3(v1)'  replaced  'len_v3(rv3d->viewmat[0])'
-		 * because of float point precission problems at large values [#23908] */
+		 * because of float point precision problems at large values [#23908] */
 		float v1[3], v2[3];
 		float len1, len2;
 
@@ -2036,7 +2041,6 @@ static void view3d_main_area_setup_view(Scene *scene, View3D *v3d, ARegion *ar, 
 
 void ED_view3d_draw_offscreen(Scene *scene, View3D *v3d, ARegion *ar, int winx, int winy, float viewmat[][4], float winmat[][4])
 {
-	Scene *sce;
 	Base *base;
 	float backcol[3];
 	int bwinx, bwiny;
@@ -2063,6 +2067,10 @@ void ED_view3d_draw_offscreen(Scene *scene, View3D *v3d, ARegion *ar, int winx, 
 	/* free images which can have changed on frame-change
 	 * warning! can be slow so only free animated images - campbell */
 	GPU_free_images_anim();
+	
+	/* shadow buffers, before we setup matrices */
+	if(draw_glsl_material(scene, NULL, v3d, v3d->drawtype))
+		gpu_update_lamps_shadows(scene, v3d);
 
 	/* set background color, fallback on the view background color */
 	if(scene->world) {
@@ -2091,7 +2099,8 @@ void ED_view3d_draw_offscreen(Scene *scene, View3D *v3d, ARegion *ar, int winx, 
 
 	/* draw set first */
 	if(scene->set) {
-		for(SETLOOPER(scene->set, base)) {
+		Scene *sce_iter;
+		for(SETLOOPER(scene->set, sce_iter, base)) {
 			if(v3d->lay & base->lay) {
 				UI_ThemeColorBlend(TH_WIRE, TH_BACK, 0.6f);
 				draw_object(scene, ar, v3d, base, DRAW_CONSTCOLOR|DRAW_SCENESET);
@@ -2290,21 +2299,17 @@ static void draw_viewport_fps(Scene *scene, ARegion *ar)
 	BLF_draw_default(22,  ar->winy-17, 0.0f, printable, sizeof(printable)-1);
 }
 
+/* warning: this function has duplicate drawing in ED_view3d_draw_offscreen() */
 void view3d_main_area_draw(const bContext *C, ARegion *ar)
 {
 	Scene *scene= CTX_data_scene(C);
 	View3D *v3d = CTX_wm_view3d(C);
 	RegionView3D *rv3d= CTX_wm_region_view3d(C);
-	Scene *sce;
 	Base *base;
 	Object *ob;
 	float backcol[3];
 	unsigned int lay_used;
-	Object *obact = OBACT;
 	const char *grid_unit= NULL;
-
-	/* from now on all object derived meshes check this */
-	v3d->customdata_mask= get_viewedit_datamask(CTX_wm_screen(C), scene, obact);
 
 	/* shadow buffers, before we setup matrices */
 	if(draw_glsl_material(scene, NULL, v3d, v3d->drawtype))
@@ -2389,7 +2394,8 @@ void view3d_main_area_draw(const bContext *C, ARegion *ar)
 
 	/* draw set first */
 	if(scene->set) {
-		for(SETLOOPER(scene->set, base)) {
+		Scene *sce_iter;
+		for(SETLOOPER(scene->set, sce_iter, base)) {
 			
 			if(v3d->lay & base->lay) {
 				

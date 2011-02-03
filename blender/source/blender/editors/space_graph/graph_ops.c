@@ -29,11 +29,11 @@
 #include <stdlib.h>
 #include <math.h>
 
-
 #include "DNA_scene_types.h"
 #include "DNA_anim_types.h"
 
 #include "BLI_blenlib.h"
+#include "BLI_utildefines.h"
 
 #include "BKE_context.h"
 #include "BKE_sound.h"
@@ -204,6 +204,7 @@ void GRAPH_OT_view_togglehandles (wmOperatorType *ot)
 	/* identification */
 	ot->name= "Show/Hide All Handles";
 	ot->idname= "GRAPH_OT_handles_view_toggle";
+	ot->description= "Toggle whether handles are drawn on all keyframes that need them";
 	
 	/* callbacks */
 	ot->exec= view_toggle_handles_exec;
@@ -299,7 +300,7 @@ static void graphedit_keymap_keyframes (wmKeyConfig *keyconf, wmKeyMap *keymap)
 	RNA_boolean_set(WM_keymap_add_item(keymap, "GRAPH_OT_select_all_toggle", IKEY, KM_PRESS, KM_CTRL, 0)->ptr, "invert", 1);
 	
 		/* borderselect */
-	kmi = WM_keymap_add_item(keymap, "GRAPH_OT_select_border", BKEY, KM_PRESS, 0, 0);
+	WM_keymap_add_item(keymap, "GRAPH_OT_select_border", BKEY, KM_PRESS, 0, 0);
 	kmi = WM_keymap_add_item(keymap, "GRAPH_OT_select_border", BKEY, KM_PRESS, KM_ALT, 0);
 		RNA_boolean_set(kmi->ptr, "axis_range", 1);
 		

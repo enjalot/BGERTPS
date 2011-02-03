@@ -34,6 +34,7 @@
 #include "BLI_math.h"
 #include "BLI_threads.h"
 #include "BLI_rand.h"
+#include "BLI_utildefines.h"
 
 #include "DNA_scene_types.h"
 
@@ -43,6 +44,7 @@
 #include "BKE_image.h"
 #include "BKE_library.h"
 #include "BKE_main.h"
+#include "BKE_node.h"
 #include "BKE_multires.h"
 #include "BKE_report.h"
 #include "BKE_sequencer.h"
@@ -594,6 +596,11 @@ static void render_endjob(void *rjv)
 	/* else the frame will not update for the original value */
 	ED_update_for_newframe(G.main, rj->scene, rj->win->screen, 1);
 	
+	if(rj->srl) {
+		NodeTagIDChanged(rj->scene->nodetree, &rj->scene->id);
+		WM_main_add_notifier(NC_NODE|NA_EDITED, rj->scene);
+	}
+	
 	/* XXX render stability hack */
 	G.rendering = 0;
 	WM_main_add_notifier(NC_WINDOW, NULL);
@@ -860,23 +867,26 @@ static int render_view_show_invoke(bContext *C, wmOperator *UNUSED(unused), wmEv
 		
 		/* determine if render already shows */
 		if(sa) {
-			SpaceImage *sima= sa->spacedata.first;
+			/* but don't close it when rendering */
+			if(!G.rendering) {
+				SpaceImage *sima= sa->spacedata.first;
 
-			if(sima->flag & SI_PREVSPACE) {
-				sima->flag &= ~SI_PREVSPACE;
+				if(sima->flag & SI_PREVSPACE) {
+					sima->flag &= ~SI_PREVSPACE;
 
-				if(sima->flag & SI_FULLWINDOW) {
-					sima->flag &= ~SI_FULLWINDOW;
-					ED_screen_full_prevspace(C, sa);
-				}
-				else if(sima->next) {
-					/* workaround for case of double prevspace, render window
-					   with a file browser on top of it (same as in ED_area_prevspace) */
-					if(sima->next->spacetype == SPACE_FILE && sima->next->next)
-						ED_area_newspace(C, sa, sima->next->next->spacetype);
-					else
-						ED_area_newspace(C, sa, sima->next->spacetype);
-					ED_area_tag_redraw(sa);
+					if(sima->flag & SI_FULLWINDOW) {
+						sima->flag &= ~SI_FULLWINDOW;
+						ED_screen_full_prevspace(C, sa);
+					}
+					else if(sima->next) {
+						/* workaround for case of double prevspace, render window
+						   with a file browser on top of it (same as in ED_area_prevspace) */
+						if(sima->next->spacetype == SPACE_FILE && sima->next->next)
+							ED_area_newspace(C, sa, sima->next->next->spacetype);
+						else
+							ED_area_newspace(C, sa, sima->next->spacetype);
+						ED_area_tag_redraw(sa);
+					}
 				}
 			}
 		}

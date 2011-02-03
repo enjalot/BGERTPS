@@ -48,8 +48,9 @@
 
 #include "BLI_blenlib.h"
 #include "BLI_math.h"
+#include "BLI_utildefines.h"
 
-#include "BKE_utildefines.h"
+
 
 #include "BKE_global.h"
 #include "BKE_main.h"
@@ -737,7 +738,7 @@ void accum_mballfaces(int i1, int i2, int i3, int i4)
 void *new_pgn_element(int size)
 {
 	/* during polygonize 1000s of elements are allocated
-	 * and never freed inbetween. Freeing only done at the end.
+	 * and never freed in between. Freeing only done at the end.
 	 */
 	int blocksize= 16384;
 	static int offs= 0;		/* the current free address */
@@ -1421,7 +1422,7 @@ void find_first_points(PROCESS *mbproc, MetaBall *mb, int a)
 	int i, j, k, c_i, c_j, c_k;
 	int index[3]={1,0,-1};
 	float f =0.0f;
-	float in_v, out_v;
+	float in_v /*, out_v*/;
 	MB_POINT workp;
 	float tmp_v, workp_v, max_len, len, dx, dy, dz, nx, ny, nz, MAXN;
 
@@ -1482,7 +1483,7 @@ void find_first_points(PROCESS *mbproc, MetaBall *mb, int a)
 
 					calc_mballco(ml, (float *)&out);
 
-					out_v = mbproc->function(out.x, out.y, out.z);
+					/*out_v = mbproc->function(out.x, out.y, out.z);*/ /*UNUSED*/
 
 					/* find "first points" on Implicit Surface of MetaElemnt ml */
 					workp.x = in.x;
@@ -1581,8 +1582,8 @@ float init_meta(Scene *scene, Object *ob)	/* return totsize */
 	Object *bob;
 	MetaBall *mb;
 	MetaElem *ml;
-	float size, totsize, (*mat)[4] = NULL, (*imat)[4] = NULL, obinv[4][4], obmat[4][4], vec[3];
-	float temp1[4][4], temp2[4][4], temp3[4][4]; //max=0.0;
+	float size, totsize, obinv[4][4], obmat[4][4], vec[3];
+	//float max=0.0;
 	int a, obnr, zero_size=0;
 	char obname[32];
 	
@@ -1601,7 +1602,6 @@ float init_meta(Scene *scene, Object *ob)	/* return totsize */
 			ml= NULL;
 
 			if(bob==ob && (base->flag & OB_FROMDUPLI)==0) {
-				mat= imat= 0;
 				mb= ob->data;
 	
 				if(mb->editelems) ml= mb->editelems->first;
@@ -1648,6 +1648,8 @@ float init_meta(Scene *scene, Object *ob)	/* return totsize */
 			while(ml) {
 				if(!(ml->flag & MB_HIDE)) {
 					int i;
+					float temp1[4][4], temp2[4][4], temp3[4][4];
+					float (*mat)[4] = NULL, (*imat)[4] = NULL;
 					float max_x, max_y, max_z, min_x, min_y, min_z;
 
 					max_x = max_y = max_z = -3.4e38;

@@ -43,6 +43,7 @@
 #include "BLI_editVert.h"
 #include "BLI_dynstr.h"
 #include "BLI_rand.h"
+#include "BLI_utildefines.h"
 
 #include "BKE_DerivedMesh.h"
 #include "BKE_context.h"
@@ -58,7 +59,6 @@
 
 #include "ED_mesh.h"
 #include "ED_object.h"
-#include "ED_retopo.h"
 #include "ED_screen.h"
 #include "ED_util.h"
 #include "ED_view3d.h"
@@ -259,7 +259,7 @@ EditEdge *addedgelist(EditMesh *em, EditVert *v1, EditVert *v2, EditEdge *exampl
 			eed->h |= (example->h & EM_FGON);
 		}
 	}
-
+	
 	return eed;
 }
 
@@ -380,6 +380,7 @@ EditFace *addfacelist(EditMesh *em, EditVert *v1, EditVert *v2, EditVert *v3, Ed
 		efa->mat_nr= example->mat_nr;
 		efa->flag= example->flag;
 		CustomData_em_copy_data(&em->fdata, &em->fdata, example->data, &efa->data);
+		CustomData_em_validate_data(&em->fdata, efa->data, efa->v4 ? 4 : 3);
 	}
 	else {
 		efa->mat_nr= em->mat_nr;
@@ -1606,7 +1607,6 @@ typedef struct UndoMesh {
 	EditSelectionC *selected;
 	int totvert, totedge, totface, totsel;
 	int selectmode, shapenr;
-	RetopoPaintData *retopo_paint_data;
 	char retopo_mode;
 	CustomData vdata, edata, fdata;
 } UndoMesh;

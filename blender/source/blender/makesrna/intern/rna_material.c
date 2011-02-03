@@ -276,7 +276,7 @@ static EnumPropertyItem *rna_Material_texture_coordinates_itemf(bContext *C, Poi
 	return item;
 }
 
-MTex *rna_mtex_texture_slots_add(ID *self_id, ReportList *reports)
+MTex *rna_mtex_texture_slots_add(ID *self_id, struct bContext *C, ReportList *reports)
 {
 	MTex *mtex= add_mtex_id(self_id, -1);
 	if (mtex == NULL) {
@@ -284,10 +284,13 @@ MTex *rna_mtex_texture_slots_add(ID *self_id, ReportList *reports)
 		return NULL;
 	}
 
+	/* for redraw only */
+	WM_event_add_notifier(C, NC_TEXTURE, CTX_data_scene(C));
+
 	return mtex;
 }
 
-MTex *rna_mtex_texture_slots_create(ID *self_id, ReportList *reports, int index)
+MTex *rna_mtex_texture_slots_create(ID *self_id, struct bContext *C, ReportList *reports, int index)
 {
 	MTex *mtex;
 
@@ -298,10 +301,13 @@ MTex *rna_mtex_texture_slots_create(ID *self_id, ReportList *reports, int index)
 
 	mtex= add_mtex_id(self_id, index);
 
+	/* for redraw only */
+	WM_event_add_notifier(C, NC_TEXTURE, CTX_data_scene(C));
+
 	return mtex;
 }
 
-void rna_mtex_texture_slots_clear(ID *self_id, ReportList *reports, int index)
+void rna_mtex_texture_slots_clear(ID *self_id, struct bContext *C, ReportList *reports, int index)
 {
 	MTex **mtex_ar;
 	short act;
@@ -323,6 +329,9 @@ void rna_mtex_texture_slots_clear(ID *self_id, ReportList *reports, int index)
 		MEM_freeN(mtex_ar[index]);
 		mtex_ar[index]= NULL;
 	}
+
+	/* for redraw only */
+	WM_event_add_notifier(C, NC_TEXTURE, CTX_data_scene(C));
 }
 
 #else
@@ -365,6 +374,11 @@ static void rna_def_material_mtex(BlenderRNA *brna)
 		{MTEX_NSPACE_WORLD, "WORLD", 0, "World", ""},
 		{MTEX_NSPACE_OBJECT, "OBJECT", 0, "Object", ""},
 		{MTEX_NSPACE_TANGENT, "TANGENT", 0, "Tangent", ""},
+		{0, NULL, 0, NULL, NULL}};
+
+	static EnumPropertyItem prop_bump_method_items[] = {
+		{0, "BUMP_ORIGINAL", 0, "Original", ""},
+		{MTEX_NEW_BUMP, "BUMP_IMPROVED", 0, "Improved", ""},
 		{0, NULL, 0, NULL, NULL}};
 
 	srna= RNA_def_struct(brna, "MaterialTextureSlot", "TextureSlot");
@@ -496,7 +510,7 @@ static void rna_def_material_mtex(BlenderRNA *brna)
 	prop= RNA_def_property(srna, "normal_map_space", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "normapspace");
 	RNA_def_property_enum_items(prop, prop_normal_map_space_items);
-	RNA_def_property_ui_text(prop, "Normal Map Space", "");
+	RNA_def_property_ui_text(prop, "Normal Map Space", "Sets space of normal map image");
 	RNA_def_property_update(prop, 0, "rna_Material_update");
 
 	prop= RNA_def_property(srna, "normal_factor", PROP_FLOAT, PROP_NONE);
@@ -668,9 +682,10 @@ static void rna_def_material_mtex(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Enabled", "Enable this material texture slot");
 	RNA_def_property_update(prop, 0, "rna_Material_update");
 
-	prop= RNA_def_property(srna, "use_old_bump", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_negative_sdna(prop, NULL, "texflag", MTEX_NEW_BUMP);
-	RNA_def_property_ui_text(prop, "Old Bump", "Use old bump mapping (backwards compatibility option)");
+	prop= RNA_def_property(srna, "bump_method", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_bitflag_sdna(prop, NULL, "texflag");
+	RNA_def_property_enum_items(prop, prop_bump_method_items);
+	RNA_def_property_ui_text(prop, "Bump Method", "Method to use for bump mapping");
 	RNA_def_property_update(prop, 0, "rna_Material_update");
 }
 
@@ -1601,7 +1616,7 @@ void RNA_def_material(BlenderRNA *brna)
 	prop= RNA_def_property(srna, "use_object_color", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "shade_flag", MA_OBCOLOR);
 	RNA_def_property_ui_text(prop, "Object Color", "Modulate the result with a per-object color");
-	RNA_def_property_update(prop, 0, "rna_Material_update");
+	RNA_def_property_update(prop, 0, "rna_Material_draw_update");
 
 	prop= RNA_def_property(srna, "shadow_ray_bias", PROP_FLOAT, PROP_NONE);
 	RNA_def_property_float_sdna(prop, NULL, "sbias");
@@ -1835,13 +1850,13 @@ static void rna_def_texture_slots(BlenderRNA *brna, PropertyRNA *cprop, const ch
 	/* functions */
 	func= RNA_def_function(srna, "add", "rna_mtex_texture_slots_add");
 	RNA_def_function_ui_description(func, "Add a number of points to this spline.");
-	RNA_def_function_flag(func, FUNC_USE_SELF_ID|FUNC_NO_SELF|FUNC_USE_REPORTS);
+	RNA_def_function_flag(func, FUNC_USE_SELF_ID|FUNC_NO_SELF|FUNC_USE_CONTEXT|FUNC_USE_REPORTS);
 	parm= RNA_def_pointer(func, "mtex", structname, "", "The newly initialized mtex.");
 	RNA_def_function_return(func, parm);
 	
 	func= RNA_def_function(srna, "create", "rna_mtex_texture_slots_create");
 	RNA_def_function_ui_description(func, "Add a number of points to this spline.");
-	RNA_def_function_flag(func, FUNC_USE_SELF_ID|FUNC_NO_SELF|FUNC_USE_REPORTS);
+	RNA_def_function_flag(func, FUNC_USE_SELF_ID|FUNC_NO_SELF|FUNC_USE_CONTEXT|FUNC_USE_REPORTS);
 	parm= RNA_def_int(func, "index", 0, 0, INT_MAX, "Index", "Slot index to initialize.", 0, INT_MAX);
 	RNA_def_property_flag(parm, PROP_REQUIRED);
 	parm= RNA_def_pointer(func, "mtex", structname, "", "The newly initialized mtex.");
@@ -1849,7 +1864,7 @@ static void rna_def_texture_slots(BlenderRNA *brna, PropertyRNA *cprop, const ch
 	
 	func= RNA_def_function(srna, "clear", "rna_mtex_texture_slots_clear");
 	RNA_def_function_ui_description(func, "Add a number of points to this spline.");
-	RNA_def_function_flag(func, FUNC_USE_SELF_ID|FUNC_NO_SELF|FUNC_USE_REPORTS);
+	RNA_def_function_flag(func, FUNC_USE_SELF_ID|FUNC_NO_SELF|FUNC_USE_CONTEXT|FUNC_USE_REPORTS);
 	parm= RNA_def_int(func, "index", 0, 0, INT_MAX, "Index", "Slot index to clar.", 0, INT_MAX);
 	RNA_def_property_flag(parm, PROP_REQUIRED);
 }

@@ -25,8 +25,8 @@
  * ***** END GPL LICENSE BLOCK *****
  * */
 
-#ifndef BLI_MATH_VECTOR
-#define BLI_MATH_VECTOR
+#ifndef BLI_MATH_VECTOR_H
+#define BLI_MATH_VECTOR_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -34,7 +34,7 @@ extern "C" {
 
 #include "BLI_math_inline.h"
 
-#ifdef BLI_MATH_INLINE
+#ifdef BLI_MATH_INLINE_H
 #include "intern/math_vector_inline.c"
 #endif
 
@@ -175,11 +175,15 @@ void range_vni(int *array, const int size, const int start);
 void mul_vn_fl(float *array, const int size, const float f);
 void mul_vn_vn_fl(float *array_tar, const float *array_src, const int size, const float f);
 void add_vn_vn(float *array_tar, const float *array_src, const int size);
+void add_vn_vnvn(float *array_tar, const float *array_src_a, const float *array_src_b, const int size);
+void sub_vn_vn(float *array_tar, const float *array_src, const int size);
+void sub_vn_vnvn(float *array_tar, const float *array_src_a, const float *array_src_b, const int size);
 void fill_vni(int *array_tar, const int size, const int val);
+void fill_vn(float *array_tar, const int size, const float val);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* BLI_MATH_VECTOR */
+#endif /* BLI_MATH_VECTOR_H */
 

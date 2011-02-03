@@ -51,8 +51,9 @@
 #include "BLI_math.h"
 #include "BLI_blenlib.h"
 #include "BLI_threads.h"
+#include "BLI_utildefines.h"
 
-#include "BKE_utildefines.h"
+
 #include "BKE_global.h"
 #include "BKE_main.h"
 #include "BKE_image.h"
@@ -808,7 +809,7 @@ static void imp2radangle(float A, float B, float C, float F, float* a, float* b,
 static void ewa_eval(TexResult* texr, ImBuf* ibuf, float fx, float fy, afdata_t* AFD)
 {
 	// scaling dxt/dyt by full resolution can cause overflow because of huge A/B/C and esp. F values,
-	// scaling by aspect ratio alone does the opposite, so try something inbetween instead...
+	// scaling by aspect ratio alone does the opposite, so try something in between instead...
 	const float ff2 = ibuf->x, ff = sqrtf(ff2), q = ibuf->y / ff;
 	const float Ux = AFD->dxt[0]*ff, Vx = AFD->dxt[1]*q, Uy = AFD->dyt[0]*ff, Vy = AFD->dyt[1]*q;
 	float A = Vx*Vx + Vy*Vy;

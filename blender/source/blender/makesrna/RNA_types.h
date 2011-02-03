@@ -24,8 +24,8 @@
 
 #include "BLO_sys_types.h"
 
-#ifndef RNA_TYPES
-#define RNA_TYPES
+#ifndef RNA_TYPES_H
+#define RNA_TYPES_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -167,6 +167,10 @@ typedef enum PropertyFlag {
 	 * only apply this to types that are derived from an ID ()*/
 	PROP_ID_SELF_CHECK = 1<<20,
 	PROP_NEVER_NULL = 1<<18,
+	/* currently only used for UI, this is similar to PROP_NEVER_NULL
+	 * except that the value may be NULL at times, used for ObData, where an Empty's will be NULL
+	 * but setting NULL on a mesh object is not possible. So, if its not NULL, setting NULL cant be done! */
+	PROP_NEVER_UNLINK = 1<<25,
 
 	/* flag contains multiple enums.
 	 * note: not to be confused with prop->enumbitflags
@@ -182,6 +186,12 @@ typedef enum PropertyFlag {
 	/* Use for arrays or for any data that should not have a referene kept
 	 * most common case is functions that return arrays where the array */
 	PROP_THICK_WRAP = 1<<23,
+
+	/* Reject values outside limits, use for python api only so far
+	 * this is for use when silently clamping string length will give
+	 * bad behavior later. Could also enforce this for INT's and other types.
+	 * note: currently no support for function arguments or non utf8 paths (filepaths) */
+	PROP_NEVER_CLAMP = 1<<26,
 
 	/* internal flags */
 	PROP_BUILTIN = 1<<7,
@@ -370,6 +380,4 @@ typedef struct ExtensionRNA {
 }
 #endif
 
-#endif /* RNA_TYPES */
-
-
+#endif /* RNA_TYPES_H */

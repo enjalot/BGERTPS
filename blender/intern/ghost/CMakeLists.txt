@@ -36,10 +36,12 @@ set(SRC
 	intern/GHOST_Buttons.cpp
 	intern/GHOST_CallbackEventConsumer.cpp
 	intern/GHOST_C-api.cpp
+	intern/GHOST_Path-api.cpp
 	intern/GHOST_DisplayManager.cpp
 	intern/GHOST_EventManager.cpp
 	intern/GHOST_EventPrinter.cpp
 	intern/GHOST_ISystem.cpp
+	intern/GHOST_ISystemPaths.cpp
 	intern/GHOST_ModifierKeys.cpp
 	intern/GHOST_NDOFManager.cpp
 	intern/GHOST_Path-api.cpp
@@ -53,6 +55,7 @@ set(SRC
 	GHOST_IEvent.h
 	GHOST_IEventConsumer.h
 	GHOST_ISystem.h
+	GHOST_ISystemPaths.h
 	GHOST_ITimerTask.h
 	GHOST_IWindow.h
 	GHOST_Path-api.h
@@ -76,6 +79,7 @@ set(SRC
 	intern/GHOST_ModifierKeys.h
 	intern/GHOST_NDOFManager.h
 	intern/GHOST_System.h
+	intern/GHOST_SystemPaths.h
 	intern/GHOST_TimerManager.h
 	intern/GHOST_TimerTask.h
 	intern/GHOST_Window.h
@@ -87,20 +91,24 @@ if(APPLE)
 		list(APPEND SRC
 			intern/GHOST_DisplayManagerCocoa.mm
 			intern/GHOST_SystemCocoa.mm
+			intern/GHOST_SystemPathsCocoa.mm
 			intern/GHOST_WindowCocoa.mm
 			
 			intern/GHOST_DisplayManagerCocoa.h
 			intern/GHOST_SystemCocoa.h
+			intern/GHOST_SystemPathsCocoa.h
 			intern/GHOST_WindowCocoa.h
 		)
 	else()
 		list(APPEND SRC
 			intern/GHOST_DisplayManagerCarbon.cpp
 			intern/GHOST_SystemCarbon.cpp
+			intern/GHOST_SystemPathsCarbon.cpp
 			intern/GHOST_WindowCarbon.cpp
 
 			intern/GHOST_DisplayManagerCarbon.h
 			intern/GHOST_SystemCarbon.h
+			intern/GHOST_SystemPathsCarbon.h
 			intern/GHOST_WindowCarbon.h
 		)
 	endif()
@@ -115,10 +123,12 @@ elseif(UNIX)
 	list(APPEND SRC
 		intern/GHOST_DisplayManagerX11.cpp
 		intern/GHOST_SystemX11.cpp
+		intern/GHOST_SystemPathsX11.cpp
 		intern/GHOST_WindowX11.cpp
 
 		intern/GHOST_DisplayManagerX11.h
 		intern/GHOST_SystemX11.h
+		intern/GHOST_SystemPathsX11.h
 		intern/GHOST_WindowX11.h
 	)
 
@@ -134,15 +144,18 @@ elseif(WIN32)
 	list(APPEND SRC
 		intern/GHOST_DisplayManagerWin32.cpp
 		intern/GHOST_SystemWin32.cpp
+		intern/GHOST_SystemPathsWin32.cpp
 		intern/GHOST_WindowWin32.cpp
 		intern/GHOST_DropTargetWin32.cpp
 
 		intern/GHOST_DisplayManagerWin32.h
 		intern/GHOST_DropTargetWin32.h
 		intern/GHOST_SystemWin32.h
+		intern/GHOST_SystemPathsWin32.h
 		intern/GHOST_WindowWin32.h
+		intern/GHOST_TaskbarWin32.h
 	)
 endif()
 
-blenderlib(bf_intern_ghost "${SRC}" "${INC}")
+blender_add_lib(bf_intern_ghost "${SRC}" "${INC}")
 

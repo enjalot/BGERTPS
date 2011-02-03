@@ -37,6 +37,7 @@ set(INC
 	../../../../source/blender/imbuf
 	../../../../source/gameengine/Ketsji
 	../../../../source/blender/blenlib
+	../../../../source/blender/blenfont
 	../../../../source/blender/blenkernel
 	../../../../source/blender
 	../../../../source/blender/makesdna
@@ -51,9 +52,9 @@ set(INC
 	../../../../source/blender/blenloader
 	../../../../source/blender/gpu
 	../../../../extern/glew/include
-	${PYTHON_INC}
-	${PNG_INC}
-	${ZLIB_INC}
+	${PYTHON_INCLUDE_DIRS}
+	${PNG_INCLUDE_DIR}
+	${ZLIB_INCLUDE_DIRS}
 )
 
 set(SRC 
@@ -81,4 +82,4 @@ set(SRC
 
 add_definitions(-DGLEW_STATIC)
 
-blenderlib_nolist(ge_player_common "${SRC}" "${INC}")
+blender_add_lib_nolist(ge_player_common "${SRC}" "${INC}")

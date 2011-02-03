@@ -143,12 +143,17 @@ extern "C" {
 	GHOST_TDragnDropTypes m_draggedObjectType;
 }
 - (void)setSystemAndWindowCocoa:(GHOST_SystemCocoa *)sysCocoa windowCocoa:(GHOST_WindowCocoa *)winCocoa;
+- (GHOST_SystemCocoa*)systemCocoa;
 @end
 @implementation CocoaWindow
 - (void)setSystemAndWindowCocoa:(GHOST_SystemCocoa *)sysCocoa windowCocoa:(GHOST_WindowCocoa *)winCocoa
 {
 	systemCocoa = sysCocoa;
 	associatedWindow = winCocoa;
+}
+- (GHOST_SystemCocoa*)systemCocoa
+{
+	return systemCocoa;
 }
 
 -(BOOL)canBecomeKeyWindow
@@ -493,7 +498,7 @@ void GHOST_WindowCocoa::setTitle(const STR_String& title)
     GHOST_ASSERT(getValid(), "GHOST_WindowCocoa::setTitle(): window invalid")
 	NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
 
-	NSString *windowTitle = [[NSString alloc] initWithCString:title encoding:NSISOLatin1StringEncoding];
+	NSString *windowTitle = [[NSString alloc] initWithCString:title encoding:NSUTF8StringEncoding];
 	
 	//Set associated file if applicable
 	if (windowTitle && [windowTitle hasPrefix:@"Blender"])
@@ -512,7 +517,7 @@ void GHOST_WindowCocoa::setTitle(const STR_String& title)
 			[m_window setTitle:[associatedFileName lastPathComponent]];
 
 			//Blender used file open/save functions converte file names into legal URL ones
-			associatedFileName = [associatedFileName stringByAddingPercentEscapesUsingEncoding:NSISOLatin1StringEncoding];
+			associatedFileName = [associatedFileName stringByAddingPercentEscapesUsingEncoding:NSUTF8StringEncoding];
 			@try {
 				[m_window setRepresentedFilename:associatedFileName];
 			}
@@ -777,6 +782,7 @@ GHOST_TSuccess GHOST_WindowCocoa::setState(GHOST_TWindowState state)
 				[tmpWindow setReleasedWhenClosed:NO];
 				[tmpWindow setAcceptsMouseMovedEvents:YES];
 				[tmpWindow setDelegate:[m_window delegate]];
+				[tmpWindow setSystemAndWindowCocoa:[m_window systemCocoa] windowCocoa:this];
 				[tmpWindow registerForDraggedTypes:[NSArray arrayWithObjects:NSFilenamesPboardType,
 												   NSStringPboardType, NSTIFFPboardType, nil]];
 				
@@ -837,6 +843,7 @@ GHOST_TSuccess GHOST_WindowCocoa::setState(GHOST_TWindowState state)
 				[tmpWindow setReleasedWhenClosed:NO];
 				[tmpWindow setAcceptsMouseMovedEvents:YES];
 				[tmpWindow setDelegate:[m_window delegate]];
+				[tmpWindow setSystemAndWindowCocoa:[m_window systemCocoa] windowCocoa:this];
 				[tmpWindow registerForDraggedTypes:[NSArray arrayWithObjects:NSFilenamesPboardType,
 												   NSStringPboardType, NSTIFFPboardType, nil]];
 				//Forbid to resize the window below the blender defined minimum one

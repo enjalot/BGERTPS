@@ -58,6 +58,7 @@
 #include "BLI_bpath.h"
 #include "BLI_dynstr.h"
 #include "BLI_path_util.h"
+#include "BLI_utildefines.h"
 
 #include "IMB_imbuf.h"
 
@@ -81,7 +82,7 @@
 #include "BLO_readfile.h" 
 #include "BLO_writefile.h" 
 
-#include "BKE_utildefines.h" // O_BINARY FALSE
+#include "BKE_utildefines.h"
 
 #include "WM_api.h" // XXXXX BAD, very BAD dependency (bad level call) - remove asap, elubie
 
@@ -159,7 +160,7 @@ static void clean_paths(Main *main)
 	char filepath_expanded[1024];
 	Scene *scene;
 
-	for(BLI_bpathIterator_init(&bpi, main, main->name); !BLI_bpathIterator_isDone(bpi); BLI_bpathIterator_step(bpi)) {
+	for(BLI_bpathIterator_init(&bpi, main, main->name, BPATH_USE_PACKED); !BLI_bpathIterator_isDone(bpi); BLI_bpathIterator_step(bpi)) {
 		BLI_bpathIterator_getPath(bpi, filepath_expanded);
 
 		BLI_clean(filepath_expanded);
@@ -298,8 +299,6 @@ static void setup_app_data(bContext *C, BlendFileData *bfd, const char *filename
 	/* these are the same at times, should never copy to the same location */
 	if(G.main->name != filename)
 		BLI_strncpy(G.main->name, filename, FILE_MAX);
-	
-	BLI_strncpy(G.main->name, filename, FILE_MAX); /* is guaranteed current file */
 
 	/* baseflags, groups, make depsgraph, etc */
 	set_scene_bg(G.main, CTX_data_scene(C));
@@ -345,12 +344,6 @@ void BKE_userdef_free(void)
 	BLI_freelistN(&U.keymaps);
 	BLI_freelistN(&U.addons);
 }
-
-/* returns:
-   0: no load file
-   1: OK
-   2: OK, and with new user settings
-*/
 
 int BKE_read_file(bContext *C, const char *dir, ReportList *reports) 
 {
@@ -459,7 +452,7 @@ static int read_undosave(bContext *C, UndoElem *uel)
 	G.fileflags |= G_FILE_NO_UI;
 
 	if(UNDO_DISK) 
-		success= BKE_read_file(C, uel->str, NULL);
+		success= (BKE_read_file(C, uel->str, NULL) != BKE_READ_FILE_FAIL);
 	else
 		success= BKE_read_file_from_memfile(C, &uel->memfile, NULL);
 
@@ -467,8 +460,10 @@ static int read_undosave(bContext *C, UndoElem *uel)
 	strcpy(G.main->name, mainstr); /* restore */
 	G.fileflags= fileflags;
 
-	if(success)
-		DAG_on_load_update(G.main);
+	if(success) {
+		/* important not to update time here, else non keyed tranforms are lost */
+		DAG_on_load_update(G.main, FALSE);
+	}
 
 	return success;
 }
@@ -639,6 +634,22 @@ void BKE_undo_name(bContext *C, const char *name)
 		curundo= uel->prev;
 		BKE_undo_step(C, 0);
 	}
+}
+
+/* name optional */
+int BKE_undo_valid(const char *name)
+{
+	if(name) {
+		UndoElem *uel;
+		
+		for(uel= undobase.last; uel; uel= uel->prev)
+			if(strcmp(name, uel->name)==0)
+				break;
+		
+		return uel && uel->prev;
+	}
+	
+	return undobase.last != undobase.first;
 }
 
 

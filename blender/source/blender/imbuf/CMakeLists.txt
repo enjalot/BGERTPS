@@ -32,9 +32,9 @@ set(INC
 	../makesdna
 	../../../intern/memutil
 	../../../intern/guardedalloc
-	${JPEG_INC}
-	${PNG_INC}
-	${ZLIB_INC}
+	${JPEG_INCLUDE_DIR}
+	${PNG_INCLUDE_DIR}
+	${ZLIB_INCLUDE_DIRS}
 )
 
 set(SRC
@@ -140,4 +140,4 @@ if(WITH_IMAGE_HDR)
 	add_definitions(-DWITH_HDR)
 endif()
 
-blenderlib(bf_imbuf "${SRC}" "${INC}")
+blender_add_lib(bf_imbuf "${SRC}" "${INC}")

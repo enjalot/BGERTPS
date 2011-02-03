@@ -59,8 +59,9 @@
 #include "BLI_math.h" /* windows needs for M_PI */
 #include "BLI_blenlib.h"
 #include "BLI_dynstr.h"
+#include "BLI_utildefines.h"
 
-#include "BKE_utildefines.h"
+
 
 #include "BKE_animsys.h"
 #include "BKE_action.h"
@@ -314,7 +315,7 @@ static const char *constraint_adrcodes_to_paths (int adrcode, int *array_index)
 
 /* ShapeKey types 
  * NOTE: as we don't have access to the keyblock where the data comes from (for now), 
- *	 	we'll just use numerical indicies for now... 
+ *	 	we'll just use numerical indices for now... 
  */
 static char *shapekey_adrcodes_to_paths (int adrcode, int *UNUSED(array_index))
 {
@@ -1516,14 +1517,14 @@ static void ipo_to_animdata (ID *id, Ipo *ipo, char actname[], char constname[],
 		}
 		
 		/* add F-Curves to action */
-		addlisttolist(&adt->action->curves, &anim);
+		BLI_movelisttolist(&adt->action->curves, &anim);
 	}
 	
 	/* deal with drivers */
 	if (drivers.first) {
 		if (G.f & G_DEBUG) printf("\thas drivers \n");
 		/* add drivers to end of driver stack */
-		addlisttolist(&adt->drivers, &drivers);
+		BLI_movelisttolist(&adt->drivers, &drivers);
 	}
 }
 

@@ -215,15 +215,13 @@ def clientSendJobBlender(conn, scene, anim = False):
     for object in bpy.data.objects:
         for modifier in object.modifiers:
             if modifier.type == 'FLUID_SIMULATION' and modifier.settings.type == "DOMAIN":
-                addFluidFiles(job, bpy.path.abspath(modifier.settings.path))
+                addFluidFiles(job, bpy.path.abspath(modifier.settings.filepath))
             elif modifier.type == "CLOTH":
                 addPointCache(job, object, modifier.point_cache, default_path)
             elif modifier.type == "SOFT_BODY":
                 addPointCache(job, object, modifier.point_cache, default_path)
             elif modifier.type == "SMOKE" and modifier.smoke_type == "TYPE_DOMAIN":
-                addPointCache(job, object, modifier.domain_settings.point_cache_low, default_path)
-                if modifier.domain_settings.use_high_resolution:
-                    addPointCache(job, object, modifier.domain_settings.point_cache_high, default_path)
+                addPointCache(job, object, modifier.domain_settings.point_cache, default_path)
             elif modifier.type == "MULTIRES" and modifier.is_external:
                 file_path = bpy.path.abspath(modifier.filepath)
                 job.addFile(file_path)
@@ -367,7 +365,6 @@ def compatible(module):
         except:	pass
     del module
 
-#compatible("properties_render")
 compatible("properties_world")
 compatible("properties_material")
 compatible("properties_data_mesh")

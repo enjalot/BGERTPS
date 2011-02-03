@@ -30,6 +30,7 @@
 #include <string.h>
 
 #include "BLI_blenlib.h"
+#include "BLI_utildefines.h"
 #include "BLI_dynstr.h"
 #include "BLI_storage_types.h"
 #ifdef WIN32
@@ -279,12 +280,12 @@ static void file_draw_icon(uiBlock *block, char *path, int sx, int sy, int icon,
 {
 	uiBut *but;
 	float x,y;
-	float alpha=1.0f;
+	/*float alpha=1.0f;*/
 	
 	x = (float)(sx);
 	y = (float)(sy-height);
 	
-	if (icon == ICON_FILE_BLANK) alpha = 0.375f;
+	/*if (icon == ICON_FILE_BLANK) alpha = 0.375f;*/
 		
 	but= uiDefIconBut(block, LABEL, 0, icon, x, y, width, height, NULL, 0.0, 0.0, 0, 0, "");
 	uiButSetDragPath(but, path);
@@ -301,7 +302,8 @@ static void file_draw_string(int sx, int sy, const char* string, float width, in
 	fs.align = align;
 
 	BLI_strncpy(fname,string, FILE_MAXFILE);
-	
+	file_shorten_string(fname, width+1.0, 0);
+
 	/* no text clipping needed, uiStyleFontDraw does it but is a bit too strict (for buttons it works) */
 	rect.xmin = sx;
 	rect.xmax = sx + ceil(width+4.0f);

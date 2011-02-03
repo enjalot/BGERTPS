@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 # $Id$
 # ***** BEGIN GPL LICENSE BLOCK *****
 #
@@ -126,6 +128,10 @@ def cmake_get_src(f):
                             raise Exception("strict formatting not kept '*)' %s:%d" % (f, i))
                         break
 
+                    # replace dirs
+                    l = l.replace("${CMAKE_CURRENT_SOURCE_DIR}", cmake_base)
+                    
+
                     if not l:
                         pass
                     elif l.startswith("$"):
@@ -139,6 +145,9 @@ def cmake_get_src(f):
                             sources_h.append(new_file)
                         elif is_c(new_file):
                             sources_c.append(new_file)
+                        elif l in ("PARENT_SCOPE", ):
+                            # cmake var, ignore
+                            pass
                         else:
                             raise Exception("unknown file type - not c or h %s -> %s" % (f, new_file))
 
@@ -197,11 +206,14 @@ for hf in sorted(source_list(base, is_c_header)):
 import traceback
 for files in (global_c, global_h):
     for f in sorted(files):
-        i = 1
-        try:
-            for l in open(f, "r", encoding="utf8"):
-                i += 1
-        except:
-            print("Non utf8: %s:%d" % (f, i))
-            if i > 1:
-                traceback.print_exc()
+        if os.path.exists(f):
+            # ignore outside of our source tree
+            if "extern" not in f:
+                i = 1
+                try:
+                    for l in open(f, "r", encoding="utf8"):
+                        i += 1
+                except:
+                    print("Non utf8: %s:%d" % (f, i))
+                    if i > 1:
+                        traceback.print_exc()

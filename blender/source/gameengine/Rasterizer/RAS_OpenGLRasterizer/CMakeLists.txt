@@ -58,4 +58,4 @@ IF(WITH_OPENCL)
 	LIST(APPEND INC ${RTPS_INCLUDE_DIR})  
 ENDIF(WITH_OPENCL)
 
-blenderlib(ge_oglrasterizer "${SRC}" "${INC}")
+blender_add_lib(ge_oglrasterizer "${SRC}" "${INC}")

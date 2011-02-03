@@ -36,6 +36,7 @@
 
 #include "MEM_guardedalloc.h"
 
+#include "BLI_utildefines.h"
 #include "BLI_ghash.h"
 
 #include "DNA_anim_types.h"
@@ -46,7 +47,7 @@
 #include "BKE_nla.h"
 #include "BKE_global.h"
 #include "BKE_library.h"
-#include "BKE_utildefines.h"
+
 
 #include "RNA_access.h"
 #include "nla_private.h"
@@ -77,7 +78,7 @@ void free_nlastrip (ListBase *strips, NlaStrip *strip)
 		
 	/* remove reference to action */
 	if (strip->act)
-		strip->act->id.us--;
+		id_us_min(&strip->act->id);
 		
 	/* free remapping info */
 	//if (strip->remap)
@@ -159,7 +160,7 @@ NlaStrip *copy_nlastrip (NlaStrip *strip)
 	
 	/* increase user-count of action */
 	if (strip_d->act)
-		strip_d->act->id.us++;
+		id_us_plus(&strip_d->act->id);
 		
 	/* copy F-Curves and modifiers */
 	copy_fcurves(&strip_d->fcurves, &strip->fcurves);
@@ -513,7 +514,7 @@ short BKE_nlastrips_has_space (ListBase *strips, float start, float end)
 		/* if start frame of strip is past the target end-frame, that means that
 		 * we've gone past the window we need to check for, so things are fine
 		 */
-		if (strip->start > end)
+		if (strip->start >= end)
 			return 1;
 		
 		/* if the end of the strip is greater than either of the boundaries, the range
@@ -590,7 +591,7 @@ short BKE_nlastrips_add_strip (ListBase *strips, NlaStrip *strip)
 	/* find the right place to add the strip to the nominated track */
 	for (ns= strips->first; ns; ns= ns->next) {
 		/* if current strip occurs after the new strip, add it before */
-		if (ns->start > strip->end) {
+		if (ns->start >= strip->end) {
 			BLI_insertlinkbefore(strips, ns, strip);
 			not_added= 0;
 			break;
@@ -682,7 +683,7 @@ void BKE_nlastrips_clear_metastrip (ListBase *strips, NlaStrip *strip)
 	}
 	
 	/* free the meta-strip now */
-	BLI_freelinkN(strips, strip);
+	free_nlastrip(strips, strip);
 }
 
 /* Remove meta-strips (i.e. flatten the list of strips) from the top-level of the list of strips
@@ -1209,12 +1210,12 @@ void BKE_nlastrip_validate_fcurves (NlaStrip *strip)
 	}
 }
 
+/* Sanity Validation ------------------------------------ */
+
 static int nla_editbone_name_check(void *arg, const char *name)
 {
 	return BLI_ghash_haskey((GHash *)arg, (void *)name);
 }
-
-/* Sanity Validation ------------------------------------ */
 
 /* Find (and set) a unique name for a strip from the whole AnimData block 
  * Uses a similar method to the BLI method, but is implemented differently
@@ -1437,7 +1438,7 @@ void BKE_nla_action_pushdown (AnimData *adt)
 	/* do other necessary work on strip */	
 	if (strip) {
 		/* clear reference to action now that we've pushed it onto the stack */
-		adt->action->id.us--;
+		id_us_min(&adt->action->id);
 		adt->action= NULL;
 		
 		/* if the strip is the first one in the track it lives in, check if there

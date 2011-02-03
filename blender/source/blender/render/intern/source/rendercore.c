@@ -41,8 +41,9 @@
 #include "BLI_jitter.h"
 #include "BLI_rand.h"
 #include "BLI_threads.h"
+#include "BLI_utildefines.h"
 
-#include "BKE_utildefines.h"
+
 
 #include "DNA_image_types.h"
 #include "DNA_lamp_types.h"
@@ -97,13 +98,7 @@ void calc_view_vector(float *view, float x, float y)
 	else {
 		
 		if(R.r.mode & R_PANORAMA) {
-			if(R.r.mode & R_BORDER) {
-				/* scale by the win/border size */
-				x-= R.panodxp * ((float)R.winx / (float)(R.disprect.xmax - R.disprect.xmin));
-			}
-			else {
-				x-= R.panodxp;
-			}
+			x-= R.panodxp;
 		}
 		
 		/* move x and y to real viewplane coords */
@@ -2428,7 +2423,8 @@ static void do_bake_shade(void *handle, int x, int y, float u, float v)
 			isec.orig.ob   = obi;
 			isec.orig.face = vlr;
 			isec.userdata= bs->actob;
-			isec.skip = RE_SKIP_VLR_NEIGHBOUR|RE_SKIP_VLR_BAKE_CHECK;
+			isec.check = RE_CHECK_VLR_BAKE;
+			isec.skip = RE_SKIP_VLR_NEIGHBOUR;
 			
 			if(bake_intersect_tree(R.raytree, &isec, shi->co, shi->vn, sign, co, &dist)) {
 				if(!hit || len_v3v3(shi->co, co) < len_v3v3(shi->co, minco)) {
@@ -2581,7 +2577,7 @@ static void shade_tface(BakeShade *bs)
 	/* get pixel level vertex coordinates */
 	for(a=0; a<4; a++) {
 		/* Note, workaround for pixel aligned UVs which are common and can screw up our intersection tests
-		 * where a pixel gets inbetween 2 faces or the middle of a quad,
+		 * where a pixel gets in between 2 faces or the middle of a quad,
 		 * camera aligned quads also have this problem but they are less common.
 		 * Add a small offset to the UVs, fixes bug #18685 - Campbell */
 		vec[a][0]= tface->uv[a][0]*(float)bs->rectx - (0.5f + 0.001);

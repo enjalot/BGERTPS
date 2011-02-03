@@ -34,6 +34,13 @@ class RENDER_MT_ffmpeg_presets(bpy.types.Menu):
     draw = bpy.types.Menu.draw_preset
 
 
+class RENDER_MT_framerate_presets(bpy.types.Menu):
+    bl_label = "Frame Rate Presets"
+    preset_subdir = "framerate"
+    preset_operator = "script.execute_preset"
+    draw = bpy.types.Menu.draw_preset
+    
+    
 class RenderButtonsPanel():
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
@@ -337,7 +344,7 @@ class RENDER_PT_output(RenderButtonsPanel, bpy.types.Panel):
             col.prop(rd, "jpeg2k_ycc")
 
         elif file_format in ('CINEON', 'DPX'):
-            
+
             split = layout.split()
             split.label("FIXME: hard coded Non-Linear, Gamma:1.0")
             '''
@@ -491,7 +498,7 @@ class RENDER_PT_motion_blur(RenderButtonsPanel, bpy.types.Panel):
     bl_label = "Sampled Motion Blur"
     bl_options = {'DEFAULT_CLOSED'}
     COMPAT_ENGINES = {'BLENDER_RENDER'}
-	
+
     @classmethod
     def poll(cls, context):
         rd = context.scene.render
@@ -527,6 +534,7 @@ class RENDER_PT_dimensions(RenderButtonsPanel, bpy.types.Panel):
         row.menu("RENDER_MT_presets", text=bpy.types.RENDER_MT_presets.bl_label)
         row.operator("render.preset_add", text="", icon="ZOOMIN")
         row.operator("render.preset_add", text="", icon="ZOOMOUT").remove_active = True
+
         split = layout.split()
 
         col = split.column()
@@ -554,10 +562,29 @@ class RENDER_PT_dimensions(RenderButtonsPanel, bpy.types.Panel):
         sub.prop(scene, "frame_step", text="Step")
 
         sub.label(text="Frame Rate:")
-
-        sub = col.column(align=True)
-        sub.prop(rd, "fps")
-        sub.prop(rd, "fps_base", text="/")
+        if rd.fps_base == 1:
+            fps_rate = round(rd.fps / rd.fps_base)
+        else:
+            fps_rate = round(rd.fps / rd.fps_base, 2)
+        
+        # TODO: Change the following to iterate over existing presets
+        if (fps_rate in (23.98, 24, 25, 29.97, 30, 50, 59.94, 60)):
+            custom_framerate = False
+        else:
+            custom_framerate = True
+        
+        if custom_framerate == True:
+            fps_label_text = "Custom (" + str(fps_rate) + " fps)"
+        else:
+            fps_label_text = str(fps_rate) + " fps"
+            
+        sub.menu("RENDER_MT_framerate_presets", text=fps_label_text)
+        
+        if (bpy.types.RENDER_MT_framerate_presets.bl_label == "Custom") or (custom_framerate == True):
+            sub.prop(rd, "fps")
+            sub.prop(rd, "fps_base", text="/")
+        subrow = sub.row(align=True)
+        subrow.label(text="Time Remapping:")
         subrow = sub.row(align=True)
         subrow.prop(rd, "frame_map_old", text="Old")
         subrow.prop(rd, "frame_map_new", text="New")
@@ -589,6 +616,7 @@ class RENDER_PT_stamp(RenderButtonsPanel, bpy.types.Panel):
         col.prop(rd, "use_stamp_frame", text="Frame")
         col.prop(rd, "use_stamp_scene", text="Scene")
         col.prop(rd, "use_stamp_camera", text="Camera")
+        col.prop(rd, "use_stamp_lens", text="Lens")
         col.prop(rd, "use_stamp_filename", text="Filename")
         col.prop(rd, "use_stamp_marker", text="Marker")
         col.prop(rd, "use_stamp_sequencer_strip", text="Seq. Strip")

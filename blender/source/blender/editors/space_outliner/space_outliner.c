@@ -29,12 +29,12 @@
 #include <string.h>
 #include <stdio.h>
 
-
 #include "MEM_guardedalloc.h"
 
 #include "BLI_blenlib.h"
 #include "BLI_math.h"
 #include "BLI_rand.h"
+#include "BLI_utildefines.h"
 
 #include "BKE_context.h"
 #include "BKE_screen.h"
@@ -117,6 +117,7 @@ static void outliner_main_area_listener(ARegion *ar, wmNotifier *wmn)
 					break;
 				case ND_BONE_ACTIVE:
 				case ND_BONE_SELECT:
+				case ND_DRAW:
 				case ND_PARENT:
 				case ND_OB_SHADING:
 					ED_region_tag_redraw(ar);

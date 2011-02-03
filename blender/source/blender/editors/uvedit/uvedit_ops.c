@@ -40,6 +40,7 @@
 #include "BLI_math.h"
 #include "BLI_blenlib.h"
 #include "BLI_editVert.h"
+#include "BLI_utildefines.h"
 
 #include "BKE_context.h"
 #include "BKE_customdata.h"
@@ -135,7 +136,7 @@ void ED_uvedit_assign_image(Scene *scene, Object *obedit, Image *ima, Image *pre
 
 	/* and update depdency graph */
 	if(update)
-		DAG_id_tag_update(obedit->data, OB_RECALC_DATA);
+		DAG_id_tag_update(obedit->data, 0);
 
 	BKE_mesh_end_editmesh(obedit->data, em);
 }
@@ -168,7 +169,7 @@ static int uvedit_set_tile(Object *obedit, Image *ima, int curtile)
 			tf->tile= curtile; /* set tile index */
 	}
 
-	DAG_id_tag_update(obedit->data, OB_RECALC_DATA);
+	DAG_id_tag_update(obedit->data, 0);
 	BKE_mesh_end_editmesh(obedit->data, em);
 
 	return 1;
@@ -879,7 +880,7 @@ static void select_linked(Scene *scene, Image *ima, EditMesh *em, float limit[2]
 		nverts= efa->v4? 4: 3;
 
 		for(i=0; i<nverts; i++) {
-			/* make_uv_vert_map_EM sets verts tmp.l to the indicies */
+			/* make_uv_vert_map_EM sets verts tmp.l to the indices */
 			vlist= EM_get_uv_map_vert(vmap, (*(&efa->v1 + i))->tmp.l);
 			
 			startv= vlist;
@@ -1018,7 +1019,7 @@ static void weld_align_uv(bContext *C, int tool)
 		}
 	}
 
-	DAG_id_tag_update(obedit->data, OB_RECALC_DATA);
+	DAG_id_tag_update(obedit->data, 0);
 	WM_event_add_notifier(C, NC_GEOM|ND_DATA, obedit->data);
 
 	BKE_mesh_end_editmesh(obedit->data, em);
@@ -1085,7 +1086,6 @@ typedef struct UVVertAverage {
 
 static int stitch_exec(bContext *C, wmOperator *op)
 {
-	SpaceImage *sima;
 	Scene *scene;
 	Object *obedit;
 	EditMesh *em;
@@ -1093,8 +1093,7 @@ static int stitch_exec(bContext *C, wmOperator *op)
 	EditVert *eve;
 	Image *ima;
 	MTFace *tf;
-	
-	sima= CTX_wm_space_image(C);
+
 	scene= CTX_data_scene(C);
 	obedit= CTX_data_edit_object(C);
 	em= BKE_mesh_get_editmesh((Mesh*)obedit->data);
@@ -1241,7 +1240,7 @@ static int stitch_exec(bContext *C, wmOperator *op)
 		MEM_freeN(uv_average);
 	}
 
-	DAG_id_tag_update(obedit->data, OB_RECALC_DATA);
+	DAG_id_tag_update(obedit->data, 0);
 	WM_event_add_notifier(C, NC_GEOM|ND_DATA, obedit->data);
 
 	BKE_mesh_end_editmesh(obedit->data, em);
@@ -1702,7 +1701,7 @@ static int mouse_select(bContext *C, float co[2], int extend, int loop)
 		}
 	}
 	
-	DAG_id_tag_update(obedit->data, OB_RECALC_DATA);
+	DAG_id_tag_update(obedit->data, 0);
 	WM_event_add_notifier(C, NC_GEOM|ND_SELECT, obedit->data);
 	
 	BKE_mesh_end_editmesh(obedit->data, em);
@@ -1854,7 +1853,7 @@ static int select_linked_internal(bContext *C, wmOperator *op, wmEvent *event, i
 
 	select_linked(scene, ima, em, limit, hit_p, extend);
 
-	DAG_id_tag_update(obedit->data, OB_RECALC_DATA);
+	DAG_id_tag_update(obedit->data, 0);
 	WM_event_add_notifier(C, NC_GEOM|ND_SELECT, obedit->data);
 
 	BKE_mesh_end_editmesh(obedit->data, em);
@@ -1943,7 +1942,7 @@ static int unlink_selection_exec(bContext *C, wmOperator *op)
 		}
 	}
 	
-	DAG_id_tag_update(obedit->data, OB_RECALC_DATA);
+	DAG_id_tag_update(obedit->data, 0);
 	WM_event_add_notifier(C, NC_GEOM|ND_SELECT, obedit->data);
 
 	BKE_mesh_end_editmesh(obedit->data, em);
@@ -2453,7 +2452,7 @@ static int snap_uvs_to_adjacent_unselected(Scene *scene, Image *ima, Object *obe
 		eve->tmp.l=-1;
 	
 	/* index every vert that has a selected UV using it, but only once so as to
-	 * get unique indicies and to count how much to malloc */
+	 * get unique indices and to count how much to malloc */
 	for(efa= em->faces.first; efa; efa= efa->next) {
 		tface= CustomData_em_get(&em->fdata, efa->data, CD_MTFACE);
 
@@ -2624,7 +2623,7 @@ static int snap_selection_exec(bContext *C, wmOperator *op)
 	if(!change)
 		return OPERATOR_CANCELLED;
 	
-	DAG_id_tag_update(obedit->data, OB_RECALC_DATA);
+	DAG_id_tag_update(obedit->data, 0);
 	WM_event_add_notifier(C, NC_GEOM|ND_DATA, obedit->data);
 
 	return OPERATOR_FINISHED;

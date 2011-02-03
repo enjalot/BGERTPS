@@ -327,7 +327,9 @@ typedef struct bPose {
 	ListBase chanbase; 			/* list of pose channels, PoseBones in RNA */
 	struct GHash *chanhash;		/* ghash for quicker string lookups */
 	
-	short flag, proxy_layer;	/* proxy layer: copy from armature, gets synced */
+	short flag, pad;
+	unsigned int proxy_layer;	/* proxy layer: copy from armature, gets synced */
+	int pad1;
 	
 	float ctime;				/* local action time of this pose */
 	float stride_offset[3];		/* applied to object */
@@ -530,7 +532,7 @@ typedef enum eDopeSheet_FilterFlag {
 	ADS_FILTER_NOSHAPEKEYS 		= (1<<6),
 	ADS_FILTER_NOMESH			= (1<<7),
 	ADS_FILTER_NOOBJ			= (1<<8),	/* for animdata on object level, if we only want to concentrate on materials/etc. */
-	// NOTE: there are a few more spaces for datablock filtering here...
+	ADS_FILTER_NOLAT			= (1<<9),
 	ADS_FILTER_NOCAM			= (1<<10),
 	ADS_FILTER_NOMAT			= (1<<11),
 	ADS_FILTER_NOLAM			= (1<<12),
@@ -593,8 +595,8 @@ typedef enum eSAction_Flag {
 	SACTION_NOTRANSKEYCULL = (1<<4),
 		/* don't include keyframes that are out of view */
 	//SACTION_HORIZOPTIMISEON = (1<<5), // XXX depreceated... old irrelevant trick
-		/* hack for moving pose-markers (temp flag)  */
-	SACTION_POSEMARKERS_MOVE = (1<<6),
+		/* show pose-markers (local to action) in Action Editor mode  */
+	SACTION_POSEMARKERS_SHOW = (1<<6),
 		/* don't draw action channels using group colors (where applicable) */
 	SACTION_NODRAWGCOLORS = (1<<7), // XXX depreceated... irrelevant for current groups implementation
 		/* don't draw current frame number beside frame indicator */

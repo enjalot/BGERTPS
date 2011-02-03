@@ -24,7 +24,7 @@
 # ***** END GPL LICENSE BLOCK *****
 
 set(INC 
-	../
+	..
 	../../blenlib
 	../../makesdna
 	../../makesrna
@@ -33,7 +33,7 @@ set(INC
 	../../editors/include
 	../../../../intern/guardedalloc
 	../../../../intern/audaspace/intern
-	${PYTHON_INC}
+	${PYTHON_INCLUDE_DIRS}
 )
 
 set(SRC
@@ -66,4 +66,4 @@ if(WITH_BUILDINFO)
 	add_definitions(-DBUILD_DATE)
 endif()
 
-blenderlib(bf_python "${SRC}" "${INC}")
+blender_add_lib(bf_python "${SRC}" "${INC}")

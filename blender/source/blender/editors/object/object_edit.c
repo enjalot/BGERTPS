@@ -36,6 +36,7 @@
 
 #include "BLI_blenlib.h"
 #include "BLI_math.h"
+#include "BLI_utildefines.h"
 #include "BLI_editVert.h"
 #include "BLI_ghash.h"
 #include "BLI_rand.h"
@@ -49,6 +50,7 @@
 #include "DNA_property_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_object_types.h"
+#include "DNA_object_force.h"
 #include "DNA_meshdata_types.h"
 #include "DNA_vfont_types.h"
 
@@ -58,6 +60,7 @@
 #include "BKE_constraint.h"
 #include "BKE_context.h"
 #include "BKE_curve.h"
+#include "BKE_effect.h"
 #include "BKE_depsgraph.h"
 #include "BKE_font.h"
 #include "BKE_image.h"
@@ -460,7 +463,7 @@ void ED_object_enter_editmode(bContext *C, int flag)
 		scene->obedit= ob;
 		ED_armature_to_edit(ob);
 		/* to ensure all goes in restposition and without striding */
-		DAG_id_tag_update(&ob->id, OB_RECALC_ALL); // XXX: should this be OB_RECALC_DATA?
+		DAG_id_tag_update(&ob->id, OB_RECALC_OB|OB_RECALC_DATA|OB_RECALC_TIME); // XXX: should this be OB_RECALC_DATA?
 
 		WM_event_add_notifier(C, NC_SCENE|ND_MODE|NS_EDITMODE_ARMATURE, scene);
 	}
@@ -524,7 +527,10 @@ static int editmode_toggle_poll(bContext *C)
 	if(ELEM(NULL, ob, ob->data) || ((ID *)ob->data)->lib)
 		return 0;
 
-	return ob && (ob->type == OB_MESH || ob->type == OB_ARMATURE ||
+	if (ob->restrictflag & OB_RESTRICT_VIEW)
+		return 0;
+
+	return (ob->type == OB_MESH || ob->type == OB_ARMATURE ||
 			  ob->type == OB_FONT || ob->type == OB_MBALL ||
 			  ob->type == OB_LATTICE || ob->type == OB_SURF ||
 			  ob->type == OB_CURVE);
@@ -1494,6 +1500,39 @@ void copy_attr_menu(Main *bmain, Scene *scene, View3D *v3d)
 	if(event<= 0) return;
 	
 	copy_attr(bmain, scene, v3d, event);
+}
+
+/* ******************* force field toggle operator ***************** */
+
+static int forcefield_toggle_exec(bContext *C, wmOperator *UNUSED(op))
+{
+	Object *ob = CTX_data_active_object(C);
+
+	if(ob->pd == NULL)
+		ob->pd = object_add_collision_fields(PFIELD_FORCE);
+
+	if(ob->pd->forcefield == 0)
+		ob->pd->forcefield = PFIELD_FORCE;
+	else
+		ob->pd->forcefield = 0;
+	
+	return OPERATOR_FINISHED;
+}
+
+void OBJECT_OT_forcefield_toggle(wmOperatorType *ot)
+{
+	
+	/* identifiers */
+	ot->name= "Toggle Force Field";
+	ot->description = "Toggle object's force field";
+	ot->idname= "OBJECT_OT_forcefield_toggle";
+	
+	/* api callbacks */
+	ot->exec= forcefield_toggle_exec;
+	ot->poll= ED_operator_object_active_editable;
+	
+	/* flags */
+	ot->flag= OPTYPE_REGISTER|OPTYPE_UNDO;
 }
 
 /* ********************************************** */

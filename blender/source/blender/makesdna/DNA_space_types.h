@@ -240,9 +240,8 @@ typedef struct SpaceOops {
 	/* search stuff */
 	char search_string[32];
 	struct TreeStoreElem search_tse;
-	int search_flags, do_;
-	
-	short flag, outlinevis, storeflag, pad;
+
+	short flag, outlinevis, storeflag, search_flags;
 } SpaceOops;
 
 typedef struct SpaceImage {
@@ -341,9 +340,6 @@ typedef struct Script {
 	char scriptarg[256];
 } Script;
 #define SCRIPT_SET_NULL(_script) _script->py_draw = _script->py_event = _script->py_button = _script->py_browsercallback = _script->py_globaldict = NULL; _script->flags = 0;
-#define SCRIPT_RUNNING	0x01
-#define SCRIPT_GUI		0x02
-#define SCRIPT_FILESEL	0x04
 
 typedef struct SpaceScript {
 	SpaceLink *next, *prev;
@@ -358,15 +354,11 @@ typedef struct SpaceScript {
 	void *but_refs;
 } SpaceScript;
 
+# /* Only store the data array in the cache to avoid constant reallocation. */
+# /* No need to store when saved. */
 typedef struct SpaceTimeCache {
 	struct SpaceTimeCache *next, *prev;
-	int type;
-	int flag;
-	
 	float *array;
-	int len;
-	int startframe, endframe;
-	int ok;
 } SpaceTimeCache;
 
 typedef struct SpaceTime {
@@ -849,12 +841,6 @@ enum {
 
 #define B_IMASELHOME		451
 #define B_IMASELREMOVEBIP	452
-
-#define C_BACK  0xBAAAAA
-#define C_DARK  0x665656
-#define C_DERK  0x766666
-#define C_HI	0xCBBBBB
-#define C_LO	0x544444
 
 /* nla->flag */
 /* flags (1<<0), (1<<1), and (1<<3) are depreceated flags from old blenders */

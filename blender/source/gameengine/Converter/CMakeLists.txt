@@ -114,4 +114,4 @@ IF(WITH_OPENCL)
 ENDIF(WITH_OPENCL)
 
 
-blenderlib(ge_converter "${SRC}" "${INC}")
+blender_add_lib(ge_converter "${SRC}" "${INC}")

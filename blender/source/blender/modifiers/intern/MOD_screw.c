@@ -36,8 +36,9 @@
 #include "DNA_object_types.h"
 
 #include "BLI_math.h"
+#include "BLI_utildefines.h"
 
-#include "BKE_utildefines.h"
+
 #include "BKE_cdderivedmesh.h"
 
 #include "depsgraph_private.h"
@@ -142,7 +143,7 @@ static DerivedMesh *applyModifier(ModifierData *md, Object *ob,
 	int step;
 	int i, j;
 	int i1,i2;
-	int step_tot= ltmd->steps;
+	int step_tot= useRenderParams ? ltmd->render_steps : ltmd->steps;
 	const int do_flip = ltmd->flag & MOD_SCREW_NORMAL_FLIP ? 1 : 0;
 	int maxVerts=0, maxEdges=0, maxFaces=0;
 	int totvert= dm->getNumVerts(dm);
@@ -171,8 +172,6 @@ static DerivedMesh *applyModifier(ModifierData *md, Object *ob,
 	/* dont do anything? */
 	if (!totvert)
 		return CDDM_from_template(dm, 0, 0, 0);
-
-	step_tot= useRenderParams ? ltmd->render_steps : ltmd->steps;
 
 	switch(ltmd->axis) {
 	case 0:
@@ -218,7 +217,7 @@ static DerivedMesh *applyModifier(ModifierData *md, Object *ob,
 
 		/* angle */
 
-#if 0	// cant incluide this, not pradictable enough, though quite fun,.
+#if 0	// cant incluide this, not predictable enough, though quite fun,.
 		if(ltmd->flag & MOD_SCREW_OBJECT_ANGLE) {
 			float mtx3_tx[3][3];
 			copy_m3_m4(mtx3_tx, mtx_tx);
@@ -267,7 +266,7 @@ static DerivedMesh *applyModifier(ModifierData *md, Object *ob,
 	step_tot = ((step_tot + 1) * ltmd->iter) - (ltmd->iter - 1);
 
 	/* will the screw be closed?
-	 * Note! smaller then FLT_EPSILON*100 gives problems with float precission so its never closed. */
+	 * Note! smaller then FLT_EPSILON*100 gives problems with float precision so its never closed. */
 	if (fabs(screw_ofs) <= (FLT_EPSILON*100) && fabs(fabs(angle) - (M_PI * 2)) <= (FLT_EPSILON*100)) {
 		close= 1;
 		step_tot--;

@@ -33,7 +33,7 @@ set(INC
 	../render/extern/include
 	../../../intern/guardedalloc
 	../../../intern/elbeem/extern
-	${ZLIB_INC}
+	${ZLIB_INCLUDE_DIRS}
 )
 
 set(SRC
@@ -99,4 +99,4 @@ if(NOT WITH_MOD_FLUID)
 	add_definitions(-DDISABLE_ELBEEM)
 endif()
 
-blenderlib(bf_modifiers "${SRC}" "${INC}")
+blender_add_lib(bf_modifiers "${SRC}" "${INC}")

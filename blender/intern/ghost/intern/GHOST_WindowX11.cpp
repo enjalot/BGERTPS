@@ -176,7 +176,7 @@ GHOST_WindowX11(
 	int attributes[40], i, samples;
 	Atom atoms[2];
 	int natom;
-	int glxVersionMajor, glxVersionMinor; // As in GLX major.mino
+	int glxVersionMajor, glxVersionMinor; // As in GLX major.minor
 	
 	/* initialize incase X11 fails to load */
 	memset(&m_xtablet, 0, sizeof(m_xtablet));
@@ -342,13 +342,15 @@ GHOST_WindowX11(
 	// we want this window treated.
 
 	XSizeHints * xsizehints = XAllocSizeHints();
-	xsizehints->flags = PPosition | PSize | PMinSize;
+	xsizehints->flags = PPosition | PSize | PMinSize | PMaxSize;
 	xsizehints->x = left;
 	xsizehints->y = top;
 	xsizehints->width = width;
 	xsizehints->height = height;
 	xsizehints->min_width= 320;  	// size hints, could be made apart of the ghost api
 	xsizehints->min_height= 240;	// limits are also arbitrary, but should not allow 1x1 window
+	xsizehints->max_width= 65535;
+	xsizehints->max_height= 65535;
 	XSetWMNormalHints(m_display, m_window, xsizehints);
 	XFree(xsizehints);
 

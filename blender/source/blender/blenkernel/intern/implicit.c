@@ -37,12 +37,13 @@
 #include "BLI_threads.h"
 #include "BLI_math.h"
 #include "BLI_linklist.h"
+#include "BLI_utildefines.h"
 
 #include "BKE_cloth.h"
 #include "BKE_collision.h"
 #include "BKE_effect.h"
 #include "BKE_global.h"
-#include "BKE_utildefines.h"
+
 
 #define CLOTH_OPENMP_LIMIT 25
 
@@ -1228,7 +1229,7 @@ DO_INLINE void cloth_calc_spring_force(ClothModifierData *clmd, ClothSpring *s, 
 	float vel[3];
 	float k = 0.0f;
 	float L = s->restlen;
-	float cb = clmd->sim_parms->structural;
+	float cb; /* = clmd->sim_parms->structural; */ /*UNUSED*/
 
 	float nullf[3] = {0,0,0};
 	float stretch_force[3] = {0,0,0};
@@ -1316,8 +1317,9 @@ DO_INLINE void cloth_calc_spring_force(ClothModifierData *clmd, ClothSpring *s, 
 
 		VECSUB(extent, X[s->ij], tvect);
 		
-		dot = INPR(extent, extent);
-		length = sqrt(dot);
+		// SEE MSG BELOW (these are UNUSED)
+		// dot = INPR(extent, extent);
+		// length = sqrt(dot);
 		
 		k = clmd->sim_parms->goalspring;
 		
@@ -1565,7 +1567,7 @@ static void cloth_calc_force(ClothModifierData *clmd, float UNUSED(frame), lfVec
 	float 		tm2[3][3] 	= {{0}};
 	MFace 		*mfaces 	= cloth->mfaces;
 	unsigned int numverts = cloth->numverts;
-	LinkNode *search = cloth->springs;
+	LinkNode *search;
 	lfVector *winvec;
 	EffectedPoint epoint;
 

@@ -40,10 +40,12 @@
 #include "BLI_math.h"
 #include "BLI_blenlib.h"
 #include "BLI_dynstr.h"
+#include "BLI_utildefines.h"
 
 #include "BKE_context.h"
 #include "BKE_library.h"
 #include "BKE_unit.h"
+#include "BKE_utildefines.h" /* FILE_MAX */
 
 #include "BIF_gl.h"
 
@@ -521,6 +523,7 @@ static int ui_but_update_from_old_block(const bContext *C, uiBlock *block, uiBut
 #endif
 				but->active= oldbut->active;
 				but->pos= oldbut->pos;
+				but->ofs= oldbut->ofs;
 				but->editstr= oldbut->editstr;
 				but->editval= oldbut->editval;
 				but->editvec= oldbut->editvec;
@@ -1700,7 +1703,7 @@ int ui_set_but_string(bContext *C, uiBut *but, const char *str)
 	}
 	else if(but->type == IDPOIN) {
 		/* ID pointer */
-		but->idpoin_func(C, (char*)str, but->idpoin_idpp);
+		but->idpoin_func(C, str, but->idpoin_idpp);
 		return 1;
 	}
 	else if(but->type == TEX) {
@@ -1734,7 +1737,7 @@ int ui_set_but_string(bContext *C, uiBut *but, const char *str)
 				bUnit_ReplaceString(str_unit_convert, sizeof(str_unit_convert), but->drawstr, ui_get_but_scale_unit(but, 1.0), scene->unit.system, unit_type>>16);
 			}
 
-			if(BPY_eval_button(C, str_unit_convert, &value)) {
+			if(BPY_button_exec(C, str_unit_convert, &value)) {
 				value = ui_get_but_val(but); /* use its original value */
 
 				if(str[0])
@@ -1799,7 +1802,7 @@ static double soft_range_round_down(double value, double max)
 void ui_set_but_soft_range(uiBut *but, double value)
 {
 	PropertyType type;
-	double softmin, softmax, step, precision;
+	double softmin, softmax /*, step, precision*/;
 	
 	if(but->rnaprop) {
 		type= RNA_property_type(but->rnaprop);
@@ -1812,8 +1815,8 @@ void ui_set_but_soft_range(uiBut *but, double value)
 			RNA_property_int_ui_range(&but->rnapoin, but->rnaprop, &imin, &imax, &istep);
 			softmin= (imin == INT_MIN)? -1e4: imin;
 			softmax= (imin == INT_MAX)? 1e4: imax;
-			step= istep;
-			precision= 1;
+			/*step= istep;*/ /*UNUSED*/
+			/*precision= 1;*/ /*UNUSED*/
 		}
 		else if(type == PROP_FLOAT) {
 			float fmin, fmax, fstep, fprecision;
@@ -1821,8 +1824,8 @@ void ui_set_but_soft_range(uiBut *but, double value)
 			RNA_property_float_ui_range(&but->rnapoin, but->rnaprop, &fmin, &fmax, &fstep, &fprecision);
 			softmin= (fmin == -FLT_MAX)? -1e4: fmin;
 			softmax= (fmax == FLT_MAX)? 1e4: fmax;
-			step= fstep;
-			precision= fprecision;
+			/*step= fstep;*/ /*UNUSED*/
+			/*precision= fprecision;*/ /*UNUSED*/
 		}
 		else
 			return;
@@ -2503,8 +2506,10 @@ static uiBut *ui_def_but(uiBlock *block, int type, int retval, const char *str, 
 		}
 	}
 
-	if(ELEM8(but->type, BLOCK, BUT, LABEL, PULLDOWN, ROUNDBOX, LISTBOX, SEARCH_MENU, BUTM));
+	/* keep track of UI_interface.h */
+	if(ELEM7(but->type, BLOCK, BUT, LABEL, PULLDOWN, ROUNDBOX, LISTBOX, BUTM));
 	else if(ELEM5(but->type, SCROLL, SEPR, LINK, INLINK, FTPREVIEW));
+	else if(but->type >= SEARCH_MENU);
 	else but->flag |= UI_BUT_UNDO;
 
 	BLI_addtail(&block->buttons, but);
@@ -2569,18 +2574,18 @@ static uiBut *ui_def_but_rna(uiBlock *block, int type, int retval, const char *s
 				RNA_property_enum_items(block->evil_C, ptr, prop, &item, &totitem, &free);
 				for(i=0; i<totitem; i++) {
 					if(item[i].identifier[0] && item[i].value == (int)max) {
-						str= (char*)item[i].name;
+						str= item[i].name;
 						icon= item[i].icon;
 					}
 				}
 
 				if(!str)
-					str= (char*)RNA_property_ui_name(prop);
+					str= RNA_property_ui_name(prop);
 				if(free)
 					MEM_freeN(item);
 			}
 			else {
-				str= (char*)RNA_property_ui_name(prop);
+				str= RNA_property_ui_name(prop);
 				icon= RNA_property_ui_icon(prop);
 			}
 		}
@@ -2595,7 +2600,7 @@ static uiBut *ui_def_but_rna(uiBlock *block, int type, int retval, const char *s
 				for(i=0; i<totitem; i++) {
 					if(item[i].identifier[0] && item[i].value == (int)max) {
 						if(item[i].description[0])
-							tip= (char*)item[i].description;
+							tip= item[i].description;
 						break;
 					}
 				}
@@ -2606,7 +2611,7 @@ static uiBut *ui_def_but_rna(uiBlock *block, int type, int retval, const char *s
 		}
 		
 		if(!tip)
-			tip= (char*)RNA_property_ui_description(prop);
+			tip= RNA_property_ui_description(prop);
 
 		if(min == max || a1 == -1 || a2 == -1) {
 			if(proptype == PROP_INT) {
@@ -2649,7 +2654,7 @@ static uiBut *ui_def_but_rna(uiBlock *block, int type, int retval, const char *s
 	}
 	else {
 		printf("ui_def_but_rna: property not found: %s.%s\n", RNA_struct_identifier(ptr->type), propname);
-		str= (char*)propname;
+		str= propname;
 	}
 
 	/* now create button */

@@ -36,6 +36,7 @@
 #include "BLI_math.h"
 #include "BLI_rect.h"
 #include "BLI_listbase.h"
+#include "BLI_utildefines.h"
 
 #include "BKE_anim.h"
 #include "BKE_action.h"
@@ -68,15 +69,21 @@
    opengl drawing context */
 void view3d_operator_needs_opengl(const bContext *C)
 {
+	wmWindow *win = CTX_wm_window(C);
 	ARegion *ar= CTX_wm_region(C);
+	
+	view3d_region_operator_needs_opengl(win, ar);
+}
 
+void view3d_region_operator_needs_opengl(wmWindow *win, ARegion *ar)
+{
 	/* for debugging purpose, context should always be OK */
-	if(ar->regiontype!=RGN_TYPE_WINDOW)
-		printf("view3d_operator_needs_opengl error, wrong region\n");
+	if ((ar == NULL) || (ar->regiontype!=RGN_TYPE_WINDOW))
+		printf("view3d_region_operator_needs_opengl error, wrong region\n");
 	else {
 		RegionView3D *rv3d= ar->regiondata;
 		
-		wmSubWindowSet(CTX_wm_window(C), ar->swinid);
+		wmSubWindowSet(win, ar->swinid);
 		glMatrixMode(GL_PROJECTION);
 		glLoadMatrixf(rv3d->winmat);
 		glMatrixMode(GL_MODELVIEW);
@@ -1742,7 +1749,6 @@ int ED_view3d_context_activate(bContext *C)
 	bScreen *sc= CTX_wm_screen(C);
 	ScrArea *sa= CTX_wm_area(C);
 	ARegion *ar;
-	RegionView3D *rv3d;
 
 	/* sa can be NULL when called from python */
 	if(sa==NULL || sa->spacetype != SPACE_VIEW3D)
@@ -1763,7 +1769,6 @@ int ED_view3d_context_activate(bContext *C)
 	// bad context switch ..
 	CTX_wm_area_set(C, sa);
 	CTX_wm_region_set(C, ar);
-	rv3d= ar->regiondata;
 
 	return 1;
 }

@@ -28,8 +28,10 @@
 #include "mathutils.h"
 
 #include "BLI_blenlib.h"
-#include "BKE_utildefines.h"
 #include "BLI_math.h"
+#include "BLI_utildefines.h"
+
+
 
 #define MAX_DIMENSIONS 4
 /* Swizzle axes get packed into a single value that is used as a closure. Each
@@ -74,11 +76,8 @@ static char Vector_Zero_doc[] =
 
 static PyObject *Vector_Zero(VectorObject *self)
 {
-	int i;
-	for(i = 0; i < self->size; i++) {
-		self->vec[i] = 0.0f;
-	}
-	
+	fill_vn(self->vec, self->size, 0.0f);
+
 	(void)BaseMath_WriteCallback(self);
 	Py_INCREF(self);
 	return (PyObject*)self;
@@ -778,7 +777,6 @@ static PyObject *Vector_item(VectorObject *self, int i)
 		return NULL;
 	
 	return PyFloat_FromDouble(self->vec[i]);
-
 }
 /*----------------------------object[]-------------------------
   sequence accessor (set)*/
@@ -807,7 +805,7 @@ static int Vector_ass_item(VectorObject *self, int i, PyObject * ob)
   sequence slice (get) */
 static PyObject *Vector_slice(VectorObject *self, int begin, int end)
 {
-	PyObject *list = NULL;
+	PyObject *tuple;
 	int count;
 
 	if(!BaseMath_ReadCallback(self))
@@ -816,62 +814,42 @@ static PyObject *Vector_slice(VectorObject *self, int begin, int end)
 	CLAMP(begin, 0, self->size);
 	if (end<0) end= self->size+end+1;
 	CLAMP(end, 0, self->size);
-	begin = MIN2(begin,end);
+	begin= MIN2(begin, end);
 
-	list = PyList_New(end - begin);
+	tuple= PyTuple_New(end - begin);
 	for(count = begin; count < end; count++) {
-		PyList_SET_ITEM(list, count - begin, PyFloat_FromDouble(self->vec[count]));
+		PyTuple_SET_ITEM(tuple, count - begin, PyFloat_FromDouble(self->vec[count]));
 	}
 
-	return list;
+	return tuple;
 }
 /*----------------------------object[z:y]------------------------
   sequence slice (set) */
 static int Vector_ass_slice(VectorObject *self, int begin, int end,
 				 PyObject * seq)
 {
-	int i, y, size = 0;
-	float vec[4], scalar;
-	PyObject *v;
+	int y, size = 0;
+	float vec[MAX_DIMENSIONS];
 
 	if(!BaseMath_ReadCallback(self))
 		return -1;
-	
+
 	CLAMP(begin, 0, self->size);
-	if (end<0) end= self->size+end+1;
 	CLAMP(end, 0, self->size);
 	begin = MIN2(begin,end);
 
-	size = PySequence_Length(seq);
-	if(size != (end - begin)){
-		PyErr_SetString(PyExc_TypeError, "vector[begin:end] = []: size mismatch in slice assignment");
+	size = (end - begin);
+	if(mathutils_array_parse(vec, size, size, seq, "vector[begin:end] = [...]:") == -1)
 		return -1;
-	}
 
-	for (i = 0; i < size; i++) {
-		v = PySequence_GetItem(seq, i);
-		if (v == NULL) { /* Failed to read sequence */
-			PyErr_SetString(PyExc_RuntimeError, "vector[begin:end] = []: unable to read sequence");
-			return -1;
-		}
-		
-		if((scalar=PyFloat_AsDouble(v)) == -1.0f && PyErr_Occurred()) { /* parsed item not a number */
-			Py_DECREF(v);
-			PyErr_SetString(PyExc_TypeError, "vector[begin:end] = []: sequence argument not a number");
-			return -1;
-		}
-
-		vec[i] = scalar;
-		Py_DECREF(v);
-	}
 	/*parsed well - now set in vector*/
 	for(y = 0; y < size; y++){
 		self->vec[begin + y] = vec[y];
 	}
-	
+
 	if(!BaseMath_WriteCallback(self))
 		return -1;
-	
+
 	return 0;
 }
 /*------------------------NUMERIC PROTOCOLS----------------------
@@ -879,43 +857,34 @@ static int Vector_ass_slice(VectorObject *self, int begin, int end,
   addition*/
 static PyObject *Vector_add(PyObject * v1, PyObject * v2)
 {
-	int i;
-	float vec[4];
-
 	VectorObject *vec1 = NULL, *vec2 = NULL;
-	
-	if VectorObject_Check(v1)
-		vec1= (VectorObject *)v1;
-	
-	if VectorObject_Check(v2)
-		vec2= (VectorObject *)v2;
-	
-	/* make sure v1 is always the vector */
-	if (vec1 && vec2 ) {
-		
-		if(!BaseMath_ReadCallback(vec1) || !BaseMath_ReadCallback(vec2))
-			return NULL;
-		
-		/*VECTOR + VECTOR*/
-		if(vec1->size != vec2->size) {
-			PyErr_SetString(PyExc_AttributeError, "Vector addition: vectors must have the same dimensions for this operation");
-			return NULL;
-		}
-		for(i = 0; i < vec1->size; i++) {
-			vec[i] = vec1->vec[i] +	vec2->vec[i];
-		}
-		return newVectorObject(vec, vec1->size, Py_NEW, Py_TYPE(v1));
+	float vec[MAX_DIMENSIONS];
+
+	if (!VectorObject_Check(v1) || !VectorObject_Check(v2)) {
+		PyErr_SetString(PyExc_AttributeError, "Vector addition: arguments not valid for this operation");
+		return NULL;
 	}
-	
-	PyErr_SetString(PyExc_AttributeError, "Vector addition: arguments not valid for this operation");
-	return NULL;
+	vec1 = (VectorObject*)v1;
+	vec2 = (VectorObject*)v2;
+
+	if(!BaseMath_ReadCallback(vec1) || !BaseMath_ReadCallback(vec2))
+		return NULL;
+
+	/*VECTOR + VECTOR*/
+	if(vec1->size != vec2->size) {
+		PyErr_SetString(PyExc_AttributeError, "Vector addition: vectors must have the same dimensions for this operation");
+		return NULL;
+	}
+
+	add_vn_vnvn(vec, vec1->vec, vec2->vec, vec1->size);
+
+	return newVectorObject(vec, vec1->size, Py_NEW, Py_TYPE(v1));
 }
 
 /*  ------------------------obj += obj------------------------------
   addition in place */
 static PyObject *Vector_iadd(PyObject * v1, PyObject * v2)
 {
-	int i;
 	VectorObject *vec1 = NULL, *vec2 = NULL;
 
 	if (!VectorObject_Check(v1) || !VectorObject_Check(v2)) {
@@ -933,12 +902,10 @@ static PyObject *Vector_iadd(PyObject * v1, PyObject * v2)
 	if(!BaseMath_ReadCallback(vec1) || !BaseMath_ReadCallback(vec2))
 		return NULL;
 
-	for(i = 0; i < vec1->size; i++) {
-		vec1->vec[i] = vec1->vec[i] + vec2->vec[i];
-	}
+	add_vn_vn(vec1->vec, vec2->vec, vec1->size);
 
 	(void)BaseMath_WriteCallback(vec1);
-	Py_INCREF( v1 );
+	Py_INCREF(v1);
 	return v1;
 }
 
@@ -946,9 +913,8 @@ static PyObject *Vector_iadd(PyObject * v1, PyObject * v2)
   subtraction*/
 static PyObject *Vector_sub(PyObject * v1, PyObject * v2)
 {
-	int i;
-	float vec[4];
 	VectorObject *vec1 = NULL, *vec2 = NULL;
+	float vec[MAX_DIMENSIONS];
 
 	if (!VectorObject_Check(v1) || !VectorObject_Check(v2)) {
 		PyErr_SetString(PyExc_AttributeError, "Vector subtraction: arguments not valid for this operation");
@@ -964,9 +930,8 @@ static PyObject *Vector_sub(PyObject * v1, PyObject * v2)
 		PyErr_SetString(PyExc_AttributeError, "Vector subtraction: vectors must have the same dimensions for this operation");
 		return NULL;
 	}
-	for(i = 0; i < vec1->size; i++) {
-		vec[i] = vec1->vec[i] -	vec2->vec[i];
-	}
+
+	sub_vn_vnvn(vec, vec1->vec, vec2->vec, vec1->size);
 
 	return newVectorObject(vec, vec1->size, Py_NEW, Py_TYPE(v1));
 }
@@ -975,8 +940,7 @@ static PyObject *Vector_sub(PyObject * v1, PyObject * v2)
   subtraction*/
 static PyObject *Vector_isub(PyObject * v1, PyObject * v2)
 {
-	int i;
-	VectorObject *vec1 = NULL, *vec2 = NULL;
+	VectorObject *vec1= NULL, *vec2= NULL;
 
 	if (!VectorObject_Check(v1) || !VectorObject_Check(v2)) {
 		PyErr_SetString(PyExc_AttributeError, "Vector subtraction: arguments not valid for this operation");
@@ -993,12 +957,10 @@ static PyObject *Vector_isub(PyObject * v1, PyObject * v2)
 	if(!BaseMath_ReadCallback(vec1) || !BaseMath_ReadCallback(vec2))
 		return NULL;
 
-	for(i = 0; i < vec1->size; i++) {
-		vec1->vec[i] = vec1->vec[i] -	vec2->vec[i];
-	}
+	sub_vn_vn(vec1->vec, vec2->vec, vec1->size);
 
 	(void)BaseMath_WriteCallback(vec1);
-	Py_INCREF( v1 );
+	Py_INCREF(v1);
 	return v1;
 }
 
@@ -1014,35 +976,42 @@ static PyObject *Vector_isub(PyObject * v1, PyObject * v2)
  * note: vector/matrix multiplication IS NOT COMMUTATIVE!!!!
  * note: assume read callbacks have been done first.
  */
-static int column_vector_multiplication(float *rvec, VectorObject* vec, MatrixObject * mat)
+static int column_vector_multiplication(float rvec[MAX_DIMENSIONS], VectorObject* vec, MatrixObject * mat)
 {
-	float vecCopy[4];
+	float vec_cpy[MAX_DIMENSIONS];
 	double dot = 0.0f;
 	int x, y, z = 0;
 	
 	if(mat->rowSize != vec->size){
-		if(mat->rowSize == 4 && vec->size != 3){
-			PyErr_SetString(PyExc_AttributeError, "matrix * vector: matrix row size and vector size must be the same");
+		if(mat->rowSize == 4 && vec->size == 3) {
+			vec_cpy[3] = 1.0f;
+		}
+		else {
+			PyErr_SetString(PyExc_AttributeError, "matrix * vector: matrix.row_size and len(vector) must be the same, except for 3D vector * 4x4 matrix.");
 			return -1;
-		}else{
-			vecCopy[3] = 1.0f;
 		}
 	}
 
-	for(x = 0; x < vec->size; x++){
-		vecCopy[x] = vec->vec[x];
-	}
+	memcpy(vec_cpy, vec->vec, vec->size * sizeof(float));
+
 	rvec[3] = 1.0f;
 
 	for(x = 0; x < mat->colSize; x++) {
 		for(y = 0; y < mat->rowSize; y++) {
-			dot += mat->matrix[y][x] * vecCopy[y];
+			dot += mat->matrix[y][x] * vec_cpy[y];
 		}
 		rvec[z++] = (float)dot;
 		dot = 0.0f;
 	}
 	
 	return 0;
+}
+
+static PyObject *vector_mul_float(VectorObject *vec, const float scalar)
+{
+	float tvec[MAX_DIMENSIONS];
+	mul_vn_vn_fl(tvec, vec->vec, vec->size, scalar);
+	return newVectorObject(tvec, vec->size, Py_NEW, Py_TYPE(vec));
 }
 
 static PyObject *Vector_mul(PyObject * v1, PyObject * v2)
@@ -1078,55 +1047,48 @@ static PyObject *Vector_mul(PyObject * v1, PyObject * v2)
 		}
 		return PyFloat_FromDouble(dot);
 	}
-	
-	/* swap so vec1 is always the vector */
-	/* note: it would seem from this code that the matrix multiplication below
-	 * is communicative. however the matrix class will always handle the
-	 * (matrix * vector) case so we can ignore it here.
-	 * This is NOT so for Quaternions: TODO, check if communicative (vec * quat) is correct */
-	if (vec2) {
-		vec1= vec2;
-		v2= v1;
+	else if (vec1) {
+		if (MatrixObject_Check(v2)) {
+			/* VEC * MATRIX */
+			float tvec[MAX_DIMENSIONS];
+			if(!BaseMath_ReadCallback((MatrixObject *)v2))
+				return NULL;
+			if(column_vector_multiplication(tvec, vec1, (MatrixObject*)v2) == -1) {
+				return NULL;
+			}
+
+			return newVectorObject(tvec, vec1->size, Py_NEW, Py_TYPE(vec1));
+		}
+		else if (QuaternionObject_Check(v2)) {
+			/* VEC * QUAT */
+			QuaternionObject *quat2 = (QuaternionObject*)v2;
+			float tvec[3];
+
+			if(vec1->size != 3) {
+				PyErr_SetString(PyExc_TypeError, "Vector multiplication: only 3D vector rotations (with quats) currently supported");
+				return NULL;
+			}
+			if(!BaseMath_ReadCallback(quat2)) {
+				return NULL;
+			}
+			copy_v3_v3(tvec, vec1->vec);
+			mul_qt_v3(quat2->quat, tvec);
+			return newVectorObject(tvec, 3, Py_NEW, Py_TYPE(vec1));
+		}
+		else if (((scalar= PyFloat_AsDouble(v2)) == -1.0 && PyErr_Occurred())==0) { /* VEC*FLOAT */
+			return vector_mul_float(vec1, scalar);
+		}
+	}
+	else if (vec2) {
+		if (((scalar= PyFloat_AsDouble(v1)) == -1.0 && PyErr_Occurred())==0) { /* VEC*FLOAT */
+			return vector_mul_float(vec2, scalar);
+		}
+	}
+	else {
+		BLI_assert(!"internal error");
 	}
 
-	if (MatrixObject_Check(v2)) {
-		/* VEC * MATRIX */
-		float tvec[MAX_DIMENSIONS];
-		if(!BaseMath_ReadCallback((MatrixObject *)v2))
-			return NULL;
-		if(column_vector_multiplication(tvec, vec1, (MatrixObject*)v2) == -1) {
-			return NULL;
-		}
-
-		return newVectorObject(tvec, vec1->size, Py_NEW, Py_TYPE(vec1));
-	} else if (QuaternionObject_Check(v2)) {
-		/* VEC * QUAT */
-		QuaternionObject *quat2 = (QuaternionObject*)v2;
-		float tvec[3];
-
-		if(vec1->size != 3) {
-			PyErr_SetString(PyExc_TypeError, "Vector multiplication: only 3D vector rotations (with quats) currently supported");
-			return NULL;
-		}
-		if(!BaseMath_ReadCallback(quat2)) {
-			return NULL;
-		}
-		copy_v3_v3(tvec, vec1->vec);
-		mul_qt_v3(quat2->quat, tvec);
-		return newVectorObject(tvec, 3, Py_NEW, Py_TYPE(vec1));
-	}
-	else if (((scalar= PyFloat_AsDouble(v2)) == -1.0 && PyErr_Occurred())==0) { /* VEC*FLOAT */
-		int i;
-		float vec[MAX_DIMENSIONS];
-		
-		for(i = 0; i < vec1->size; i++) {
-			vec[i] = vec1->vec[i] * scalar;
-		}
-		return newVectorObject(vec, vec1->size, Py_NEW, Py_TYPE(vec1));
-		
-	}
-	
-	PyErr_SetString(PyExc_TypeError, "Vector multiplication: arguments not acceptable for this operation");
+	PyErr_Format(PyExc_TypeError, "Vector multiplication: not supported between '%.200s' and '%.200s' types", Py_TYPE(v1)->tp_name, Py_TYPE(v2)->tp_name);
 	return NULL;
 }
 
@@ -1383,7 +1345,7 @@ static PyObject *Vector_subscript(VectorObject* self, PyObject* item)
 	} else if (PySlice_Check(item)) {
 		Py_ssize_t start, stop, step, slicelength;
 
-		if (PySlice_GetIndicesEx((PySliceObject*)item, self->size, &start, &stop, &step, &slicelength) < 0)
+		if (PySlice_GetIndicesEx((void *)item, self->size, &start, &stop, &step, &slicelength) < 0)
 			return NULL;
 
 		if (slicelength <= 0) {
@@ -1416,7 +1378,7 @@ static int Vector_ass_subscript(VectorObject* self, PyObject* item, PyObject* va
 	else if (PySlice_Check(item)) {
 		Py_ssize_t start, stop, step, slicelength;
 
-		if (PySlice_GetIndicesEx((PySliceObject*)item, self->size, &start, &stop, &step, &slicelength) < 0)
+		if (PySlice_GetIndicesEx((void *)item, self->size, &start, &stop, &step, &slicelength) < 0)
 			return -1;
 
 		if (step == 1)
@@ -1507,7 +1469,7 @@ static PyObject *Vector_getLength(VectorObject *self, void *UNUSED(closure))
 	return PyFloat_FromDouble(sqrt(dot));
 }
 
-static int Vector_setLength(VectorObject *self, PyObject * value )
+static int Vector_setLength(VectorObject *self, PyObject *value)
 {
 	double dot = 0.0f, param;
 	int i;
@@ -1525,9 +1487,7 @@ static int Vector_setLength(VectorObject *self, PyObject * value )
 		return -1;
 	}
 	if (param == 0.0f) {
-		for(i = 0; i < self->size; i++){
-			self->vec[i]= 0;
-		}
+		fill_vn(self->vec, self->size, 0.0f);
 		return 0;
 	}
 	
@@ -2066,7 +2026,7 @@ if len(unique) != len(items):
 //vector/matrix multiplication IS NOT COMMUTATIVE!!!!
 static int row_vector_multiplication(float rvec[4], VectorObject* vec, MatrixObject * mat)
 {
-	float vecCopy[4];
+	float vec_cpy[4];
 	double dot = 0.0f;
 	int x, y, z = 0, vec_size = vec->size;
 
@@ -2075,21 +2035,20 @@ static int row_vector_multiplication(float rvec[4], VectorObject* vec, MatrixObj
 			PyErr_SetString(PyExc_AttributeError, "vector * matrix: matrix column size and the vector size must be the same");
 			return -1;
 		}else{
-			vecCopy[3] = 1.0f;
+			vec_cpy[3] = 1.0f;
 		}
 	}
 	
 	if(!BaseMath_ReadCallback(vec) || !BaseMath_ReadCallback(mat))
 		return -1;
-	
-	for(x = 0; x < vec_size; x++){
-		vecCopy[x] = vec->vec[x];
-	}
+
+	memcpy(vec_cpy, vec->vec, vec_size * sizeof(float));
+
 	rvec[3] = 1.0f;
 	//muliplication
 	for(x = 0; x < mat->rowSize; x++) {
 		for(y = 0; y < mat->colSize; y++) {
-			dot += mat->matrix[x][y] * vecCopy[y];
+			dot += mat->matrix[x][y] * vec_cpy[y];
 		}
 		rvec[z++] = (float)dot;
 		dot = 0.0f;
@@ -2240,9 +2199,8 @@ PyTypeObject vector_Type = {
  (i.e. it was allocated elsewhere by MEM_mallocN())
   pass Py_NEW - if vector is not a WRAPPER and managed by PYTHON
  (i.e. it must be created here with PyMEM_malloc())*/
-PyObject *newVectorObject(float *vec, int size, int type, PyTypeObject *base_type)
+PyObject *newVectorObject(float *vec, const int size, const int type, PyTypeObject *base_type)
 {
-	int i;
 	VectorObject *self;
 
 	if(size > 4 || size < 2)
@@ -2261,16 +2219,14 @@ PyObject *newVectorObject(float *vec, int size, int type, PyTypeObject *base_typ
 		self->vec = vec;
 		self->wrapped = Py_WRAP;
 	} else if (type == Py_NEW) {
-		self->vec = PyMem_Malloc(size * sizeof(float));
-		if(!vec) { /*new empty*/
-			for(i = 0; i < size; i++){
-				self->vec[i] = 0.0f;
-			}
-			if(size == 4)  /* do the homogenous thing */
+		self->vec= PyMem_Malloc(size * sizeof(float));
+		if(vec) {
+			memcpy(self->vec, vec, size * sizeof(float));
+		}
+		else { /* new empty */
+			fill_vn(self->vec, size, 0.0f);
+			if(size == 4) { /* do the homogenous thing */
 				self->vec[3] = 1.0f;
-		}else{
-			for(i = 0; i < size; i++){
-				self->vec[i] = vec[i];
 			}
 		}
 		self->wrapped = Py_NEW;

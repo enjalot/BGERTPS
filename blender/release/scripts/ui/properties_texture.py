@@ -103,7 +103,7 @@ class TEXTURE_PT_context_texture(TextureButtonsPanel, bpy.types.Panel):
 
         if tex_collection:
             row = layout.row()
-            
+
             row.template_list(idblock, "texture_slots", idblock, "active_texture_index", rows=2)
 
             col = row.column(align=True)
@@ -141,7 +141,6 @@ class TEXTURE_PT_context_texture(TextureButtonsPanel, bpy.types.Panel):
             else:
                 split.label(text="Type:")
                 split.prop(tex, "type", text="")
-
 
 
 class TEXTURE_PT_preview(TextureButtonsPanel, bpy.types.Panel):
@@ -395,8 +394,9 @@ class TEXTURE_PT_image_sampling(TextureTypePanel, bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
 
+        idblock = context_tex_datablock(context)
         tex = context.texture
-        # slot = context.texture_slot
+        slot = context.texture_slot
 
         split = layout.split()
 
@@ -410,10 +410,12 @@ class TEXTURE_PT_image_sampling(TextureTypePanel, bpy.types.Panel):
 
         col = split.column()
 
-        col.prop(tex, "use_normal_map")
-        row = col.row()
-        row.active = tex.use_normal_map
-        row.prop(tex, "normal_space", text="")
+        #Only for Material based textures, not for Lamp/World...
+        if isinstance(idblock, bpy.types.Material):
+            col.prop(tex, "use_normal_map")
+            row = col.row()
+            row.active = tex.use_normal_map
+            row.prop(slot, "normal_map_space", text="")
 
         col.prop(tex, "use_mipmap")
         row = col.row()
@@ -447,8 +449,12 @@ class TEXTURE_PT_image_mapping(TextureTypePanel, bpy.types.Panel):
 
             col = split.column(align=True)
             col.label(text="Mirror:")
-            col.prop(tex, "use_mirror_x", text="X")
-            col.prop(tex, "use_mirror_y", text="Y")
+            row = col.row()
+            row.prop(tex, "use_mirror_x", text="X")
+            row.active = (tex.repeat_x > 1)
+            row = col.row()
+            row.prop(tex, "use_mirror_y", text="Y")
+            row.active = (tex.repeat_y > 1)
             layout.separator()
 
         elif tex.extension == 'CHECKER':
@@ -893,7 +899,7 @@ class TEXTURE_PT_influence(TextureSlotPanel, bpy.types.Panel):
             sub = row.row()
             sub.active = getattr(tex, toggle)
             sub.prop(tex, factor, text=name, slider=True)
-            return sub # XXX, temp. use_map_normal needs to override.
+            return sub  # XXX, temp. use_map_normal needs to override.
 
         if isinstance(idblock, bpy.types.Material):
             if idblock.type in ('SURFACE', 'WIRE'):
@@ -932,13 +938,13 @@ class TEXTURE_PT_influence(TextureSlotPanel, bpy.types.Panel):
                 #sub.prop(tex, "default_value", text="Amount", slider=True)
             elif idblock.type == 'HALO':
                 layout.label(text="Halo:")
-                
+
                 split = layout.split()
-                
+
                 col = split.column()
                 factor_but(col, "use_map_color_diffuse", "diffuse_color_factor", "Color")
                 factor_but(col, "use_map_alpha", "alpha_factor", "Alpha")
-                
+
                 col = split.column()
                 factor_but(col, "use_map_raymir", "raymir_factor", "Size")
                 factor_but(col, "use_map_hardness", "hardness_factor", "Hardness")
@@ -989,8 +995,9 @@ class TEXTURE_PT_influence(TextureSlotPanel, bpy.types.Panel):
         col.prop(tex, "color", text="")
 
         if isinstance(idblock, bpy.types.Material):
-            # XXX, dont remove since old files have this users need to be able to disable!
-            col.prop(tex, "use_old_bump", text="Old Bump Mapping")
+            sub = layout.row()
+            sub.prop(tex, "bump_method", text="Bump Method")
+            sub.active = tex.use_map_normal
 
         col = split.column()
         col.prop(tex, "invert", text="Negative")
@@ -1003,6 +1010,7 @@ class TEXTURE_PT_influence(TextureSlotPanel, bpy.types.Panel):
 class TEXTURE_PT_custom_props(TextureButtonsPanel, PropertyPanel, bpy.types.Panel):
     COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_GAME'}
     _context_path = "texture"
+    _property_type = bpy.types.Texture
 
 
 def register():

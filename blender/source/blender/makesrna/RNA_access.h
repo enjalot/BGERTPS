@@ -22,8 +22,8 @@
  * ***** END GPL LICENSE BLOCK *****
  */
 
-#ifndef RNA_ACCESS
-#define RNA_ACCESS
+#ifndef RNA_ACCESS_H
+#define RNA_ACCESS_H
 
 #include <stdarg.h>
 
@@ -618,10 +618,13 @@ int RNA_struct_idprops_register_check(StructRNA *type);
 
 
 PropertyRNA *RNA_struct_find_property(PointerRNA *ptr, const char *identifier);
-const struct ListBase *RNA_struct_defined_properties(StructRNA *srna);
+
+/* lower level functions for access to type properties */
+const struct ListBase *RNA_struct_type_properties(StructRNA *srna);
+PropertyRNA *RNA_struct_type_find_property(StructRNA *srna, const char *identifier);
 
 FunctionRNA *RNA_struct_find_function(PointerRNA *ptr, const char *identifier);
-const struct ListBase *RNA_struct_defined_functions(StructRNA *srna);
+const struct ListBase *RNA_struct_type_functions(StructRNA *srna);
 
 char *RNA_struct_name_get_alloc(PointerRNA *ptr, char *fixedbuf, int fixedlen);
 
@@ -735,7 +738,7 @@ int RNA_property_enum_get_default(PointerRNA *ptr, PropertyRNA *prop);
 
 PointerRNA RNA_property_pointer_get(PointerRNA *ptr, PropertyRNA *prop);
 void RNA_property_pointer_set(PointerRNA *ptr, PropertyRNA *prop, PointerRNA ptr_value);
-// TODO: get default pointers...
+PointerRNA RNA_property_pointer_get_default(PointerRNA *ptr, PropertyRNA *prop);
 
 void RNA_property_collection_begin(PointerRNA *ptr, PropertyRNA *prop, CollectionPropertyIterator *iter);
 void RNA_property_collection_next(CollectionPropertyIterator *iter);
@@ -920,8 +923,8 @@ void RNA_parameter_list_end(ParameterIterator *iter);
 
 void RNA_parameter_get(ParameterList *parms, PropertyRNA *parm, void **value);
 void RNA_parameter_get_lookup(ParameterList *parms, const char *identifier, void **value);
-void RNA_parameter_set(ParameterList *parms, PropertyRNA *parm, void *value);
-void RNA_parameter_set_lookup(ParameterList *parms, const char *identifier, void *value);
+void RNA_parameter_set(ParameterList *parms, PropertyRNA *parm, const void *value);
+void RNA_parameter_set_lookup(ParameterList *parms, const char *identifier, const void *value);
 int RNA_parameter_length_get(ParameterList *parms, PropertyRNA *parm);
 int RNA_parameter_length_get_data(ParameterList *parms, PropertyRNA *parm, void *data);
 void RNA_parameter_length_set(ParameterList *parms, PropertyRNA *parm, int length);
@@ -952,5 +955,4 @@ StructRNA *ID_code_to_RNA_type(short idcode);
 }
 #endif
 
-#endif /* RNA_ACCESS */
-
+#endif /* RNA_ACCESS_H */

@@ -89,11 +89,13 @@ typedef struct RegionView3D {
 
 	/* transform widget matrix */
 	float twmat[4][4];
-	
-	float viewquat[4], dist, zfac;	/* zfac is initgrabz() result */
-	float camdx, camdy;				/* camera view offsets, 1.0 = viewplane moves entire width/height */
-	float pixsize;
-	float ofs[3];
+
+	float viewquat[4];			/* view rotation, must be kept normalized */
+	float dist;					/* distance from 'ofs' along -viewinv[2] vector, where result is negative as is 'ofs' */
+	float zfac;					/* initgrabz() result */
+	float camdx, camdy;			/* camera view offsets, 1.0 = viewplane moves entire width/height */
+	float pixsize;				/* runtime only */
+	float ofs[3];				/* view center & orbit pivot, negative of worldspace location */
 	short camzoom;
 	short twdrawflag;
 	int pad;
@@ -168,7 +170,7 @@ typedef struct View3D {
 	
 	float lens, grid;
 	float gridview; /* XXX deprecated, now in RegionView3D */
-	float padf, near, far;
+	float near, far;
 	float ofs[3];			/* XXX deprecated */
 	float cursor[3];
 
@@ -181,9 +183,6 @@ typedef struct View3D {
 	/* transform widget info */
 	short twtype, twmode, twflag;
 	short twdrawflag; /* XXX deprecated */
-	
-	/* customdata flags from modes */
-	unsigned int customdata_mask;
 	
 	/* afterdraw, for xray & transparent */
 	struct ListBase afterdraw_transp;
@@ -205,20 +204,11 @@ typedef struct View3D {
 
 
 /* View3D->flag (short) */
-#define V3D_DISPIMAGE		1
+/*#define V3D_DISPIMAGE		1*/ /*UNUSED*/
 #define V3D_DISPBGPICS		2
 #define V3D_HIDE_HELPLINES	4
 #define V3D_INVALID_BACKBUF	8
-/* deprecated */
-/*
-#define V3D_MODE			(16+32+64+128+256+512)
-#define V3D_EDITMODE		16
-#define V3D_VERTEXPAINT		32
-#define V3D_FACESELECT		64
-#define V3D_POSEMODE		128
-#define V3D_TEXTUREPAINT	256
-#define V3D_WEIGHTPAINT		512
-*/
+
 #define V3D_ALIGN			1024
 #define V3D_SELECT_OUTLINE	2048
 #define V3D_ZBUF_SELECT		4096
@@ -295,7 +285,7 @@ typedef struct View3D {
    /* USE = user setting, DRAW = based on selection */
 #define V3D_USE_MANIPULATOR		1
 #define V3D_DRAW_MANIPULATOR	2
-#define V3D_CALC_MANIPULATOR	4
+/* #define V3D_CALC_MANIPULATOR	4 */ /*UNUSED*/
 
 /* BGPic->flag */
 /* may want to use 1 for select ?*/

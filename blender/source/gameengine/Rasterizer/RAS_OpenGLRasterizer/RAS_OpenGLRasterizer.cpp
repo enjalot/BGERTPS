@@ -731,6 +731,7 @@ static RAS_MeshSlot *current_ms;
 static RAS_MeshObject *current_mesh;
 static int current_blmat_nr;
 static GPUVertexAttribs current_gpu_attribs;
+static Image *current_image;
 static int CheckMaterialDM(int matnr, void *attribs)
 {
 	// only draw the current material
@@ -769,6 +770,33 @@ static int CheckTexfaceDM(void *mcol, int index)
 	return 0;
 }
 
+static int CheckTexDM(MTFace *tface, MCol *mcol, int matnr)
+{
+
+	// index is the original face index, retrieve the polygon
+	if (matnr == current_blmat_nr &&
+		(tface == NULL || tface->tpage == current_image)) {
+		// must handle color.
+		if (current_wireframe)
+			return 2;
+		if (current_ms->m_bObjectColor) {
+			MT_Vector4& rgba = current_ms->m_RGBAcolor;
+			glColor4d(rgba[0], rgba[1], rgba[2], rgba[3]);
+			// don't use mcol
+			return 2;
+		}
+		if (!mcol) {
+			// we have to set the color from the material
+			unsigned char rgba[4];
+			current_polymat->GetMaterialRGBAColor(rgba);
+			glColor4ubv((const GLubyte *)rgba);
+			return 2;
+		}
+		return 1;
+	}
+	return 0;
+}
+
 void RAS_OpenGLRasterizer::IndexPrimitivesInternal(RAS_MeshSlot& ms, bool multi)
 { 
 	bool obcolor = ms.m_bObjectColor;
@@ -784,6 +812,13 @@ void RAS_OpenGLRasterizer::IndexPrimitivesInternal(RAS_MeshSlot& ms, bool multi)
 		current_mesh = ms.m_mesh;
 		current_wireframe = wireframe;
 		MCol *mcol = (MCol*)ms.m_pDerivedMesh->getFaceDataArray(ms.m_pDerivedMesh, CD_MCOL);
+
+		// handle two-side
+		if (current_polymat->GetDrawingMode() & RAS_IRasterizer::KX_TWOSIDE)
+			this->SetCullFace(false);
+		else
+			this->SetCullFace(true);
+
 		if (current_polymat->GetFlag() & RAS_BLENDERGLSL) {
 			// GetMaterialIndex return the original mface material index, 
 			// increment by 1 to match what derived mesh is doing
@@ -800,7 +835,10 @@ void RAS_OpenGLRasterizer::IndexPrimitivesInternal(RAS_MeshSlot& ms, bool multi)
 			ms.m_pDerivedMesh->drawFacesGLSL(ms.m_pDerivedMesh, CheckMaterialDM);
 			GPU_set_material_blend_mode(current_blend_mode);
 		} else {
-			ms.m_pDerivedMesh->drawMappedFacesTex(ms.m_pDerivedMesh, CheckTexfaceDM, mcol);
+			//ms.m_pDerivedMesh->drawMappedFacesTex(ms.m_pDerivedMesh, CheckTexfaceDM, mcol);
+			current_blmat_nr = current_polymat->GetMaterialIndex();
+			current_image = current_polymat->GetBlenderImage();
+			ms.m_pDerivedMesh->drawFacesTex(ms.m_pDerivedMesh, CheckTexDM);
 		}
 		return;
 	}

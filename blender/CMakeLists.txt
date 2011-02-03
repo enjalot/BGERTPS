@@ -1,3 +1,4 @@
+# -*- mode: cmake; indent-tabs-mode: t; -*-
 # $Id$
 # ***** BEGIN GPL LICENSE BLOCK *****
 #
@@ -48,6 +49,8 @@ cmake_minimum_required(VERSION 2.6)
 # set_property(GLOBAL PROPERTY RULE_MESSAGES OFF)
 
 project(Blender)
+
+enable_testing()
 
 #-----------------------------------------------------------------------------
 # Redirect output files
@@ -128,7 +131,7 @@ option(WITH_PYTHON_INSTALL       "Copy system python into the blender install fo
 option(WITH_CXX_GUARDEDALLOC "Enable GuardedAlloc for C++ memory allocation tracking" OFF)
 mark_as_advanced(WITH_CXX_GUARDEDALLOC)
 
-option(WITH_ASSERT_ABORT "Call abort() when raising an assertion through BKE_assert()" OFF)
+option(WITH_ASSERT_ABORT "Call abort() when raising an assertion through BLI_assert()" OFF)
 mark_as_advanced(WITH_ASSERT_ABORT)
 
 if(APPLE)
@@ -225,9 +228,9 @@ ENDIF(WITH_OPENCL)
 
 # For alternate Python locations the commandline can be used to override detected/default cache settings, e.g:
 # On Unix: 
-#   cmake -D PYTHON_LIB=/usr/local/lib/python3.1/config/libpython3.1.so -D PYTHON_INC=/usr/local/include/python3.1 -G "Unix Makefiles" ../blender
+#   cmake -D PYTHON_LIBRARY=/usr/local/lib/python3.1/config/libpython3.1.so -D PYTHON_INCLUDE_DIRS=/usr/local/include/python3.1 -G "Unix Makefiles" ../blender
 # On Macs: 
-#   cmake -D PYTHON_INC=/System/Library/Frameworks/Python.framework/Versions/3.1/include/python3.1 -D PYTHON_LIBPATH=/System/Library/Frameworks/Python.framework/Versions/3.1/lib/python3.1/config -G Xcode ../blender
+#   cmake -D PYTHON_INCLUDE_DIRS=/System/Library/Frameworks/Python.framework/Versions/3.1/include/python3.1 -D PYTHON_LIBPATH=/System/Library/Frameworks/Python.framework/Versions/3.1/lib/python3.1/config -G Xcode ../blender
 #
 # When changing any of this remember to update the notes in doc/build_systems/cmake.txt
 
@@ -286,11 +289,11 @@ if(UNIX AND NOT APPLE)
 		# find_package(PythonLibs)
 		set(PYTHON /usr)
 		set(PYTHON_VERSION 3.1)
-		set(PYTHON_INC "${PYTHON}/include/python${PYTHON_VERSION}" CACHE STRING "")
-		mark_as_advanced(PYTHON_INC)
+		set(PYTHON_INCLUDE_DIRS "${PYTHON}/include/python${PYTHON_VERSION}" CACHE STRING "")
+		mark_as_advanced(PYTHON_INCLUDE_DIRS)
 		# set(PYTHON_BINARY python) # not used yet
-		set(PYTHON_LIB python${PYTHON_VERSION} CACHE STRING "")
-		mark_as_advanced(PYTHON_LIB)
+		set(PYTHON_LIBRARY python${PYTHON_VERSION} CACHE STRING "")
+		mark_as_advanced(PYTHON_LIBRARY)
 		set(PYTHON_LIBPATH ${PYTHON}/lib CACHE STRING "")
 		mark_as_advanced(PYTHON_LIBPATH)
 		# find_package(PythonInterp) # not used yet
@@ -305,6 +308,7 @@ if(UNIX AND NOT APPLE)
 		mark_as_advanced(SDLMAIN_LIBRARY)
 		mark_as_advanced(SDL_INCLUDE_DIR)
 		mark_as_advanced(SDL_LIBRARY)
+		mark_as_advanced(SDL_LIBRARY_TEMP)
 		# unset(SDLMAIN_LIBRARY CACHE)
 		if(NOT SDL_FOUND)
 			set(WITH_SDL OFF)
@@ -417,12 +421,6 @@ if(UNIX AND NOT APPLE)
 	# GNU Compiler
 	if(CMAKE_COMPILER_IS_GNUCC)
 		set(PLATFORM_CFLAGS "-pipe -fPIC -funsigned-char -fno-strict-aliasing")
-	
-		# Better warnings
-		# note: -Wunused-parameter is added below for all GCC compilers
-		set(C_WARNINGS "-Wall -Wno-char-subscripts -Wpointer-arith -Wcast-align -Wdeclaration-after-statement -Wno-unknown-pragmas")
-		set(CXX_WARNINGS "-Wall -Wno-invalid-offsetof -Wno-sign-compare")
-
 	# Intel C++ Compiler
 	elseif(CMAKE_C_COMPILER_ID MATCHES "Intel")
 		# think these next two are broken
@@ -441,13 +439,8 @@ if(UNIX AND NOT APPLE)
 		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fp-model precise -prec_div -parallel")
 		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fp-model precise -prec_div -parallel")
 
-		set(PLATFORM_CFLAGS "-pipe -fPIC -funsigned-char -fno-strict-aliasing")
-
 		# set(PLATFORM_CFLAGS "${PLATFORM_CFLAGS} -diag-enable sc3")
-
-		set(C_WARNINGS "-Wall -Wpointer-arith -Wno-unknown-pragmas")
-		set(CXX_WARNINGS "-Wall -Wno-invalid-offsetof -Wno-sign-compare")
-
+		set(PLATFORM_CFLAGS "-pipe -fPIC -funsigned-char -fno-strict-aliasing")
 		set(PLATFORM_LINKFLAGS "${PLATFORM_LINKFLAGS} -static-intel")
 	endif()
 
@@ -481,12 +474,12 @@ elseif(WIN32)
 	endif()
 
 	set(PNG "${LIBDIR}/png")
-	set(PNG_INC "${PNG}/include")
-	set(PNG_LIBPATH ${PNG}/lib)
+	set(PNG_INCLUDE_DIR "${PNG}/include")
+	set(PNG_LIBPATH ${PNG}/lib) # not cmake defined
 
 	set(JPEG "${LIBDIR}/jpeg")
-	set(JPEG_INC "${JPEG}/include")
-	set(JPEG_LIBPATH ${JPEG}/lib)
+	set(JPEG_INCLUDE_DIR "${JPEG}/include")
+	set(JPEG_LIBPATH ${JPEG}/lib) # not cmake defined
 
 	set(WINTAB_INC ${LIBDIR}/wintab/include) 
 
@@ -565,10 +558,10 @@ elseif(WIN32)
 		else()
 			set(PNG_LIBRARIES libpng_st)
 		endif()
-		set(JPEG_LIBRARY libjpeg)
+		set(JPEG_LIBRARIES libjpeg)
 
 		set(ZLIB ${LIBDIR}/zlib)
-		set(ZLIB_INC ${ZLIB}/include)
+		set(ZLIB_INCLUDE_DIRS ${ZLIB}/include)
 		set(ZLIB_LIBPATH ${ZLIB}/lib)
 		if(CMAKE_CL_64)
 			set(ZLIB_LIBRARIES libz)
@@ -646,9 +639,9 @@ elseif(WIN32)
 		if(WITH_PYTHON)
 			set(PYTHON ${LIBDIR}/python)
 			set(PYTHON_VERSION 3.1)
-			set(PYTHON_INC "${PYTHON}/include/python${PYTHON_VERSION}")
+			set(PYTHON_INCLUDE_DIRS "${PYTHON}/include/python${PYTHON_VERSION}")
 			# set(PYTHON_BINARY python) # not used yet
-			set(PYTHON_LIB python31)
+			set(PYTHON_LIBRARY python31)
 			set(PYTHON_LIBPATH ${PYTHON}/lib)
 		endif()
 
@@ -667,10 +660,6 @@ elseif(WIN32)
 			set(LLIBS "-lshell32 -lshfolder -lgdi32 -lmsvcrt -lwinmm -lmingw32 -lm -lws2_32 -lz -lstdc++ -lole32 -luuid")
 			set(PLATFORM_CFLAGS "-pipe -funsigned-char -fno-strict-aliasing")
 
-			# Better warnings
-			set(C_WARNINGS "-Wall -Wno-char-subscripts -Wpointer-arith -Wcast-align -Wdeclaration-after-statement -Wno-unknown-pragmas")
-			set(CXX_WARNINGS "-Wall -Wno-invalid-offsetof -Wno-sign-compare")
-
 			set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE")
 			set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE")
 		endif()
@@ -687,11 +676,11 @@ elseif(WIN32)
 			set(GETTEXT_LIB intl)
 		endif()
 
-		set(JPEG_LIBRARY libjpeg)
+		set(JPEG_LIBRARIES libjpeg)
 		set(PNG_LIBRARIES png)
 
 		set(ZLIB ${LIBDIR}/zlib)
-		set(ZLIB_INC ${ZLIB}/include)
+		set(ZLIB_INCLUDE_DIRS ${ZLIB}/include)
 		set(ZLIB_LIBPATH ${ZLIB}/lib)
 		set(ZLIB_LIBRARIES z)
 
@@ -757,16 +746,16 @@ elseif(WIN32)
 		if(WITH_PYTHON)
 			set(PYTHON ${LIBDIR}/python)
 			set(PYTHON_VERSION 3.1)
-			set(PYTHON_INC "${PYTHON}/include/python${PYTHON_VERSION}")
+			set(PYTHON_INCLUDE_DIRS "${PYTHON}/include/python${PYTHON_VERSION}")
 			# set(PYTHON_BINARY python) # not used yet
-			set(PYTHON_LIB python31mw)
+			set(PYTHON_LIBRARY python31mw)
 			set(PYTHON_LIBPATH ${PYTHON}/lib)
 		endif()
 
 	endif()
 
 	# used in many places so include globally, like OpenGL
-	include_directories(${PTHREADS_INC})
+	blender_include_dirs("${PTHREADS_INC}")
 
 elseif(APPLE)
 
@@ -811,9 +800,9 @@ elseif(APPLE)
 		# we use precompiled libraries for py 3.1 and up by default
 
 		set(PYTHON ${LIBDIR}/python)
-		set(PYTHON_INC "${PYTHON}/include/python${PYTHON_VERSION}")
+		set(PYTHON_INCLUDE_DIRS "${PYTHON}/include/python${PYTHON_VERSION}")
 		# set(PYTHON_BINARY "${PYTHON}/bin/python${PYTHON_VERSION}") # not used yet
-		set(PYTHON_LIB python${PYTHON_VERSION})
+		set(PYTHON_LIBRARY python${PYTHON_VERSION})
 		set(PYTHON_LIBPATH "${PYTHON}/lib/python${PYTHON_VERSION}")
 		# set(PYTHON_LINKFLAGS "-u _PyMac_Error")  # won't  build with this enabled
 	else()
@@ -821,9 +810,9 @@ elseif(APPLE)
 
 		set(PYTHON /System/Library/Frameworks/Python.framework/Versions/)
 		set(PYTHON_VERSION 3.1)
-		set(PYTHON_INC "${PYTHON}${PYTHON_VERSION}/include/python${PYTHON_VERSION}")
+		set(PYTHON_INCLUDE_DIRS "${PYTHON}${PYTHON_VERSION}/include/python${PYTHON_VERSION}")
 		# set(PYTHON_BINARY ${PYTHON}${PYTHON_VERSION}/bin/python${PYTHON_VERSION}) # not used yet
-		set(PYTHON_LIB "")
+		set(PYTHON_LIBRARY "")
 		set(PYTHON_LIBPATH ${PYTHON}${PYTHON_VERSION}/lib/python${PYTHON_VERSION}/config)
 		set(PYTHON_LINKFLAGS "-u _PyMac_Error -framework System -framework Python")
 	endif()
@@ -843,10 +832,10 @@ elseif(APPLE)
 	endif()
 
 	set(PNG_LIBRARIES png)
-	set(JPEG_LIBRARY jpeg)
+	set(JPEG_LIBRARIES jpeg)
 
 	set(ZLIB /usr)
-	set(ZLIB_INC "${ZLIB}/include")
+	set(ZLIB_INCLUDE_DIRS "${ZLIB}/include")
 	set(ZLIB_LIBRARIES z bz2)
 
 	set(FREETYPE ${LIBDIR}/freetype)
@@ -926,11 +915,11 @@ elseif(APPLE)
 	endif()
 
 	set(PNG "${LIBDIR}/png")
-	set(PNG_INC "${PNG}/include")
+	set(PNG_INCLUDE_DIR "${PNG}/include")
 	set(PNG_LIBPATH ${PNG}/lib)
 
 	set(JPEG "${LIBDIR}/jpeg")
-	set(JPEG_INC "${JPEG}/include")
+	set(JPEG_INCLUDE_DIR "${JPEG}/include")
 	set(JPEG_LIBPATH ${JPEG}/lib)
 
 	if(WITH_IMAGE_TIFF)
@@ -954,11 +943,6 @@ elseif(APPLE)
 		set(CMAKE_C_FLAGS_RELEASE "-mdynamic-no-pic -fno-strict-aliasing")
 		set(CMAKE_CXX_FLAGS_RELEASE "-mdynamic-no-pic -fno-strict-aliasing")
 	endif()
-
-	# Better warnings
-	set(C_WARNINGS "-Wall -Wno-char-subscripts -Wpointer-arith -Wcast-align -Wdeclaration-after-statement -Wno-unknown-pragmas")
-	set(CXX_WARNINGS "-Wall -Wno-invalid-offsetof -Wno-sign-compare")
-
 endif()
 
 
@@ -966,18 +950,18 @@ endif()
 if(WITH_BUILDINFO)
 	# BUILD_PLATFORM and BUILD_PLATFORM are taken from CMake
 	if(UNIX)
-		EXEC_PROGRAM("date \"+%Y-%m-%d\"" OUTPUT_VARIABLE BUILD_DATE)
-		EXEC_PROGRAM("date \"+%H:%M:%S\"" OUTPUT_VARIABLE BUILD_TIME)  
-		EXEC_PROGRAM("svnversion ${CMAKE_SOURCE_DIR}" OUTPUT_VARIABLE BUILD_REV RETURN_VALUE BUILD_REV_RETURN)
+		execute_process(COMMAND date "+%Y-%m-%d" OUTPUT_VARIABLE BUILD_DATE OUTPUT_STRIP_TRAILING_WHITESPACE)
+		execute_process(COMMAND date "+%H:%M:%S" OUTPUT_VARIABLE BUILD_TIME OUTPUT_STRIP_TRAILING_WHITESPACE)  
+		execute_process(COMMAND svnversion ${CMAKE_SOURCE_DIR} OUTPUT_VARIABLE BUILD_REV RESULT_VARIABLE BUILD_REV_RETURN OUTPUT_STRIP_TRAILING_WHITESPACE)
 		if(BUILD_REV_RETURN)
 			set(BUILD_REV "unknown")
 		endif()
 	endif()
 	
 	if(WIN32)
-		EXEC_PROGRAM("cmd /c date /t" OUTPUT_VARIABLE BUILD_DATE)
-		EXEC_PROGRAM("cmd /c time /t" OUTPUT_VARIABLE BUILD_TIME)  
-		EXEC_PROGRAM("svnversion ${CMAKE_SOURCE_DIR}" OUTPUT_VARIABLE BUILD_REV RETURN_VALUE BUILD_REV_RETURN)
+		execute_process(COMMAND cmd /c date /t OUTPUT_VARIABLE BUILD_DATE OUTPUT_STRIP_TRAILING_WHITESPACE)
+		execute_process(COMMAND cmd /c time /t OUTPUT_VARIABLE BUILD_TIME OUTPUT_STRIP_TRAILING_WHITESPACE)  
+		execute_process(COMMAND svnversion ${CMAKE_SOURCE_DIR} OUTPUT_VARIABLE BUILD_REV RESULT_VARIABLE BUILD_REV_RETURN OUTPUT_STRIP_TRAILING_WHITESPACE)
 		if(BUILD_REV_RETURN)
 			set(BUILD_REV "unknown")
 		endif()
@@ -1026,7 +1010,7 @@ endif()
 #-----------------------------------------------------------------------------
 # Configure OpenGL.
 find_package(OpenGL)
-include_directories(${OPENGL_INCLUDE_DIR})
+blender_include_dirs("${OPENGL_INCLUDE_DIR}")
 # unset(OPENGL_LIBRARIES CACHE) # not compat with older cmake 
 # unset(OPENGL_xmesa_INCLUDE_DIR CACHE) # not compat with older cmake 
 
@@ -1044,6 +1028,9 @@ if(WITH_OPENMP)
 	else()
 		set(WITH_OPENMP OFF)
 	endif()
+
+	mark_as_advanced(OpenMP_C_FLAGS)
+	mark_as_advanced(OpenMP_CXX_FLAGS)
 endif() 
 
 #-----------------------------------------------------------------------------
@@ -1065,8 +1052,35 @@ if((NOT WIN32) AND (NOT MSVC))
 endif()
 
 if(CMAKE_COMPILER_IS_GNUCC)
-	set(C_WARNINGS "${C_WARNINGS} -Wunused-parameter -Wwrite-strings -Werror=strict-prototypes -Werror=declaration-after-statement -Werror=implicit-function-declaration -Werror=return-type")
+
+	ADD_CHECK_C_COMPILER_FLAG(C_WARNINGS C_WARN_ALL -Wall)
+	ADD_CHECK_C_COMPILER_FLAG(C_WARNINGS C_WARN_CAST_ALIGN -Wcast-align)
+	ADD_CHECK_C_COMPILER_FLAG(C_WARNINGS C_WARN_ERROR_DECLARATION_AFTER_STATEMENT -Werror=declaration-after-statement)
+	ADD_CHECK_C_COMPILER_FLAG(C_WARNINGS C_WARN_ERROR_IMPLICIT_FUNCTION_DECLARATION -Werror=implicit-function-declaration)
+	ADD_CHECK_C_COMPILER_FLAG(C_WARNINGS C_WARN_ERROR_RETURN_TYPE -Werror=return-type)
+	ADD_CHECK_C_COMPILER_FLAG(C_WARNINGS C_WARN_ERROR_STRICT_PROTOTYPES -Werror=strict-prototypes)
+	ADD_CHECK_C_COMPILER_FLAG(C_WARNINGS C_WARN_NO_CHAR_SUBSCRIPTS -Wno-char-subscripts)
+	ADD_CHECK_C_COMPILER_FLAG(C_WARNINGS C_WARN_NO_UNKNOWN_PRAGMAS -Wno-unknown-pragmas)
+	ADD_CHECK_C_COMPILER_FLAG(C_WARNINGS C_WARN_POINTER_ARITH -Wpointer-arith)
+	ADD_CHECK_C_COMPILER_FLAG(C_WARNINGS C_WARN_UNUSED_PARAMETER -Wunused-parameter)
+	ADD_CHECK_C_COMPILER_FLAG(C_WARNINGS C_WARN_WRITE_STRINGS -Wwrite-strings)
+
+	ADD_CHECK_CXX_COMPILER_FLAG(CXX_WARNINGS CXX_WARN_ALL -Wall)
+	ADD_CHECK_CXX_COMPILER_FLAG(CXX_WARNINGS CXX_WARN_NO_INVALID_OFFSETOF -Wno-invalid-offsetof)
+	ADD_CHECK_CXX_COMPILER_FLAG(CXX_WARNINGS CXX_WARN_NO_SIGN_COMPARE -Wno-sign-compare)
+
+elseif(CMAKE_C_COMPILER_ID MATCHES "Intel")
+
+	ADD_CHECK_C_COMPILER_FLAG(C_WARNINGS C_WARN_ALL -Wall)
+	ADD_CHECK_C_COMPILER_FLAG(C_WARNINGS C_WARN_POINTER_ARITH -Wpointer-arith)
+	ADD_CHECK_C_COMPILER_FLAG(C_WARNINGS C_WARN_NO_UNKNOWN_PRAGMAS -Wno-unknown-pragmas)
+
+	ADD_CHECK_CXX_COMPILER_FLAG(CXX_WARNINGS CXX_WARN_ALL -Wall)
+	ADD_CHECK_CXX_COMPILER_FLAG(CXX_WARNINGS CXX_WARN_NO_INVALID_OFFSETOF -Wno-invalid-offsetof)
+	ADD_CHECK_CXX_COMPILER_FLAG(CXX_WARNINGS CXX_WARN_NO_SIGN_COMPARE -Wno-sign-compare)
+
 endif()
+
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${PLATFORM_CFLAGS} ${C_WARNINGS}")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${PLATFORM_CFLAGS} ${CXX_WARNINGS}")
@@ -1079,6 +1093,9 @@ endif()
 if(WITH_ASSERT_ABORT)
 	add_definitions(-DWITH_ASSERT_ABORT)
 endif()
+
+# message(STATUS "Using CFLAGS: ${CMAKE_C_FLAGS}")
+# message(STATUS "Using CXXFLAGS: ${CMAKE_CXX_FLAGS}")
 
 #-----------------------------------------------------------------------------
 # Libraries

@@ -44,7 +44,7 @@ set(INC
 	../../../../source/blender/makesdna
 	../../../../source/blender/blenlib
 	../../../../source/blender/blenkernel
-	${PYTHON_INC}
+	${PYTHON_INCLUDE_DIRS}
 )
 
 set(SRC
@@ -66,5 +66,4 @@ IF(WITH_OPENCL)
 	LIST(APPEND INC ${RTPS_INCLUDE_DIR})  
 ENDIF(WITH_OPENCL)
 
-#BLENDERLIB(bf_bullet "${SRC}" "${INC}")
-blenderlib(ge_phys_bullet "${SRC}" "${INC}")
+blender_add_lib(ge_phys_bullet "${SRC}" "${INC}")
