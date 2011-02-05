@@ -20,6 +20,10 @@ you need to set an environment variable like:
 an example is given in environment/setupenv_linux_enj.sh
 
 Build Blender:
+You want to follow the CMake instructions for building blender on your platform:
+http://wiki.blender.org/index.php/Dev:2.5/Doc/Building_Blender
+
+
     cd ..
     mkdir build-b25rtps
     cd build-b25rtps
