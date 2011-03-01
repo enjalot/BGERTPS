@@ -21,7 +21,9 @@
  */
 
 /* for types only, not alloc functions */
-#include <malloc.h>
+//#include <malloc.h>
+//enjalot - malloc.h breaks on Mac, this should still work cross platform
+#include <stdlib.h>
 
 #include "MEM_CacheLimiter.h"
 #include "MEM_CacheLimiterC-Api.h"

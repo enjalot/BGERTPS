@@ -11,7 +11,9 @@ check this out and switch to branch rtps
     cd EnjaParticles
     git checkout rtps
 
-follow the README to build, you will need to set an environment variable so that the Blender CMake can find the RTPS library
+follow the README to build
+
+you will need to set an environment variable so that the Blender CMake can find the RTPS library
 the RTPS library path should be something like
 ~/EnjaParticles/rtps/build/rtpslib/librtps.so
 

@@ -208,6 +208,7 @@ class ParticleButtonsPanel():
     print("particle buttons panel")
 
 
+"""
 #for some reason i couldn't name this PARTICLE_PT_context_particles...
 class PARTICLE_PT_particles(ParticleButtonsPanel, bpy.types.Panel):
     bl_label = ""
@@ -326,7 +327,7 @@ class PARTICLE_PT_asdf(ParticleButtonsPanel, bpy.types.Panel):
         row = layout.row()
         row.label(text="ASDF")
         row.label()
-
+"""
 
 
 """

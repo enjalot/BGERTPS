@@ -406,53 +406,17 @@ bool BL_ModifierDeformer::Apply(RAS_IPolyMaterial *mat)
                     using namespace rtps;
                     rtps::Domain grid(float4(min.x(), min.y(), min.z(), 0), float4(max.x(), max.y(), max.z(), 0));
 
-
-                    if (sys == rtps::RTPSettings::SimpleFlock)
+                    if (sys == rtps::RTPSettings::SPH) 
+                    {
+                        rtps::RTPSettings settings(sys, rtmd->num, rtmd->dt, grid, rtmd->collision);
+                        (*slot)->m_pRTPS = new rtps::RTPS(settings);
+        
+                    }
+                    else if (sys == rtps::RTPSettings::SimpleFlock)
                     {
                         float color[3] = {rtmd->color_r, rtmd->color_g, rtmd->color_b};
                         rtps::RTPSettings settings(rtmd->num, rtmd->maxspeed, rtmd->separationdist, rtmd->perceptionrange, color);
                         (*slot)->m_pRTPS = new rtps::RTPS(settings);
-                    }
-                    else if (sys == rtps::RTPSettings::SPH) 
-                    {
-                        rtps::RTPSettings settings(sys, rtmd->num, rtmd->dt, grid, rtmd->collision);
-                        (*slot)->m_pRTPS = new rtps::RTPS(settings);
-
-                        rtps::RTPS* rtps = (*slot)->m_pRTPS;
-                        KX_Scene* kxs = KX_GetActiveScene();
-
-                        //Loop through objects to look for emitters
-                        //this should probably use modifiers/particle systems
-                        //instead of game props but lets just get something going
-                        CListValue* oblist = kxs->GetObjectList();
-                        int num_objects = oblist->GetCount();
-                        for(int iob = 0; iob < num_objects; iob++)
-                        {
-                            KX_GameObject* gobj = (KX_GameObject*)oblist->GetValue(iob);
-                            STR_String name = gobj->GetName();
-
-                            //Check if object is an emitter
-                            //for now we are just doing boxes 
-                            CIntValue* intprop = (CIntValue*)gobj->GetProperty("emitter");
-                            if(intprop)
-                            {
-                                int nn = (int)intprop->GetInt();
-                                printf("obj: %s, emitter: %d\n", name.Ptr(), nn);
-
-                                MT_Point3 bbpts[8];
-                                gobj->GetSGNode()->getAABBox(bbpts);
-                                float4 min = float4(bbpts[0].x(), bbpts[0].y(), bbpts[0].z(), 0);
-                                float4 max = float4(bbpts[7].x(), bbpts[7].y(), bbpts[7].z(), 0);
-                                rtps->system->addBox(nn, min, max, false);
-
-                            }
-                            
-                            //printf("obj: %s mesh_count: %d collider: %d\n", name.Ptr(), mesh_count, collider);
-         
-                        }
-
-                            
-
                     }
                     else 
                     {
@@ -510,6 +474,8 @@ int makeEmitter(int num, KX_GameObject* gobj)
     {
         //not a hose
         nn = num;
+        CIntValue *numprop = new CIntValue(0);
+        gobj->SetProperty("num", numprop);
     }
 
     return nn;
