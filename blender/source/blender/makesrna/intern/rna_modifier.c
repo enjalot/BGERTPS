@@ -2311,6 +2311,28 @@ static void rna_def_modifier_rtps(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Radius Scale", "Render radius scale");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
+	//---------------------------------------
+	prop= RNA_def_property(srna, "render_blur_scale", PROP_FLOAT, PROP_NONE);
+	//GE  WHY IS NEXT LINE REQUIRED?
+	RNA_def_property_float_sdna(prop, NULL, "render_blur_scale");
+
+	RNA_def_property_float_default(prop, 1.f);
+	RNA_def_property_ui_range(prop, 0.1, 10., .1, 0);             
+	RNA_def_property_ui_text(prop, "Blur Scale", "Render blur scale");
+	RNA_def_property_update(prop, 0, "rna_Modifier_update");
+
+	//----------------------------------
+	prop= RNA_def_property(srna, "render_type", PROP_INT, PROP_NONE);
+	//GE  WHY IS NEXT LINE REQUIRED?
+	RNA_def_property_int_sdna(prop, NULL, "render_type");
+
+	RNA_def_property_int_default(prop, 1);
+	RNA_def_property_ui_range(prop, 0, 2, 1, 0);             
+	RNA_def_property_ui_text(prop, "Render Type", "Render Type");
+	RNA_def_property_update(prop, 0, "rna_Modifier_update");
+	//----------------------------------
+	//----------------------------------
+	//----------------------------------
 	//----------------------------------
 
 

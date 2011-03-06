@@ -580,10 +580,12 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
             layout.prop(md, "collision")
             layout.prop(md, "updates")
             layout.prop(md, "dt")
-            layout.prop(md, "render_radius_scale")
             layout.label(text="Rendering options")
             layout.prop(md, "glsl")
             layout.prop(md, "blending")
+            layout.prop(md, "render_radius_scale")
+            layout.prop(md, "render_blur_scale")
+            layout.prop(md, "render_type")
         elif md.system == 2:
             layout.label(text="Maximum Speed of each Boid:")
             layout.prop(md, "maxspeed")

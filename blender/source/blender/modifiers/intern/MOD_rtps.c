@@ -53,6 +53,8 @@ static void initData(ModifierData *md)
 
 	// GE: scale of radius used by Andrew for improved rendering
 	rtmd->render_radius_scale = 3.;
+	rtmd->render_blur_scale = 1.;
+	rtmd->render_type = 1;
 
     rtmd->collision = 0;
     rtmd->glsl = 0;
