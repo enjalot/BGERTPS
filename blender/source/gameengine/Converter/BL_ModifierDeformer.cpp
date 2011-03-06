@@ -239,6 +239,7 @@ bool BL_ModifierDeformer::Update(void)
 		bShapeUpdate = true;
 	}
     
+	//----------------------------------------
     if(m_bIsRTPS)
     {
         timers[TI_UPDATE]->start();
@@ -359,6 +360,7 @@ bool BL_ModifierDeformer::Update(void)
         timers[TI_UPDATE]->end();
 
     }//if(m_bIsRTPS)
+	//----------------------------------------
 
 
 	return bShapeUpdate;
@@ -408,7 +410,11 @@ bool BL_ModifierDeformer::Apply(RAS_IPolyMaterial *mat)
 
                     if (sys == rtps::RTPSettings::SPH) 
                     {
+						//printf("*** scale radius** = %f\n", rtmd->render_radius_scale);
+						//printf("*** dt ** = %f\n", rtmd->dt);
                         rtps::RTPSettings settings(sys, rtmd->num, rtmd->dt, grid, rtmd->collision);
+						settings.setRadiusScale(rtmd->render_radius_scale);
+
                         (*slot)->m_pRTPS = new rtps::RTPS(settings);
         
                     }

@@ -580,6 +580,7 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
             layout.prop(md, "collision")
             layout.prop(md, "updates")
             layout.prop(md, "dt")
+            layout.prop(md, "render_radius_scale")
             layout.label(text="Rendering options")
             layout.prop(md, "glsl")
             layout.prop(md, "blending")

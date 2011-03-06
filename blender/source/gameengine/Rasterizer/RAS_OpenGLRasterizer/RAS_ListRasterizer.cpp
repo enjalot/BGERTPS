@@ -231,6 +231,7 @@ void RAS_ListRasterizer::IndexPrimitives(RAS_MeshSlot& ms)
     //lets override functionality here and call special particle render function
     if(ms.m_bRTPS)
     {
+		// must transmit render_radius_scale
         ms.m_pRTPS->render();
         return;
 

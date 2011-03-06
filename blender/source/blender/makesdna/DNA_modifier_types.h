@@ -457,6 +457,7 @@ typedef struct RTPSModifierData {
     short padding;//need this so struct is right size
     int updates;
     float dt;
+	float render_radius_scale; //GE
 
     // boids attributes
     float maxspeed;
