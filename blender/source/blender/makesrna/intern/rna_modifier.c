@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -2268,32 +2268,73 @@ static void rna_def_modifier_rtps(BlenderRNA *brna)
     RNA_def_property_int_sdna(prop, NULL, "num");
     RNA_def_property_int_default(prop, 100000);
 	RNA_def_property_ui_range(prop, 1, 20000000, 10, 0);             
+	// power of two
 	RNA_def_property_ui_text(prop, "Number", "Number of particles");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
 
 	// sph properties
+	//-------------
 	prop= RNA_def_property(srna, "radius", PROP_FLOAT, PROP_NONE);
 	RNA_def_property_float_sdna(prop, NULL, "radius");
 	RNA_def_property_ui_text(prop, "Particle Radius", "Radius of each particle");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
-    	prop= RNA_def_property(srna, "collision", PROP_BOOLEAN, PROP_NONE);
+	//-------------
+    prop= RNA_def_property(srna, "collision", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "collision", 0); //should have some enum?
 	RNA_def_property_ui_text(prop, "Collide with meshes", "Particles will collide with other meshes in the Scene");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
-    	prop= RNA_def_property(srna, "updates", PROP_INT, PROP_NONE);
-    	RNA_def_property_int_default(prop, 1);
+	//-------------
+   	prop= RNA_def_property(srna, "updates", PROP_INT, PROP_NONE);
+  	RNA_def_property_int_default(prop, 1);
 	RNA_def_property_ui_range(prop, 1, 100, 1, 0);             
 	RNA_def_property_ui_text(prop, "Updates", "Number of particle system updates to do per frame");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
+	//-------------
 	prop= RNA_def_property(srna, "dt", PROP_FLOAT, PROP_NONE);
 	RNA_def_property_float_default(prop, .001f);
 	RNA_def_property_ui_range(prop, .00001, 1.0, .01, 0);             
 	RNA_def_property_ui_text(prop, "Time Step", "Time step used in the particle system");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
+
+	//-------------
+	//GE WHAT IS WRONG WITH THIS? 
+	prop= RNA_def_property(srna, "render_radius_scale", PROP_FLOAT, PROP_NONE);
+	//GE  WHY IS NEXT LINE REQUIRED?
+	RNA_def_property_float_sdna(prop, NULL, "render_radius_scale");
+
+	RNA_def_property_float_default(prop, 1.f);
+	RNA_def_property_ui_range(prop, 0.1, 10., .1, 0);             
+	RNA_def_property_ui_text(prop, "Radius Scale", "Render radius scale");
+	RNA_def_property_update(prop, 0, "rna_Modifier_update");
+
+	//---------------------------------------
+	prop= RNA_def_property(srna, "render_blur_scale", PROP_FLOAT, PROP_NONE);
+	//GE  WHY IS NEXT LINE REQUIRED?
+	RNA_def_property_float_sdna(prop, NULL, "render_blur_scale");
+
+	RNA_def_property_float_default(prop, 1.f);
+	RNA_def_property_ui_range(prop, 0.1, 10., .1, 0);             
+	RNA_def_property_ui_text(prop, "Blur Scale", "Render blur scale");
+	RNA_def_property_update(prop, 0, "rna_Modifier_update");
+
+	//----------------------------------
+	prop= RNA_def_property(srna, "render_type", PROP_INT, PROP_NONE);
+	//GE  WHY IS NEXT LINE REQUIRED?
+	RNA_def_property_int_sdna(prop, NULL, "render_type");
+
+	RNA_def_property_int_default(prop, 1);
+	RNA_def_property_ui_range(prop, 0, 2, 1, 0);             
+	RNA_def_property_ui_text(prop, "Render Type", "Render Type");
+	RNA_def_property_update(prop, 0, "rna_Modifier_update");
+	//----------------------------------
+	//----------------------------------
+	//----------------------------------
+	//----------------------------------
+
 
 
 	// boids properties
@@ -2335,6 +2376,7 @@ static void rna_def_modifier_rtps(BlenderRNA *brna)
 
 
     	//rendering options
+		// GE: where is the title of this panel? 
 	prop= RNA_def_property(srna, "glsl", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "glsl", 0); //should have some enum?
 	RNA_def_property_ui_text(prop, "Use GLSL", "Use GLSL to render particles");

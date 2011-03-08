@@ -457,6 +457,9 @@ typedef struct RTPSModifierData {
     short padding;//need this so struct is right size
     int updates;
     float dt;
+	float render_radius_scale; //GE
+	float render_blur_scale; //GE
+	int render_type; //GE should be enum (need radio box)
 
     // boids attributes
     float maxspeed;
