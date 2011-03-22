@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -26,6 +26,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/editors/interface/interface_intern.h
+ *  \ingroup edinterface
+ */
+
 
 #ifndef INTERFACE_H
 #define INTERFACE_H
@@ -364,7 +369,7 @@ extern void ui_convert_to_unit_alt_name(uiBut *but, char *str, int maxlen);
 extern int ui_set_but_string(struct bContext *C, uiBut *but, const char *str);
 extern int ui_get_but_string_max_length(uiBut *but);
 
-extern void ui_set_but_default(struct bContext *C, uiBut *but);
+extern void ui_set_but_default(struct bContext *C, uiBut *but, short all);
 
 extern void ui_set_but_soft_range(uiBut *but, double value);
 
@@ -472,8 +477,8 @@ extern void ui_draw_but(const struct bContext *C, ARegion *ar, struct uiStyle *s
 struct ThemeUI;
 void ui_widget_color_init(struct ThemeUI *tui);
 
-void ui_draw_menu_item(struct uiFontStyle *fstyle, rcti *rect, char *name, int iconid, int state);
-void ui_draw_preview_item(struct uiFontStyle *fstyle, rcti *rect, char *name, int iconid, int state);
+void ui_draw_menu_item(struct uiFontStyle *fstyle, rcti *rect, const char *name, int iconid, int state);
+void ui_draw_preview_item(struct uiFontStyle *fstyle, rcti *rect, const char *name, int iconid, int state);
 
 /* interface_style.c */
 void uiStyleInit(void);

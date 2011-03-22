@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -26,6 +26,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/nodes/intern/CMP_nodes/CMP_vecBlur.c
+ *  \ingroup cmpnodes
+ */
+
 
 #include "../CMP_util.h"
 
@@ -88,23 +93,21 @@ static void node_composit_init_vecblur(bNode* node)
    node->storage= nbd;
    nbd->samples= 32;
    nbd->fac= 1.0f;
-};
+}
 
 /* custom1: itterations, custom2: maxspeed (0 = nolimit) */
-bNodeType cmp_node_vecblur= {
-	/* next, prev  */	NULL, NULL,
-	/* type code   */	CMP_NODE_VECBLUR,
-	/* name        */	"Vector Blur",
-	/* width+range */	120, 80, 200,
-	/* class+opts  */	NODE_CLASS_OP_FILTER, NODE_OPTIONS,
-	/* input sock  */	cmp_node_vecblur_in,
-	/* output sock */	cmp_node_vecblur_out,
-	/* storage     */	"NodeBlurData",
-	/* execfunc    */	node_composit_exec_vecblur,
-	/* butfunc     */	NULL,
-	/* initfunc    */	node_composit_init_vecblur,
-	/* freestoragefunc    */	node_free_standard_storage,
-	/* copystoragefunc    */	node_copy_standard_storage,
-	/* id          */	NULL
-};
+void register_node_type_cmp_vecblur(ListBase *lb)
+{
+	static bNodeType ntype;
+
+	node_type_base(&ntype, CMP_NODE_VECBLUR, "Vector Blur", NODE_CLASS_OP_FILTER, NODE_OPTIONS,
+		cmp_node_vecblur_in, cmp_node_vecblur_out);
+	node_type_size(&ntype, 120, 80, 200);
+	node_type_init(&ntype, node_composit_init_vecblur);
+	node_type_storage(&ntype, "NodeBlurData", node_free_standard_storage, node_copy_standard_storage);
+	node_type_exec(&ntype, node_composit_exec_vecblur);
+
+	nodeRegisterType(lb, &ntype);
+}
+
 

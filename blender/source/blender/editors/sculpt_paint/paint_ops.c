@@ -1,4 +1,4 @@
-/**
+/*
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
  *
@@ -19,6 +19,11 @@
  * ***** END GPL LICENSE BLOCK *****
  */
 
+/** \file blender/editors/sculpt_paint/paint_ops.c
+ *  \ingroup edsculpt
+ */
+
+
 #include "BLI_utildefines.h"
 
 #include "DNA_object_types.h"
@@ -28,6 +33,7 @@
 #include "BKE_context.h"
 #include "BKE_paint.h"
 
+#include "ED_sculpt.h"
 #include "ED_screen.h"
 #include "UI_resources.h"
 
@@ -60,7 +66,7 @@ static int brush_add_exec(bContext *C, wmOperator *UNUSED(op))
 	return OPERATOR_FINISHED;
 }
 
-void BRUSH_OT_add(wmOperatorType *ot)
+static void BRUSH_OT_add(wmOperatorType *ot)
 {
 	/* identifiers */
 	ot->name= "Add Brush";
@@ -115,7 +121,7 @@ static int brush_scale_size_exec(bContext *C, wmOperator *op)
 	return OPERATOR_FINISHED;
 }
 
-void BRUSH_OT_scale_size(wmOperatorType *ot)
+static void BRUSH_OT_scale_size(wmOperatorType *ot)
 {
 	/* identifiers */
 	ot->name= "Scale Sculpt/Paint Brush Size";
@@ -142,7 +148,7 @@ static int vertex_color_set_exec(bContext *C, wmOperator *UNUSED(op))
 	return OPERATOR_FINISHED;
 }
 
-void PAINT_OT_vertex_color_set(wmOperatorType *ot)
+static void PAINT_OT_vertex_color_set(wmOperatorType *ot)
 {
 	/* identifiers */
 	ot->name= "Set Vertex Colors";
@@ -171,7 +177,7 @@ static int brush_reset_exec(bContext *C, wmOperator *UNUSED(op))
 	return OPERATOR_FINISHED;
 }
 
-void BRUSH_OT_reset(wmOperatorType *ot)
+static void BRUSH_OT_reset(wmOperatorType *ot)
 {
 	/* identifiers */
 	ot->name= "Reset Brush";
@@ -223,6 +229,9 @@ void ED_operatortypes_paint(void)
 	WM_operatortype_append(PAINT_OT_face_select_linked);
 	WM_operatortype_append(PAINT_OT_face_select_linked_pick);
 	WM_operatortype_append(PAINT_OT_face_select_all);
+	WM_operatortype_append(PAINT_OT_face_select_inverse);
+	WM_operatortype_append(PAINT_OT_face_select_hide);
+	WM_operatortype_append(PAINT_OT_face_select_reveal);
 }
 
 
@@ -337,8 +346,8 @@ void ED_keymap_paint(wmKeyConfig *keyconf)
 	ed_keymap_paint_brush_size(keymap, "tool_settings.sculpt.brush.size");
 
 	/* */
-	kmi = WM_keymap_add_item(keymap, "WM_OT_context_toggle", AKEY, KM_PRESS, 0, 0);
-	RNA_string_set(kmi->ptr, "data_path", "tool_settings.sculpt.brush.use_anchor");
+	kmi = WM_keymap_add_item(keymap, "WM_OT_context_menu_enum", AKEY, KM_PRESS, 0, 0);
+	RNA_string_set(kmi->ptr, "data_path", "tool_settings.sculpt.brush.stroke_method");
 
 	kmi = WM_keymap_add_item(keymap, "WM_OT_context_toggle", SKEY, KM_PRESS, KM_SHIFT, 0);
 	RNA_string_set(kmi->ptr, "data_path", "tool_settings.sculpt.brush.use_smooth_stroke");
@@ -413,7 +422,11 @@ void ED_keymap_paint(wmKeyConfig *keyconf)
 	keymap->poll= facemask_paint_poll;
 
 	WM_keymap_add_item(keymap, "PAINT_OT_face_select_all", AKEY, KM_PRESS, 0, 0);
+	WM_keymap_add_item(keymap, "PAINT_OT_face_select_inverse", IKEY, KM_PRESS, KM_CTRL, 0);
+	WM_keymap_add_item(keymap, "PAINT_OT_face_select_hide", HKEY, KM_PRESS, 0, 0);
+	RNA_boolean_set(WM_keymap_add_item(keymap, "PAINT_OT_face_select_hide", HKEY, KM_PRESS, KM_SHIFT, 0)->ptr, "unselected", 1);
+	WM_keymap_add_item(keymap, "PAINT_OT_face_select_reveal", HKEY, KM_PRESS, KM_ALT, 0);
+
 	WM_keymap_add_item(keymap, "PAINT_OT_face_select_linked", LKEY, KM_PRESS, KM_CTRL, 0);
 	WM_keymap_add_item(keymap, "PAINT_OT_face_select_linked_pick", LKEY, KM_PRESS, 0, 0);
-
 }

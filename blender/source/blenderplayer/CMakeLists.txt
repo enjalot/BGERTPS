@@ -33,11 +33,6 @@ if(WITH_CODEC_QUICKTIME)
 	add_definitions(-DWITH_QUICKTIME)
 endif()
 
-if(CMAKE_SYSTEM_NAME MATCHES "Linux")
-	add_definitions(-DWITH_BINRELOC)
-	blender_include_dirs(${BINRELOC_INC})
-endif()
-
 add_custom_command(
 	OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/dna.c
 	COMMAND ${CMAKE_BINARY_DIR}/bin/${CMAKE_CFG_INTDIR}/makesdna ${CMAKE_CURRENT_BINARY_DIR}/dna.c ${CMAKE_SOURCE_DIR}/source/blender/makesdna/
@@ -122,8 +117,23 @@ if(UNIX)
 		extern_minilzo
 		bf_intern_ghost # duplicate for linking
 		bf_blenkernel # duplicate for linking
+		bf_intern_mikktspace
 	)
-  
+
+	if(WITH_LZMA)
+		list(APPEND BLENDER_SORTED_LIBS extern_lzma)
+	endif()
+
+	if(WITH_MOD_DECIMATE)
+		list(APPEND BLENDER_SORTED_LIBS bf_intern_decimate)
+	endif()
+
+	if(WITH_MOD_BOOLEAN)
+		list(APPEND BLENDER_SORTED_LIBS bf_intern_bsp)
+		list(APPEND BLENDER_SORTED_LIBS bf_intern_bop)
+		list(APPEND BLENDER_SORTED_LIBS bf_intern_moto)
+	endif()
+
 	if(WITH_CODEC_QUICKTIME)
 		list(APPEND BLENDER_SORTED_LIBS bf_quicktime)
 	endif()

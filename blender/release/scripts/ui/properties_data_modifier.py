@@ -59,16 +59,15 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
         col.prop(md, "use_vertex_groups", text="Vertex Groups")
         col.prop(md, "use_bone_envelopes", text="Bone Envelopes")
 
-        split = layout.split()
+        layout.separator()
 
-        col = split.split()
-        col.prop_search(md, "vertex_group", ob, "vertex_groups", text="")
-        sub = col.column()
+        row = layout.row()
+        row.prop_search(md, "vertex_group", ob, "vertex_groups", text="")
+        sub = row.row()
         sub.active = bool(md.vertex_group)
         sub.prop(md, "invert_vertex_group")
 
-        col = layout.column()
-        col.prop(md, "use_multi_modifier")
+        layout.prop(md, "use_multi_modifier")
 
     def ARRAY(self, layout, ob, md):
         layout.prop(md, "fit_type")
@@ -113,9 +112,8 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
 
         layout.separator()
 
-        col = layout.column()
-        col.prop(md, "start_cap")
-        col.prop(md, "end_cap")
+        layout.prop(md, "start_cap")
+        layout.prop(md, "end_cap")
 
     def BEVEL(self, layout, ob, md):
         split = layout.split()
@@ -214,7 +212,7 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
 
         col = split.column()
         col.label(text="Texture:")
-        col.prop(md, "texture", text="")
+        col.template_ID(md, "texture", new="texture.new")
         col.label(text="Vertex Group:")
         col.prop_search(md, "vertex_group", ob, "vertex_groups", text="")
 
@@ -230,13 +228,9 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
 
         layout.separator()
 
-        split = layout.split()
-
-        col = split.column()
-        col.prop(md, "mid_level")
-
-        col = split.column()
-        col.prop(md, "strength")
+        row = layout.row()
+        row.prop(md, "mid_level")
+        row.prop(md, "strength")
 
     def EDGE_SPLIT(self, layout, ob, md):
         split = layout.split()
@@ -247,8 +241,7 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
         sub.active = md.use_edge_angle
         sub.prop(md, "split_angle")
 
-        col = split.column()
-        col.prop(md, "use_edge_sharp", text="Sharp Edges")
+        split.prop(md, "use_edge_sharp", text="Sharp Edges")
 
     def EXPLODE(self, layout, ob, md):
         split = layout.split()
@@ -259,9 +252,11 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
         sub = col.column()
         sub.active = bool(md.vertex_group)
         sub.prop(md, "protect")
+        col.label(text="Particle UV")
+        col.prop_search(md, "particle_uv", ob.data, "uv_textures", text="")
 
         col = split.column()
-        col.prop(md, "use_edge_split")
+        col.prop(md, "use_edge_cut")
         col.prop(md, "show_unborn")
         col.prop(md, "show_alive")
         col.prop(md, "show_dead")
@@ -334,6 +329,7 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
 
     def MESH_DEFORM(self, layout, ob, md):
         split = layout.split()
+
         col = split.column()
         sub = col.column()
         sub.label(text="Object:")
@@ -354,16 +350,11 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
         else:
             layout.operator("object.meshdeform_bind", text="Bind")
 
-            split = layout.split()
-
-            col = split.column()
-            col.prop(md, "precision")
-
-            col = split.column()
-            col.prop(md, "use_dynamic_bind")
+            row = layout.row()
+            row.prop(md, "precision")
+            row.prop(md, "use_dynamic_bind")
 
     def MIRROR(self, layout, ob, md):
-        layout.prop(md, "merge_threshold")
         split = layout.split(percentage=0.25)
 
         col = split.column()
@@ -374,6 +365,7 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
 
         col = split.column()
         col.label(text="Options:")
+        col.prop(md, "use_mirror_merge", text="Merge")
         col.prop(md, "use_clip", text="Clipping")
         col.prop(md, "use_mirror_vertex_groups", text="Vertex Groups")
 
@@ -383,6 +375,9 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
         col.prop(md, "use_mirror_v", text="V")
 
         col = layout.column()
+
+        if md.use_mirror_merge == True:
+            col.prop(md, "merge_threshold")
         col.label(text="Mirror Object:")
         col.prop(md, "mirror_object", text="")
 
@@ -509,8 +504,7 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
             col = split.column()
 
             col.label(text="Cull Faces:")
-            col.prop(md, "use_cull_front_faces", text="Front")
-            col.prop(md, "use_cull_back_faces", text="Back")
+            col.prop(md, "cull_face", expand=True)
 
             layout.label(text="Auxiliary Target:")
             layout.prop(md, "auxiliary_target", text="")
@@ -542,7 +536,7 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
         col.label(text="Deform:")
         col.prop(md, "factor")
         col.prop(md, "limits", slider=True)
-        if md.deform_method in ('TAPER', 'STRETCH'):
+        if md.deform_method in {'TAPER', 'STRETCH'}:
             col.prop(md, "lock_x")
             col.prop(md, "lock_y")
 
@@ -622,6 +616,7 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
         col.prop(md, "edge_crease_inner", text="Inner")
         col.prop(md, "edge_crease_outer", text="Outer")
         col.prop(md, "edge_crease_rim", text="Rim")
+        col.label(text="Material Index Offset:")
 
         col = split.column()
 
@@ -635,8 +630,13 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
 
         col.prop(md, "use_rim")
         colsub = col.column()
+
+        colsub.label()
+        rowsub = colsub.split(align=True, percentage=0.4)
+        rowsub.prop(md, "material_offset", text="")
+        colsub = rowsub.row()
         colsub.active = md.use_rim
-        colsub.prop(md, "use_rim_material")
+        colsub.prop(md, "material_offset_rim", text="Rim")
 
     def SUBSURF(self, layout, ob, md):
         layout.row().prop(md, "subdivision_type", expand=True)
@@ -720,7 +720,11 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
 
         layout.prop(md, "start_position_object")
         layout.prop_search(md, "vertex_group", ob, "vertex_groups")
-        layout.prop(md, "texture")
+        split = layout.split(percentage=0.33)
+        col = split.column()
+        col.label(text="Texture")
+        col = split.column()
+        col.template_ID(md, "texture", new="texture.new")
         layout.prop(md, "texture_coords")
         if md.texture_coords == 'MAP_UV' and ob.type == 'MESH':
             layout.prop_search(md, "uv_layer", ob.data, "uv_textures")
@@ -741,11 +745,11 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
 
 
 def register():
-    pass
+    bpy.utils.register_module(__name__)
 
 
 def unregister():
-    pass
+    bpy.utils.unregister_module(__name__)
 
 if __name__ == "__main__":
     register()

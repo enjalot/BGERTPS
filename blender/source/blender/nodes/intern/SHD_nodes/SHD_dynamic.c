@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -26,6 +26,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/nodes/intern/SHD_nodes/SHD_dynamic.c
+ *  \ingroup shdnodes
+ */
+
 
 /* TODO, support python3.x */
 #undef WITH_PYTHON 
@@ -758,26 +763,29 @@ static void node_dynamic_exec_cb(void *data, bNode *node, bNodeStack **in, bNode
 #endif
 }
 
-bNodeType node_dynamic_typeinfo = {
-	/* next, prev  */	NULL, NULL,
-	/* type code   */	NODE_DYNAMIC,
-	/* name        */	"Dynamic",
-	/* width+range */	150, 60, 300,
-	/* class+opts  */	NODE_CLASS_OP_DYNAMIC, NODE_OPTIONS,
-	/* input sock  */	NULL,
-	/* output sock */	NULL,
-	/* storage     */	"NodeScriptDict",
-	/* execfunc    */	node_dynamic_exec_cb,
-	/* butfunc     */	NULL,
-	/* initfunc    */	node_dynamic_init_cb,
-	/* freefunc    */	node_dynamic_free_storage_cb,
-	/* copyfunc    */	node_dynamic_copy_cb,
-	/* id          */	NULL
-};
+void register_node_type_sh_dynamic(ListBase *lb)
+{
+	static bNodeType ntype;
+	
+	node_type_base(&ntype, NODE_DYNAMIC, "Dynamic", NODE_CLASS_OP_DYNAMIC, NODE_OPTIONS, NULL, NULL);
+	node_type_size(&ntype, 150, 60, 300);
+	node_type_init(&ntype, node_dynamic_init_cb);
+	node_type_storage(&ntype, "NodeScriptDict", node_dynamic_free_storage_cb, node_dynamic_copy_cb);
+	node_type_exec(&ntype, node_dynamic_exec_cb);
+	
+	nodeRegisterType(lb, &ntype);
+}
 
 #else
 
-bNodeType node_dynamic_typeinfo = {NULL};
+void register_node_type_sh_dynamic(ListBase *lb)
+{
+	static bNodeType ntype;
+	
+	node_type_base(&ntype, NODE_DYNAMIC, "Dynamic", NODE_CLASS_OP_DYNAMIC, 0, NULL, NULL);
+	
+	nodeRegisterType(lb, &ntype);
+}
 
 #endif
 

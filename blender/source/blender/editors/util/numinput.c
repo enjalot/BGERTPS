@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -26,6 +26,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/editors/util/numinput.c
+ *  \ingroup edutil
+ */
+
 
 #include <math.h>			/* fabs */
 #include <stdio.h>			/* for sprintf		*/

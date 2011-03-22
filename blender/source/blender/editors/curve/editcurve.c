@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -26,6 +26,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/editors/curve/editcurve.c
+ *  \ingroup edcurve
+ */
+
 
 #include <math.h>
 #include <string.h>
@@ -61,6 +66,7 @@
 #include "BKE_main.h"
 #include "BKE_report.h"
 #include "BKE_animsys.h"
+#include "BKE_action.h"
 
 #include "WM_api.h"
 #include "WM_types.h"
@@ -74,7 +80,10 @@
 #include "ED_view3d.h"
 #include "ED_curve.h"
 
+#include "curve_intern.h"
+
 #include "UI_interface.h"
+#include "UI_resources.h"
 
 #include "RNA_access.h"
 #include "RNA_define.h"
@@ -84,7 +93,8 @@ typedef struct {
 	ListBase nubase;
 	void *lastsel;
 	GHash *undoIndex;
-	ListBase fcurves;
+	ListBase fcurves, drivers;
+	int actnu;
 } UndoCurve;
 
 /* Definitions needed for shape keys */
@@ -101,7 +111,7 @@ static void select_adjacent_cp(ListBase *editnurb, short next, short cont, short
 /* still need to eradicate a few :( */
 #define callocstructN(x,y,name) (x*)MEM_callocN((y)* sizeof(x),name)
 
-float nurbcircle[8][2]= {
+static float nurbcircle[8][2]= {
 	{0.0, -1.0}, {-1.0, -1.0}, {-1.0, 0.0}, {-1.0,  1.0},
 	{0.0,  1.0}, { 1.0,  1.0}, { 1.0, 0.0}, { 1.0, -1.0}
 };
@@ -116,7 +126,7 @@ ListBase *curve_get_editcurve(Object *ob)
 }
 
 /* this replaces the active flag used in uv/face mode */
-void set_actNurb(Object *obedit, Nurb *nu)
+static void set_actNurb(Object *obedit, Nurb *nu)
 {
 	Curve *cu= obedit->data;
 	
@@ -128,7 +138,7 @@ void set_actNurb(Object *obedit, Nurb *nu)
 	}
 }
 
-Nurb *get_actNurb(Object *obedit)
+static Nurb *get_actNurb(Object *obedit)
 {
 	Curve *cu= obedit->data;
 	ListBase *nurbs= ED_curve_editnurbs(cu);
@@ -228,7 +238,7 @@ int isNurbsel(Nurb *nu)
 	return 0;
 }
 
-int isNurbsel_count(Curve *cu, Nurb *nu)
+static int isNurbsel_count(Curve *cu, Nurb *nu)
 {
 	BezTriple *bezt;
 	BPoint *bp;
@@ -1007,10 +1017,10 @@ static int curve_is_animated(Object *ob)
 	Curve *cu= (Curve*)ob->data;
 	AnimData *ad= BKE_animdata_from_id(&cu->id);
 
-	return ad && ad->action;
+	return ad && (ad->action || ad->drivers.first);
 }
 
-static void fcurve_path_rename(char *orig_rna_path, char *rna_path, ListBase *orig_curves, ListBase *curves)
+static void fcurve_path_rename(AnimData *ad, char *orig_rna_path, char *rna_path, ListBase *orig_curves, ListBase *curves)
 {
 	FCurve *fcu, *nfcu, *nextfcu;
 	int len= strlen(orig_rna_path);
@@ -1025,7 +1035,15 @@ static void fcurve_path_rename(char *orig_rna_path, char *rna_path, ListBase *or
 			nfcu->rna_path= BLI_sprintfN("%s%s", rna_path, suffix);
 			BLI_addtail(curves, nfcu);
 
-			BLI_remlink(orig_curves, fcu);
+			if (fcu->grp) {
+				action_groups_remove_channel(ad->action, fcu);
+				action_groups_add_channel(ad->action, fcu->grp, nfcu);
+			}
+			else if (ad->action && &ad->action->curves == orig_curves)
+				BLI_remlink(&ad->action->curves, fcu);
+			else
+				BLI_remlink(&ad->drivers, fcu);
+
 			free_fcurve(fcu);
 
 			MEM_freeN(spath);
@@ -1034,8 +1052,15 @@ static void fcurve_path_rename(char *orig_rna_path, char *rna_path, ListBase *or
 	}
 }
 
-/* return 0 if animation data wasn't changed, 1 otherwise */
-int ED_curve_updateAnimPaths(Object *obedit)
+static void fcurve_remove(AnimData *ad, ListBase *orig_curves, FCurve *fcu)
+{
+	if(orig_curves==&ad->drivers) BLI_remlink(&ad->drivers, fcu);
+	else action_groups_remove_channel(ad->action, fcu);
+
+	free_fcurve(fcu);
+}
+
+static void curve_rename_fcurves(Object *obedit, ListBase *orig_curves)
 {
 	int nu_index= 0, a, pt_index;
 	Curve *cu= (Curve*)obedit->data;
@@ -1043,14 +1068,9 @@ int ED_curve_updateAnimPaths(Object *obedit)
 	Nurb *nu= editnurb->nurbs.first;
 	CVKeyIndex *keyIndex;
 	char rna_path[64], orig_rna_path[64];
-	ListBase orig_curves= {0, 0};
-	ListBase curves= {0, 0};
 	AnimData *ad= BKE_animdata_from_id(&cu->id);
+	ListBase curves= {NULL, NULL};
 	FCurve *fcu, *next;
-
-	if(!curve_is_animated(obedit)) return 0;
-
-	copy_fcurves(&orig_curves, &ad->action->curves);
 
 	while(nu) {
 		if(nu->bezt) {
@@ -1068,14 +1088,14 @@ int ED_curve_updateAnimPaths(Object *obedit)
 						char handle_path[64], orig_handle_path[64];
 						sprintf(orig_handle_path, "%s.handle_left", orig_rna_path);
 						sprintf(handle_path, "%s.handle_right", rna_path);
-						fcurve_path_rename(orig_handle_path, handle_path, &orig_curves, &curves);
+						fcurve_path_rename(ad, orig_handle_path, handle_path, orig_curves, &curves);
 
 						sprintf(orig_handle_path, "%s.handle_right", orig_rna_path);
 						sprintf(handle_path, "%s.handle_left", rna_path);
-						fcurve_path_rename(orig_handle_path, handle_path, &orig_curves, &curves);
+						fcurve_path_rename(ad, orig_handle_path, handle_path, orig_curves, &curves);
 					}
 
-					fcurve_path_rename(orig_rna_path, rna_path, &orig_curves, &curves);
+					fcurve_path_rename(ad, orig_rna_path, rna_path, orig_curves, &curves);
 
 					keyIndex->nu_index= nu_index;
 					keyIndex->pt_index= pt_index;
@@ -1094,7 +1114,7 @@ int ED_curve_updateAnimPaths(Object *obedit)
 				if(keyIndex) {
 					sprintf(rna_path, "splines[%d].points[%d]", nu_index, pt_index);
 					sprintf(orig_rna_path, "splines[%d].points[%d]", keyIndex->nu_index, keyIndex->pt_index);
-					fcurve_path_rename(orig_rna_path, rna_path, &orig_curves, &curves);
+					fcurve_path_rename(ad, orig_rna_path, rna_path, orig_curves, &curves);
 
 					keyIndex->nu_index= nu_index;
 					keyIndex->pt_index= pt_index;
@@ -1108,27 +1128,63 @@ int ED_curve_updateAnimPaths(Object *obedit)
 		nu_index++;
 	}
 
+	/* remove pathes for removed control points
+	   need this to make further step with copying non-cv related curves copying
+	   not touching cv's f-cruves */
+	for(fcu= orig_curves->first; fcu; fcu= next) {
+		next= fcu->next;
+
+		if(!strncmp(fcu->rna_path, "splines", 7)) {
+			char *ch= strchr(fcu->rna_path, '.');
+
+			if (ch && (!strncmp(ch, ".bezier_points", 14) || !strncmp(ch, ".points", 7)))
+				fcurve_remove(ad, orig_curves, fcu);
+		}
+	}
+
 	nu_index= 0;
+	nu= editnurb->nurbs.first;
 	while(nu) {
+		keyIndex= NULL;
+		if(nu->pntsu) {
+			if(nu->bezt) keyIndex= getCVKeyIndex(editnurb, &nu->bezt[0]);
+			else keyIndex= getCVKeyIndex(editnurb, &nu->bp[0]);
+		}
+
 		if(keyIndex) {
 			sprintf(rna_path, "splines[%d]", nu_index);
 			sprintf(orig_rna_path, "splines[%d]", keyIndex->nu_index);
-			fcurve_path_rename(orig_rna_path, rna_path, &ad->action->curves, &curves);
+			fcurve_path_rename(ad, orig_rna_path, rna_path, orig_curves, &curves);
 		}
+
 		nu_index++;
+		nu= nu->next;
 	}
 
 	/* the remainders in orig_curves can be copied back (like follow path) */
 	/* (if it's not path to spline) */
-	for(fcu= orig_curves.first; fcu; fcu= next) {
+	for(fcu= orig_curves->first; fcu; fcu= next) {
 		next= fcu->next;
 
-		if(!strncmp(fcu->rna_path, "splines", 7)) free_fcurve(fcu);
+		if(!strncmp(fcu->rna_path, "splines", 7)) fcurve_remove(ad, orig_curves, fcu);
 		else BLI_addtail(&curves, fcu);
 	}
-	
-	free_fcurves(&ad->action->curves);
-	ad->action->curves= curves;
+
+	*orig_curves= curves;
+}
+
+/* return 0 if animation data wasn't changed, 1 otherwise */
+int ED_curve_updateAnimPaths(Object *obedit)
+{
+	Curve *cu= (Curve*)obedit->data;
+	AnimData *ad= BKE_animdata_from_id(&cu->id);
+
+	if(!curve_is_animated(obedit)) return 0;
+
+	if(ad->action)
+		curve_rename_fcurves(obedit, &ad->action->curves);
+
+	curve_rename_fcurves(obedit, &ad->drivers);
 
 	return 1;
 }
@@ -1176,7 +1232,6 @@ void make_editNurb(Object *obedit)
 	EditNurb *editnurb= cu->editnurb;
 	Nurb *nu, *newnu, *nu_act= NULL;
 	KeyBlock *actkey;
-	int is_anim;
 
 	if(obedit==NULL) return;
 
@@ -1184,16 +1239,11 @@ void make_editNurb(Object *obedit)
 
 	if (ELEM(obedit->type, OB_CURVE, OB_SURF)) {
 		actkey= ob_get_keyblock(obedit);
-		is_anim= curve_is_animated(obedit);
 
 		if(actkey) {
 			// XXX strcpy(G.editModeTitleExtra, "(Key) ");
 			undo_editmode_clear();
 			key_to_curve(actkey, cu, &cu->nurb);
-		}
-
-		if (is_anim) {
-			undo_editmode_clear();
 		}
 
 		if(editnurb) {
@@ -1221,13 +1271,12 @@ void make_editNurb(Object *obedit)
 			nu= nu->next;
 		}
 
-		if(actkey) {
+		if(actkey)
 			editnurb->shapenr= obedit->shapenr;
-			init_editNurb_keyIndex(editnurb, &cu->nurb);
-		}
 
-		if(is_anim)
-			init_editNurb_keyIndex(editnurb, &cu->nurb);
+		/* animation could be added in editmode even if teher was no animdata i
+		   object mode hence we always need CVs index be created */
+		init_editNurb_keyIndex(editnurb, &cu->nurb);
 	}
 }
 
@@ -2417,7 +2466,7 @@ void selectend_nurb(Object *obedit, short selfirst, short doswap, short selstatu
 	int a;
 	short sel;
 
-	if(obedit==0) return;
+	if(obedit==NULL) return;
 
 	cu= (Curve*)obedit->data;
 	cu->lastsel= NULL;
@@ -3266,7 +3315,7 @@ static short findnearestNurbvert(ViewContext *vc, short sel, int mval[2], Nurb *
 		/* sel==1: selected gets a disadvantage */
 		/* in nurb and bezt or bp the nearest is written */
 		/* return 0 1 2: handlepunt */
-	struct { BPoint *bp; BezTriple *bezt; Nurb *nurb; int dist, hpoint, select, mval[2]; } data = {0};
+	struct { BPoint *bp; BezTriple *bezt; Nurb *nurb; int dist, hpoint, select, mval[2]; } data = {NULL};
 
 	data.dist = 100;
 	data.hpoint = 0;
@@ -3293,24 +3342,24 @@ static void findselectedNurbvert(ListBase *editnurb, Nurb **nu, BezTriple **bezt
 	BPoint *bp1;
 	int a;
 
-	*nu= 0;
-	*bezt= 0;
-	*bp= 0;
+	*nu= NULL;
+	*bezt= NULL;
+	*bp= NULL;
 	for(nu1= editnurb->first; nu1; nu1= nu1->next) {
 		if(nu1->type == CU_BEZIER) {
 			bezt1= nu1->bezt;
 			a= nu1->pntsu;
 			while(a--) {
 				if( (bezt1->f1 & SELECT) || (bezt1->f2 & SELECT) || (bezt1->f3 & SELECT) ) {
-					if(*nu!=0 && *nu!= nu1) {
-						*nu= 0;
-						*bp= 0;
-						*bezt= 0;
+					if(*nu != NULL && *nu != nu1) {
+						*nu= NULL;
+						*bp= NULL;
+						*bezt= NULL;
 						return;
 					}
 					else if(*bezt || *bp) {
-						*bp= 0;
-						*bezt= 0;
+						*bp= NULL;
+						*bezt= NULL;
 					}
 					else {
 						*bezt= bezt1;
@@ -3325,15 +3374,15 @@ static void findselectedNurbvert(ListBase *editnurb, Nurb **nu, BezTriple **bezt
 			a= nu1->pntsu*nu1->pntsv;
 			while(a--) {
 				if( bp1->f1 & 1 ) {
-					if(*nu!=0 && *nu!= nu1) {
-						*bp= 0;
-						*bezt= 0;
-						*nu= 0;
+					if(*nu != NULL && *nu != nu1) {
+						*bp= NULL;
+						*bezt= NULL;
+						*nu= NULL;
 						return;
 					}
 					else if(*bezt || *bp) {
-						*bp= 0;
-						*bezt= 0;
+						*bp= NULL;
+						*bezt= NULL;
 					}
 					else {
 						*bp= bp1;
@@ -3372,7 +3421,7 @@ static int convertspline(short type, Nurb *nu)
 				bezt++;
 			}
 			MEM_freeN(nu->bp);
-			nu->bp= 0;
+			nu->bp= NULL;
 			nu->pntsu= nr;
 			nu->type = CU_BEZIER;
 			calchandlesNurb(nu);
@@ -3472,7 +3521,7 @@ static int convertspline(short type, Nurb *nu)
 					bezt++;
 				}
 				MEM_freeN(nu->bp);
-				nu->bp= 0;
+				nu->bp= NULL;
 				MEM_freeN(nu->knotsu);
 				nu->knotsu= NULL;
 				nu->pntsu= nr;
@@ -3677,12 +3726,12 @@ typedef struct NurbSort {
 	float vec[3];
 } NurbSort;
 
-static ListBase nsortbase= {0, 0};
+static ListBase nsortbase= {NULL, NULL};
 /*  static NurbSort *nusmain; */ /* this var seems to go unused... at least in this file */
 
 static void make_selection_list_nurb(ListBase *editnurb)
 {
-	ListBase nbase= {0, 0};
+	ListBase nbase= {NULL, NULL};
 	NurbSort *nus, *nustest, *headdo, *taildo;
 	Nurb *nu;
 	BPoint *bp;
@@ -3717,7 +3766,7 @@ static void make_selection_list_nurb(ListBase *editnurb)
 	while(nbase.first) {
 	
 		headdist= taildist= 1.0e30;
-		headdo= taildo= 0;
+		headdo= taildo= NULL;
 
 		nustest= nbase.first;
 		while(nustest) {
@@ -3928,7 +3977,7 @@ static int make_segment_exec(bContext *C, wmOperator *op)
 	Object *obedit= CTX_data_edit_object(C);
 	Curve *cu= obedit->data;
 	ListBase *nubase= curve_get_editcurve(obedit);
-	Nurb *nu, *nu1=0, *nu2=0;
+	Nurb *nu, *nu1=NULL, *nu2=NULL;
 	BPoint *bp;
 	float *fp, offset;
 	int a, ok= 0;
@@ -3958,9 +4007,12 @@ static int make_segment_exec(bContext *C, wmOperator *op)
 	
 	/* find both nurbs and points, nu1 will be put behind nu2 */
 	for(nu= nubase->first; nu; nu= nu->next) {
+		if(nu->pntsu == 1)
+			nu->flagu&= ~CU_NURB_CYCLIC;
+
 		if((nu->flagu & CU_NURB_CYCLIC)==0) {    /* not cyclic */
 			if(nu->type == CU_BEZIER) {
-				if(nu1==0) {
+				if(nu1==NULL) {
 					if( BEZSELECTED_HIDDENHANDLES(cu, nu->bezt) ) nu1= nu;
 					else {
 						if( BEZSELECTED_HIDDENHANDLES(cu, &(nu->bezt[nu->pntsu-1])) ) {
@@ -3970,7 +4022,7 @@ static int make_segment_exec(bContext *C, wmOperator *op)
 						}
 					}
 				}
-				else if(nu2==0) {
+				else if(nu2==NULL) {
 					if( BEZSELECTED_HIDDENHANDLES(cu, nu->bezt) ) {
 						nu2= nu;
 						switchdirectionNurb(nu);
@@ -3986,7 +4038,7 @@ static int make_segment_exec(bContext *C, wmOperator *op)
 			}
 			else if(nu->pntsv==1) {
 				bp= nu->bp;
-				if(nu1==0) {
+				if(nu1==NULL) {
 					if( bp->f1 & SELECT) nu1= nu;
 					else {
 						bp= bp+(nu->pntsu-1);
@@ -3997,7 +4049,7 @@ static int make_segment_exec(bContext *C, wmOperator *op)
 						}
 					}
 				}
-				else if(nu2==0) {
+				else if(nu2==NULL) {
 					if( bp->f1 & SELECT ) {
 						nu2= nu;
 						switchdirectionNurb(nu);
@@ -4067,16 +4119,20 @@ static int make_segment_exec(bContext *C, wmOperator *op)
 				}
 				freeNurb(nu2); nu2= NULL;
 			}
+
+			set_actNurb(obedit, nu1);	/* for selected */
+			ok= 1;
 		}
-		
-		set_actNurb(obedit, NULL);	/* for selected */
-		ok= 1;
-	} else if(nu1 && !nu2 && nu1->type == CU_BEZIER) {
-		if(!(nu1->flagu & CU_NURB_CYCLIC)) {
-			if(BEZSELECTED_HIDDENHANDLES(cu, nu1->bezt) &&
+	} else if(nu1 && !nu2) {
+		if(!(nu1->flagu & CU_NURB_CYCLIC) && nu1->pntsu>1) {
+			if (nu1->type == CU_BEZIER && BEZSELECTED_HIDDENHANDLES(cu, nu1->bezt) &&
 				BEZSELECTED_HIDDENHANDLES(cu, nu1->bezt+(nu1->pntsu-1))) {
 				nu1->flagu|= CU_NURB_CYCLIC;
 				calchandlesNurb(nu1);
+				ok= 1;
+			} else if (nu1->type == CU_NURBS && nu1->bp->f1&SELECT && (nu1->bp+(nu1->pntsu-1))->f1&SELECT) {
+				nu1->flagu|= CU_NURB_CYCLIC;
+				nurbs_knot_calc_u(nu1);
 				ok= 1;
 			}
 		}
@@ -4119,8 +4175,8 @@ int mouse_nurb(bContext *C, short mval[2], int extend)
 	ListBase *editnurb= curve_get_editcurve(obedit);
 	ViewContext vc;
 	Nurb *nu;
-	BezTriple *bezt=0;
-	BPoint *bp=0;
+	BezTriple *bezt=NULL;
+	BPoint *bp=NULL;
 	int location[2];
 	short hand;
 	
@@ -4363,18 +4419,27 @@ static int addvert_Nurb(bContext *C, short mode, float location[3])
 	findselectedNurbvert(&editnurb->nurbs, &nu, &bezt, &bp);
 
 	if ((nu == NULL) || (nu->type==CU_BEZIER && bezt==NULL) || (nu->type!=CU_BEZIER && bp==NULL)) {
-		if(cu->actnu >= 0 && mode!='e') {
-			nu= BLI_findlink(&editnurb->nurbs, cu->actnu);
+		if(mode!='e') {
+			if(cu->actnu >= 0)
+				nu= BLI_findlink(&editnurb->nurbs, cu->actnu);
 
-			if(nu->type==CU_BEZIER) {
+			if(!nu || nu->type==CU_BEZIER) {
 				newbezt= (BezTriple*)MEM_callocN(sizeof(BezTriple), "addvert_Nurb");
 				newbezt->radius= 1;
 				newbezt->alfa= 0;
 				BEZ_SEL(newbezt);
 				newbezt->h2= newbezt->h1= HD_AUTO;
 
-				newnu= (Nurb*)MEM_mallocN(sizeof(Nurb), "addvert_Nurb newnu");
-				memcpy(newnu, nu, sizeof(Nurb));
+				newnu= (Nurb*)MEM_callocN(sizeof(Nurb), "addvert_Nurb newnu");
+				if(!nu) {
+					/* no selected sement -- create new one which is BEZIER tpye
+					   type couldn't be determined from Curve bt could be changed
+					   in the future, so shouldn't make much headache */
+					newnu->type= CU_BEZIER;
+					newnu->resolu= cu->resolu;
+					newnu->flag |= CU_SMOOTH;
+				} else memcpy(newnu, nu, sizeof(Nurb));
+
 				BLI_addtail(&editnurb->nurbs, newnu);
 				set_actNurb(obedit, newnu);
 				newnu->bezt= newbezt;
@@ -4389,6 +4454,7 @@ static int addvert_Nurb(bContext *C, short mode, float location[3])
 				add_v3_v3v3(newbezt->vec[2], newbezt->vec[1],temp);
 
 				ok= 1;
+				nu= newnu;
 			} else if(nu->pntsv == 1) {
 				newbp= (BPoint*)MEM_callocN(sizeof(BPoint), "addvert_Nurb5");
 				newbp->radius= 1;
@@ -4409,10 +4475,11 @@ static int addvert_Nurb(bContext *C, short mode, float location[3])
 				mul_m3_v3(imat,newbp->vec);
 				newbp->vec[3]= 1.0;
 
-				newnu->knotsu= newnu->knotsv= 0;
+				newnu->knotsu= newnu->knotsv= NULL;
 				nurbs_knot_calc_u(newnu);
 
 				ok= 1;
+				nu= newnu;
 			}
 
 		}
@@ -4474,7 +4541,7 @@ static int addvert_Nurb(bContext *C, short mode, float location[3])
 			bezt= newbezt;
 			ok= 1;
 		}
-		else bezt= 0;
+		else bezt= NULL;
 
 		if(bezt) {
 			if(!newnu) nu->pntsu++;
@@ -4499,20 +4566,7 @@ static int addvert_Nurb(bContext *C, short mode, float location[3])
 	}
 	else if(!ok && nu->pntsv==1) {
 		/* which b-point? */
-		if(bp== nu->bp) {   /* first */
-			bp->f1= 0;
-			newbp =
-				(BPoint*)MEM_callocN((nu->pntsu+1) * sizeof(BPoint), "addvert_Nurb3");
-			ED_curve_bpcpy(editnurb, newbp+1, bp, nu->pntsu);
-			*newbp= *bp;
-			newbp->f1|= SELECT;
-			cu->lastsel= newbp;
-			MEM_freeN(nu->bp);
-			nu->bp= newbp;
-			bp= newbp + 1;
-			ok= 1;
-		}
-		else if(bp== (nu->bp+nu->pntsu-1)) {  /* last */
+		if(bp== (nu->bp+nu->pntsu-1)) {  /* last */
 			bp->f1= 0;
 			newbp =
 				(BPoint*)MEM_callocN((nu->pntsu+1) * sizeof(BPoint), "addvert_Nurb4");
@@ -4524,6 +4578,19 @@ static int addvert_Nurb(bContext *C, short mode, float location[3])
 			newbp->f1|= SELECT;
 			cu->lastsel= newbp;
 			bp= newbp - 1;
+			ok= 1;
+		}
+		else if(bp== nu->bp) {   /* first */
+			bp->f1= 0;
+			newbp =
+				(BPoint*)MEM_callocN((nu->pntsu+1) * sizeof(BPoint), "addvert_Nurb3");
+			ED_curve_bpcpy(editnurb, newbp+1, bp, nu->pntsu);
+			*newbp= *bp;
+			newbp->f1|= SELECT;
+			cu->lastsel= newbp;
+			MEM_freeN(nu->bp);
+			nu->bp= newbp;
+			bp= newbp + 1;
 			ok= 1;
 		}
 		else if(mode!='e') {
@@ -4545,7 +4612,7 @@ static int addvert_Nurb(bContext *C, short mode, float location[3])
 			bp= newbp;
 			ok= 1;
 		}
-		else bp= 0;
+		else bp= NULL;
 
 		if(bp) {
 			if(mode=='e') {
@@ -4779,18 +4846,20 @@ static int toggle_cyclic_invoke(bContext *C, wmOperator *op, wmEvent *UNUSED(eve
 	uiLayout *layout;
 	Nurb *nu;
 
-	for(nu= editnurb->first; nu; nu= nu->next) {
-		if(nu->pntsu>1 || nu->pntsv>1) {
-			if(nu->type==CU_NURBS) {
-				pup= uiPupMenuBegin(C, "Direction", ICON_NULL);
-				layout= uiPupMenuLayout(pup);
-				uiItemsEnumO(layout, op->type->idname, "direction");
-				uiPupMenuEnd(C, pup);
-				return OPERATOR_CANCELLED;
+	if(obedit->type == OB_SURF) {
+		for(nu= editnurb->first; nu; nu= nu->next) {
+			if(nu->pntsu>1 || nu->pntsv>1) {
+				if(nu->type==CU_NURBS) {
+					pup= uiPupMenuBegin(C, "Direction", ICON_NONE);
+					layout= uiPupMenuLayout(pup);
+					uiItemsEnumO(layout, op->type->idname, "direction");
+					uiPupMenuEnd(C, pup);
+					return OPERATOR_CANCELLED;
+				}
 			}
 		}
 	}
-	
+
 	return toggle_cyclic_exec(C, op);
 }
 
@@ -4962,13 +5031,13 @@ static int select_row_exec(bContext *C, wmOperator *UNUSED(op))
 	Object *obedit= CTX_data_edit_object(C);
 	Curve *cu= obedit->data;
 	ListBase *editnurb= curve_get_editcurve(obedit);
-	static BPoint *last=0;
+	static BPoint *last= NULL;
 	static int direction=0;
 	Nurb *nu;
 	BPoint *bp;
 	int u = 0, v = 0, a, b, ok=0;
 
-	if(editnurb->first==0)
+	if(editnurb->first == NULL)
 		return OPERATOR_CANCELLED;
 	if(cu->lastsel==NULL)
 		return OPERATOR_CANCELLED;
@@ -5575,6 +5644,7 @@ static int delete_exec(bContext *C, wmOperator *op)
 	BezTriple *bezt, *bezt1, *bezt2;
 	BPoint *bp, *bp1, *bp2;
 	int a, cut= 0, type= RNA_enum_get(op->ptr, "type");
+	int nuindex= 0;
 
 	if(obedit->type==OB_SURF) {
 		if(type==0) {
@@ -5609,6 +5679,9 @@ static int delete_exec(bContext *C, wmOperator *op)
 						bezt++;
 					}
 					if(a==0) {
+						if(cu->actnu == nuindex)
+							cu->actnu= -1;
+
 						BLI_remlink(nubase, nu);
 						keyIndex_delNurb(editnurb, nu);
 						freeNurb(nu); nu= NULL;
@@ -5626,6 +5699,9 @@ static int delete_exec(bContext *C, wmOperator *op)
 						bp++;
 					}
 					if(a==0) {
+						if(cu->actnu == nuindex)
+							cu->actnu= -1;
+
 						BLI_remlink(nubase, nu);
 						keyIndex_delNurb(editnurb, nu);
 						freeNurb(nu); nu= NULL;
@@ -5641,6 +5717,7 @@ static int delete_exec(bContext *C, wmOperator *op)
 			}
 			*/
 			nu= next;
+			nuindex++;
 		}
 		/* 2nd loop, delete small pieces: just for curves */
 		nu= nubase->first;
@@ -5714,6 +5791,7 @@ static int delete_exec(bContext *C, wmOperator *op)
 		bezt1= bezt2= NULL;
 		bp1= bp2= NULL;
 		nu1= NULL;
+		nuindex= 0;
 		for(nu= nubase->first; nu; nu= nu->next) {
 			next= nu->next;
 			if(nu->type == CU_BEZIER) {
@@ -5770,10 +5848,14 @@ static int delete_exec(bContext *C, wmOperator *op)
 				}
 			}
 			if(nu1) break;
+			nuindex++;
 		}
 		if(nu1) {
 			if(bezt1) {
 				if(nu1->pntsu==2) {	/* remove completely */
+					if(cu->actnu == nuindex)
+						cu->actnu= -1;
+
 					BLI_remlink(nubase, nu);
 					freeNurb(nu); nu = NULL;
 				}
@@ -5817,6 +5899,9 @@ static int delete_exec(bContext *C, wmOperator *op)
 			}
 			else if(bp1) {
 				if(nu1->pntsu==2) {	/* remove completely */
+					if(cu->actnu == nuindex)
+						cu->actnu= -1;
+
 					BLI_remlink(nubase, nu);
 					freeNurb(nu); nu= NULL;
 				}
@@ -5851,6 +5936,7 @@ static int delete_exec(bContext *C, wmOperator *op)
 		}
 	}
 	else if(type==2) {
+		cu->actnu= -1;
 		keyIndex_delNurbList(editnurb, nubase);
 		freeNurblist(nubase);
 	}
@@ -5871,14 +5957,14 @@ static int delete_invoke(bContext *C, wmOperator *op, wmEvent *UNUSED(event))
 	uiLayout *layout;
 
 	if(obedit->type==OB_SURF) {
-		pup= uiPupMenuBegin(C, "Delete", ICON_NULL);
+		pup= uiPupMenuBegin(C, "Delete", ICON_NONE);
 		layout= uiPupMenuLayout(pup);
 		uiItemEnumO(layout, op->type->idname, NULL, 0, "type", 0);
 		uiItemEnumO(layout, op->type->idname, NULL, 0, "type", 2);
 		uiPupMenuEnd(C, pup);
 	}
 	else {
-		pup= uiPupMenuBegin(C, "Delete", ICON_NULL);
+		pup= uiPupMenuBegin(C, "Delete", ICON_NONE);
 		layout= uiPupMenuLayout(pup);
 		uiItemsEnumO(layout, op->type->idname, "type");
 		uiPupMenuEnd(C, pup);
@@ -5979,7 +6065,7 @@ int join_curve_exec(bContext *C, wmOperator *UNUSED(op))
 	float imat[4][4], cmat[4][4];
 	int a;
 
-	tempbase.first= tempbase.last= 0;
+	tempbase.first= tempbase.last= NULL;
 	
 	/* trasnform all selected curves inverse in obact */
 	invert_m4_m4(imat, ob->obmat);
@@ -6866,9 +6952,14 @@ static void undoCurve_to_editCurve(void *ucu, void *obe)
 		editnurb->keyindex= dupli_keyIndexHash(undoCurve->undoIndex);
 	}
 
-	if(ad && ad->action) {
-		free_fcurves(&ad->action->curves);
-		copy_fcurves(&ad->action->curves, &undoCurve->fcurves);
+	if(ad) {
+		if(ad->action) {
+			free_fcurves(&ad->action->curves);
+			copy_fcurves(&ad->action->curves, &undoCurve->fcurves);
+		}
+
+		free_fcurves(&ad->drivers);
+		copy_fcurves(&ad->drivers, &undoCurve->drivers);
 	}
 
 	/* copy  */
@@ -6887,6 +6978,7 @@ static void undoCurve_to_editCurve(void *ucu, void *obe)
 	}
 
 	cu->lastsel= lastsel;
+	cu->actnu= undoCurve->actnu;
 
 	ED_curve_updateAnimPaths(obedit);
 }
@@ -6909,8 +7001,12 @@ static void *editCurve_to_undoCurve(void *obe)
 		tmpEditnurb.keyindex= undoCurve->undoIndex;
 	}
 
-	if(ad && ad->action)
-		copy_fcurves(&undoCurve->fcurves, &ad->action->curves);
+	if(ad) {
+		if(ad->action)
+			copy_fcurves(&undoCurve->fcurves, &ad->action->curves);
+
+		copy_fcurves(&undoCurve->drivers, &ad->drivers);
+	}
 
 	/* copy  */
 	for(nu= nubase->first; nu; nu= nu->next) {
@@ -6928,6 +7024,7 @@ static void *editCurve_to_undoCurve(void *obe)
 	}
 
 	undoCurve->lastsel= lastsel;
+	undoCurve->actnu= cu->actnu;
 
 	return undoCurve;
 }
@@ -6942,6 +7039,7 @@ static void free_undoCurve(void *ucv)
 		BLI_ghash_free(undoCurve->undoIndex, NULL, (GHashValFreeFP)free_cvKeyIndex);
 
 	free_fcurves(&undoCurve->fcurves);
+	free_fcurves(&undoCurve->drivers);
 
 	MEM_freeN(undoCurve);
 }

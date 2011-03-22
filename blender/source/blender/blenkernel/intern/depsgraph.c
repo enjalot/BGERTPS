@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -24,6 +24,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/blenkernel/intern/depsgraph.c
+ *  \ingroup bke
+ */
+
  
 #include <stdio.h>
 #include <string.h>
@@ -40,7 +45,9 @@
 #include "DNA_group_types.h"
 #include "DNA_lattice_types.h"
 #include "DNA_key_types.h"
+#include "DNA_material_types.h"
 #include "DNA_mesh_types.h"
+#include "DNA_node_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_screen_types.h"
 #include "DNA_windowmanager_types.h"
@@ -54,6 +61,7 @@
 #include "BKE_key.h"
 #include "BKE_library.h"
 #include "BKE_main.h"
+#include "BKE_node.h"
 #include "BKE_mball.h"
 #include "BKE_modifier.h"
 #include "BKE_object.h"
@@ -275,7 +283,7 @@ int		queue_count(struct DagNodeQueue *queue){
 }
 
 
-DagForest * dag_init()
+DagForest *dag_init(void)
 {
 	DagForest *forest;
 	/* use callocN to init all zero */
@@ -1077,7 +1085,7 @@ void graph_bfs(void)
 			minheight = pos[node->BFS_dist];
 			itA = node->child;
 			while(itA != NULL) {
-				if((itA->node->color == DAG_WHITE) ) {
+				if(itA->node->color == DAG_WHITE) {
 					itA->node->color = DAG_GRAY;
 					itA->node->BFS_dist = node->BFS_dist + 1;
 					itA->node->k = (float) minheight;
@@ -1224,7 +1232,7 @@ DagNodeQueue * graph_dfs(void)
 
 			itA = node->child;
 			while(itA != NULL) {
-				if((itA->node->color == DAG_WHITE) ) {
+				if(itA->node->color == DAG_WHITE) {
 					itA->node->DFS_dvtm = time;
 					itA->node->color = DAG_GRAY;
 
@@ -1478,7 +1486,7 @@ struct DagNodeQueue *get_all_childs(struct DagForest	*dag, void *ob)
 					
 			itA = node->child;
 			while(itA != NULL) {
-				if((itA->node->color == DAG_WHITE) ) {
+				if(itA->node->color == DAG_WHITE) {
 					itA->node->DFS_dvtm = time;
 					itA->node->color = DAG_GRAY;
 					
@@ -1512,7 +1520,7 @@ short	are_obs_related(struct DagForest	*dag, void *ob1, void *ob2) {
 	
 	itA = node->child;
 	while(itA != NULL) {
-		if((itA->node->ob == ob2) ) {
+		if(itA->node->ob == ob2) {
 			return itA->node->type;
 		} 
 		itA = itA->next;
@@ -1548,10 +1556,9 @@ void graph_print_queue(DagNodeQueue *nqueue)
 void graph_print_queue_dist(DagNodeQueue *nqueue)
 {	
 	DagNodeQueueElem *queueElem;
-	int max, count;
+	int count;
 	
 	queueElem = nqueue->first;
-	max = queueElem->node->DFS_fntm;
 	count = 0;
 	while(queueElem) {
 		fprintf(stderr,"** %25s %2.2i-%2.2i ",((ID *) queueElem->node->ob)->name,queueElem->node->DFS_dvtm,queueElem->node->DFS_fntm);
@@ -1684,7 +1691,7 @@ void DAG_scene_sort(Main *bmain, Scene *sce)
 		
 		itA = node->child;
 		while(itA != NULL) {
-			if((itA->node->color == DAG_WHITE) ) {
+			if(itA->node->color == DAG_WHITE) {
 				itA->node->DFS_dvtm = time;
 				itA->node->color = DAG_GRAY;
 				
@@ -1923,6 +1930,28 @@ static void dag_scene_flush_layers(Scene *sce, int lay)
 			flush_layer_node(sce, itA->node, lasttime);
 }
 
+static void dag_tag_renderlayers(Scene *sce, unsigned int lay)
+{
+	if(sce->nodetree) {
+		bNode *node;
+		Base *base;
+		unsigned int lay_changed= 0;
+		
+		for(base= sce->base.first; base; base= base->next)
+			if(base->lay & lay)
+				if(base->object->recalc)
+					lay_changed |= base->lay;
+			
+		for(node= sce->nodetree->nodes.first; node; node= node->next) {
+			if(node->id==(ID *)sce) {
+				SceneRenderLayer *srl= BLI_findlink(&sce->r.layers, node->custom1);
+				if(srl && (srl->lay & lay_changed))
+					NodeTagChanged(sce->nodetree, node);
+			}
+		}
+	}
+}
+
 /* flushes all recalc flags in objects down the dependency tree */
 void DAG_scene_flush_update(Main *bmain, Scene *sce, unsigned int lay, const short time)
 {
@@ -1967,6 +1996,8 @@ void DAG_scene_flush_update(Main *bmain, Scene *sce, unsigned int lay, const sho
 			}
 		}
 	}
+	
+	dag_tag_renderlayers(sce, lay);
 }
 
 static int object_modifiers_use_time(Object *ob)
@@ -2349,6 +2380,29 @@ static void dag_id_flush_update(Scene *sce, ID *id)
 				modifiers_foreachIDLink(obt, dag_id_flush_update__isDependentTexture, &data);
 				if (data.is_dependent)
 					obt->recalc |= OB_RECALC_DATA;
+
+				/* particle settings can use the texture as well */
+				if(obt->particlesystem.first) {
+					ParticleSystem *psys = obt->particlesystem.first;
+					MTex **mtexp, *mtex;
+					int a;
+					for(; psys; psys=psys->next) {
+						mtexp = psys->part->mtex;
+						for(a=0; a<MAX_MTEX; a++, mtexp++) {
+							mtex = *mtexp;
+							if(mtex && mtex->tex == (Tex*)id) {
+								obt->recalc |= OB_RECALC_DATA;
+								
+								if(mtex->mapto & PAMAP_INIT)
+									psys->recalc |= PSYS_RECALC_RESET;
+								if(mtex->mapto & PAMAP_CHILD)
+									psys->recalc |= PSYS_RECALC_CHILD;
+
+								BKE_ptcache_object_reset(sce, obt, PTCACHE_RESET_DEPSGRAPH);
+							}
+						}
+					}
+				}
 			}
 		}
 		
@@ -2452,7 +2506,9 @@ void DAG_id_tag_update(ID *id, short flag)
 			}
 		}
 		else {
-			BLI_assert(!"invalid flag for this 'idtype'");
+			/* disable because this is called on various ID types automatically.
+			 * where printing warning is not useful. for now just ignore */
+			/* BLI_assert(!"invalid flag for this 'idtype'"); */
 		}
 	}
 }
@@ -2594,7 +2650,7 @@ void DAG_pose_sort(Object *ob)
 		
 		itA = node->child;
 		while(itA != NULL) {
-			if((itA->node->color == DAG_WHITE) ) {
+			if(itA->node->color == DAG_WHITE) {
 				itA->node->color = DAG_GRAY;
 				push_stack(nqueue,itA->node);
 				skip = 1;

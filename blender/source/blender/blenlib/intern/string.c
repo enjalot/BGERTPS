@@ -32,6 +32,11 @@
  * 
  */
 
+/** \file blender/blenlib/intern/string.c
+ *  \ingroup bli
+ */
+
+
 #include <string.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -66,7 +71,7 @@ char *BLI_strdupcat(const char *str1, const char *str2)
 	return n;
 }
 
-char *BLI_strncpy(char *dst, const char *src, int maxncpy) {
+char *BLI_strncpy(char *dst, const char *src, const int maxncpy) {
 	int srclen= strlen(src);
 	int cpylen= (srclen>(maxncpy-1))?(maxncpy-1):srclen;
 	

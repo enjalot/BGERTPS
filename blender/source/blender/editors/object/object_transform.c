@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -24,6 +24,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/editors/object/object_transform.c
+ *  \ingroup edobj
+ */
+
 
 #include <stdlib.h>
 #include <string.h>
@@ -165,24 +170,16 @@ static void object_clear_rot(Object *ob)
 	}						 // Duplicated in source/blender/editors/armature/editarmature.c
 	else { 
 		if (ob->rotmode == ROT_MODE_QUAT) {
-			ob->quat[1]=ob->quat[2]=ob->quat[3]= 0.0f; 
-			ob->quat[0]= 1.0f;
-			
-			ob->dquat[1]=ob->dquat[2]=ob->dquat[3]= 0.0f;
-			ob->dquat[0]= 1.0f;
+			unit_qt(ob->quat);
+			unit_qt(ob->dquat);
 		}
 		else if (ob->rotmode == ROT_MODE_AXISANGLE) {
-			/* by default, make rotation of 0 radians around y-axis (roll) */
-			ob->rotAxis[0]=ob->rotAxis[2]=ob->rotAngle= 0.0f;
-			ob->rotAxis[1]= 1.0f;
-			
-			ob->drotAxis[0]=ob->drotAxis[2]=ob->drotAngle= 0.0f;
-			ob->drotAxis[1]= 1.0f;
+			unit_axis_angle(ob->rotAxis, &ob->rotAngle);
+			unit_axis_angle(ob->drotAxis, &ob->drotAngle);
 		}
 		else {
-			ob->rot[0]= ob->rot[1]= ob->rot[2]= 0.0f;
-			
-			ob->drot[0]= ob->drot[1]= ob->drot[2]= 0.0f;
+			zero_v3(ob->rot);
+			zero_v3(ob->drot);
 		}
 	}
 }
@@ -532,16 +529,13 @@ static int apply_objects_internal(bContext *C, ReportList *reports, int apply_lo
 			continue;
 
 		if(apply_loc)
-			ob->loc[0]= ob->loc[1]= ob->loc[2]= 0.0f;
+			zero_v3(ob->loc);
 		if(apply_scale)
 			ob->size[0]= ob->size[1]= ob->size[2]= 1.0f;
 		if(apply_rot) {
-			ob->rot[0]= ob->rot[1]= ob->rot[2]= 0.0f;
-			ob->quat[1]= ob->quat[2]= ob->quat[3]= 0.0f;
-			ob->rotAxis[0]= ob->rotAxis[2]= 0.0f;
-			ob->rotAngle= 0.0f;
-			
-			ob->quat[0]= ob->rotAxis[1]= 1.0f;
+			zero_v3(ob->rot);
+			unit_qt(ob->quat);
+			unit_axis_angle(ob->rotAxis, &ob->rotAngle);
 		}
 
 		where_is_object(scene, ob);
@@ -659,53 +653,6 @@ void OBJECT_OT_rotation_apply(wmOperatorType *ot)
 	ot->flag= OPTYPE_REGISTER|OPTYPE_UNDO;
 }
 
-/************************ Texture Space Transform ****************************/
-
-void texspace_edit(Scene *scene, View3D *v3d)
-{
-	Base *base;
-	int nr=0;
-	
-	/* first test if from visible and selected objects
-	 * texspacedraw is set:
-	 */
-	
-	if(scene->obedit) return; // XXX get from context
-	
-	for(base= FIRSTBASE; base; base= base->next) {
-		if(TESTBASELIB(v3d, base)) {
-			break;
-		}
-	}
-
-	if(base==0) {
-		return;
-	}
-	
-	nr= 0; // XXX pupmenu("Texture Space %t|Grab/Move%x1|Size%x2");
-	if(nr<1) return;
-	
-	for(base= FIRSTBASE; base; base= base->next) {
-		if(TESTBASELIB(v3d, base)) {
-			base->object->dtx |= OB_TEXSPACE;
-		}
-	}
-	
-
-	if(nr==1) {
-// XXX		initTransform(TFM_TRANSLATION, CTX_TEXTURE);
-// XXX		Transform();
-	}
-	else if(nr==2) {
-// XXX		initTransform(TFM_RESIZE, CTX_TEXTURE);
-// XXX		Transform();
-	}
-	else if(nr==3) {
-// XXX		initTransform(TFM_ROTATION, CTX_TEXTURE);
-// XXX		Transform();
-	}
-}
-
 /********************* Set Object Center ************************/
 
 enum {
@@ -755,7 +702,9 @@ static int object_origin_set_exec(bContext *C, wmOperator *op)
 					total++;
 					add_v3_v3(cent, eve->co);
 				}
-				mul_v3_fl(cent, 1.0f/(float)total);
+				if(total) {
+					mul_v3_fl(cent, 1.0f/(float)total);
+				}
 			}
 			else {
 				for(eve= em->verts.first; eve; eve= eve->next) {
@@ -764,13 +713,15 @@ static int object_origin_set_exec(bContext *C, wmOperator *op)
 				mid_v3_v3v3(cent, min, max);
 			}
 
-			for(eve= em->verts.first; eve; eve= eve->next) {
-				sub_v3_v3(eve->co, cent);
-			}
+			if(!is_zero_v3(cent)) {
+				for(eve= em->verts.first; eve; eve= eve->next) {
+					sub_v3_v3(eve->co, cent);
+				}
 
-			recalc_editnormals(em);
-			tot_change++;
-			DAG_id_tag_update(&obedit->id, OB_RECALC_DATA);
+				recalc_editnormals(em);
+				tot_change++;
+				DAG_id_tag_update(&obedit->id, OB_RECALC_DATA);
+			}
 			BKE_mesh_end_editmesh(me, em);
 		}
 	}

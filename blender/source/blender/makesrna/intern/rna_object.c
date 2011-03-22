@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -21,6 +21,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/makesrna/intern/rna_object.c
+ *  \ingroup RNA
+ */
+
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -1430,9 +1435,9 @@ static void rna_def_object_game_settings(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Lock Z Rotation Axis", "Disable simulation of angular  motion along the Z axis");	
 	
 
-	prop= RNA_def_property(srna, "use_material_physics", PROP_BOOLEAN, PROP_NONE);
+	prop= RNA_def_property(srna, "use_material_physics_fh", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "gameflag", OB_DO_FH);
-	RNA_def_property_ui_text(prop, "Use Material Physics", "Use physics settings in materials");
+	RNA_def_property_ui_text(prop, "Use Material Force Field", "React to force field physics settings in materials");
 
 	prop= RNA_def_property(srna, "use_rotate_from_normal", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "gameflag", OB_ROT_FH);
@@ -1675,9 +1680,9 @@ static void rna_def_object(BlenderRNA *brna)
 	PropertyRNA *prop;
 
 	static EnumPropertyItem empty_drawtype_items[] = {
+		{OB_PLAINAXES, "PLAIN_AXES", 0, "Plain Axes", ""},
 		{OB_ARROWS, "ARROWS", 0, "Arrows", ""},
 		{OB_SINGLE_ARROW, "SINGLE_ARROW", 0, "Single Arrow", ""},
-		{OB_PLAINAXES, "PLAIN_AXES", 0, "Plain Axes", ""},
 		{OB_CIRCLE, "CIRCLE", 0, "Circle", ""},
 		{OB_CUBE, "CUBE", 0, "Cube", ""},
 		{OB_EMPTY_SPHERE, "SPHERE", 0, "Sphere", ""},
@@ -1838,7 +1843,7 @@ static void rna_def_object(BlenderRNA *brna)
 	prop= RNA_def_property(srna, "material_slots", PROP_COLLECTION, PROP_NONE);
 	RNA_def_property_collection_sdna(prop, NULL, "mat", "totcol");
 	RNA_def_property_struct_type(prop, "MaterialSlot");
-	RNA_def_property_collection_funcs(prop, NULL, NULL, NULL, "rna_iterator_array_get", 0, 0, 0); /* don't dereference pointer! */
+	RNA_def_property_collection_funcs(prop, NULL, NULL, NULL, "rna_iterator_array_get", NULL, NULL, NULL); /* don't dereference pointer! */
 	RNA_def_property_ui_text(prop, "Material Slots", "Material slots in the object");
 
 	prop= RNA_def_property(srna, "active_material", PROP_POINTER, PROP_NONE);
@@ -2254,6 +2259,7 @@ static void rna_def_object(BlenderRNA *brna)
 	/* pose */
 	prop= RNA_def_property(srna, "pose_library", PROP_POINTER, PROP_NONE);
 	RNA_def_property_pointer_sdna(prop, NULL, "poselib");
+	RNA_def_property_flag(prop, PROP_EDITABLE);
 	RNA_def_property_struct_type(prop, "Action");
 	RNA_def_property_ui_text(prop, "Pose Library", "Action used as a pose library for armatures");
 

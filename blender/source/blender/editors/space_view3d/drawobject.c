@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -24,6 +24,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/editors/space_view3d/drawobject.c
+ *  \ingroup spview3d
+ */
+
 
 #include <string.h>
 #include <math.h>
@@ -570,10 +575,11 @@ typedef struct ViewCachedString {
 	short mval[2];
 	short xoffs;
 	short flag;
+	int str_len, pad;
 	/* str is allocated past the end */
 } ViewCachedString;
 
-void view3d_cached_text_draw_begin()
+void view3d_cached_text_draw_begin(void)
 {
 	ListBase *strings= &CachedText[CachedTextLevel];
 	strings->first= strings->last= NULL;
@@ -591,6 +597,7 @@ void view3d_cached_text_draw_add(const float co[3], const char *str, short xoffs
 	vos->col.pack= *((int *)col);
 	vos->xoffs= xoffs;
 	vos->flag= flag;
+	vos->str_len= alloc_len-1;
 
 	/* allocate past the end */
 	memcpy(++vos, str, alloc_len);
@@ -656,10 +663,10 @@ void view3d_cached_text_draw_end(View3D *v3d, ARegion *ar, int depth_write, floa
 					col_pack_prev= vos->col.pack;
 				}
 				if(vos->flag & V3D_CACHE_TEXT_ASCII) {
-					BLF_draw_default_ascii((float)vos->mval[0]+vos->xoffs, (float)vos->mval[1], (depth_write)? 0.0f: 2.0f, str, 65535); /* XXX, use real length */
+					BLF_draw_default_ascii((float)vos->mval[0]+vos->xoffs, (float)vos->mval[1], (depth_write)? 0.0f: 2.0f, str, vos->str_len);
 				}
 				else {
-					BLF_draw_default((float)vos->mval[0]+vos->xoffs, (float)vos->mval[1], (depth_write)? 0.0f: 2.0f, str, 65535); /* XXX, use real length */
+					BLF_draw_default((float)vos->mval[0]+vos->xoffs, (float)vos->mval[1], (depth_write)? 0.0f: 2.0f, str, vos->str_len);
 				}
 			}
 		}
@@ -2116,7 +2123,7 @@ static void draw_em_measure_stats(View3D *v3d, RegionView3D *rv3d, Object *ob, E
 	float fvec[3];
 	char val[32]; /* Stores the measurement display text here */
 	const char *conv_float; /* Use a float conversion matching the grid size */
-	unsigned char col[3]; /* color of the text to draw */
+	unsigned char col[4]= {0, 0, 0, 255}; /* color of the text to draw */
 	float area; /* area of the face */
 	float grid= unit->system ? unit->scale_length : v3d->grid;
 	const int do_split= unit->flag & USER_UNIT_OPT_SPLIT;
@@ -2322,7 +2329,7 @@ static void draw_em_fancy(Scene *scene, View3D *v3d, RegionView3D *rv3d, Object 
 			glEnable(GL_LIGHTING);
 			glFrontFace((ob->transflag&OB_NEG_SCALE)?GL_CW:GL_CCW);
 
-			finalDM->drawMappedFaces(finalDM, draw_em_fancy__setFaceOpts, 0, 0, GPU_enable_material);
+			finalDM->drawMappedFaces(finalDM, draw_em_fancy__setFaceOpts, NULL, 0, GPU_enable_material);
 
 			glFrontFace(GL_CCW);
 			glDisable(GL_LIGHTING);
@@ -2448,7 +2455,7 @@ static void draw_mesh_object_outline(View3D *v3d, Object *ob, DerivedMesh *dm)
 {
 	
 	if(v3d->transp==0) {	// not when we draw the transparent pass
-		glLineWidth(2.0);
+		glLineWidth(UI_GetThemeValuef(TH_OUTLINE_WIDTH) * 2.0);
 		glDepthMask(0);
 		
 		/* if transparent, we cannot draw the edges for solid select... edges have no material info.
@@ -3131,7 +3138,7 @@ static int drawCurveDerivedMesh(Scene *scene, View3D *v3d, RegionView3D *rv3d, B
 static int drawDispList(Scene *scene, View3D *v3d, RegionView3D *rv3d, Base *base, int dt)
 {
 	Object *ob= base->object;
-	ListBase *lb=0;
+	ListBase *lb=NULL;
 	DispList *dl;
 	Curve *cu;
 	int solid, retval= 0;
@@ -3153,7 +3160,7 @@ static int drawDispList(Scene *scene, View3D *v3d, RegionView3D *rv3d, Base *bas
 			dl= lb->first;
 			if(dl==NULL) return 1;
 
-			if(dl->nors==0) addnormalsDispList(lb);
+			if(dl->nors==NULL) addnormalsDispList(lb);
 			index3_nors_incr= 0;
 			
 			if( displist_has_faces(lb)==0) {
@@ -3168,7 +3175,7 @@ static int drawDispList(Scene *scene, View3D *v3d, RegionView3D *rv3d, Base *bas
 					GPU_end_object_materials();
 				}
 				else if(dt == OB_SHADED) {
-					if(ob->disp.first==0) shadeDispList(scene, base);
+					if(ob->disp.first==NULL) shadeDispList(scene, base);
 					drawDispListshaded(lb, ob);
 				}
 				else {
@@ -3238,7 +3245,7 @@ static int drawDispList(Scene *scene, View3D *v3d, RegionView3D *rv3d, Base *bas
 				}
 				else if(dt == OB_SHADED) {
 					dl= lb->first;
-					if(dl && dl->col1==0) shadeDispList(scene, base);
+					if(dl && dl->col1==NULL) shadeDispList(scene, base);
 					drawDispListshaded(lb, ob);
 				}
 				else {
@@ -3451,14 +3458,14 @@ static void draw_new_particle_system(Scene *scene, View3D *v3d, RegionView3D *rv
 	ParticleEditSettings *pset = PE_settings(scene);
 	ParticleSettings *part;
 	ParticleData *pars, *pa;
-	ParticleKey state, *states=0;
+	ParticleKey state, *states=NULL;
 	ParticleBillboardData bb;
-	ParticleSimulationData sim= {0};
+	ParticleSimulationData sim= {NULL};
 	ParticleDrawData *pdd = psys->pdd;
 	Material *ma;
 	float vel[3], imat[4][4];
 	float timestep, pixsize=1.0, pa_size, r_tilt, r_length;
-	float pa_time, pa_birthtime, pa_dietime, pa_health;
+	float pa_time, pa_birthtime, pa_dietime, pa_health, intensity;
 	float cfra;
 	float ma_r=0.0f, ma_g=0.0f, ma_b=0.0f;
 	int a, totpart, totpoint=0, totve=0, drawn, draw_as, totchild=0;
@@ -3468,16 +3475,16 @@ static void draw_new_particle_system(Scene *scene, View3D *v3d, RegionView3D *rv
 	unsigned char tcol[4]= {0, 0, 0, 255};
 
 /* 1. */
-	if(psys==0)
+	if(psys==NULL)
 		return;
 
 	part=psys->part;
 	pars=psys->particles;
 
-	if(part==0 || !psys_check_enabled(ob, psys))
+	if(part==NULL || !psys_check_enabled(ob, psys))
 		return;
 
-	if(pars==0) return;
+	if(pars==NULL) return;
 
 	/* don't draw normal paths in edit mode */
 	if(psys_in_edit_mode(scene, psys) && (pset->flag & PE_DRAW_PART)==0)
@@ -3522,7 +3529,7 @@ static void draw_new_particle_system(Scene *scene, View3D *v3d, RegionView3D *rv
 
 	if(v3d->zbuf) glDepthMask(1);
 
-	if((ma) && (part->draw&PART_DRAW_MAT_COL)) {
+	if((ma) && (part->draw_col == PART_DRAW_COL_MAT)) {
 		rgb_float_to_byte(&(ma->r), tcol);
 
 		ma_r = ma->r;
@@ -3545,7 +3552,7 @@ static void draw_new_particle_system(Scene *scene, View3D *v3d, RegionView3D *rv
 
 	totpart=psys->totpart;
 
-	cfra=bsystem_time(scene, 0, (float)CFRA, 0.0f);
+	cfra= bsystem_time(scene, NULL, (float)CFRA, 0.0f);
 
 	if(draw_as==PART_DRAW_PATH && psys->pathcache==NULL && psys->childcache==NULL)
 		draw_as=PART_DRAW_DOT;
@@ -3578,19 +3585,19 @@ static void draw_new_particle_system(Scene *scene, View3D *v3d, RegionView3D *rv
 				create_cdata = 1;
 			break;
 		case PART_DRAW_OB:
-			if(part->dup_ob==0)
+			if(part->dup_ob==NULL)
 				draw_as=PART_DRAW_DOT;
 			else
 				draw_as=0;
 			break;
 		case PART_DRAW_GR:
-			if(part->dup_group==0)
+			if(part->dup_group==NULL)
 				draw_as=PART_DRAW_DOT;
 			else
 				draw_as=0;
 			break;
 		case PART_DRAW_BB:
-			if(v3d->camera==0 && part->bb_ob==0){
+			if(v3d->camera==NULL && part->bb_ob==NULL){
 				printf("Billboards need an active camera or a target object!\n");
 
 				draw_as=part->draw_as=PART_DRAW_DOT;
@@ -3622,6 +3629,10 @@ static void draw_new_particle_system(Scene *scene, View3D *v3d, RegionView3D *rv
 		normalize_v3(imat[0]);
 		normalize_v3(imat[1]);
 	}
+
+	if(ELEM3(draw_as, PART_DRAW_DOT, PART_DRAW_CROSS, PART_DRAW_LINE)
+		&& part->draw_col > PART_DRAW_COL_MAT)
+		create_cdata = 1;
 
 	if(!create_cdata && pdd && pdd->cdata) {
 		MEM_freeN(pdd->cdata);
@@ -3665,7 +3676,7 @@ static void draw_new_particle_system(Scene *scene, View3D *v3d, RegionView3D *rv
 		if(create_cdata && !pdd->cdata)
 			pdd->cdata = MEM_callocN(tot_vec_size, "particle_cdata");
 		if(create_ndata && !pdd->ndata)
-			pdd->ndata = MEM_callocN(tot_vec_size, "particle_vdata");
+			pdd->ndata = MEM_callocN(tot_vec_size, "particle_ndata");
 
 		if(part->draw & PART_DRAW_VEL && draw_as != PART_DRAW_LINE) {
 			if(!pdd->vedata)
@@ -3720,66 +3731,27 @@ static void draw_new_particle_system(Scene *scene, View3D *v3d, RegionView3D *rv
 				else
 					pa_health = -1.0;
 
-#if 0 // XXX old animation system	
-				if((part->flag&PART_ABS_TIME)==0){			
-					if(ma && ma->ipo){
-						IpoCurve *icu;
-
-						/* correction for lifetime */
-						calc_ipo(ma->ipo, 100.0f*pa_time);
-
-						for(icu = ma->ipo->curve.first; icu; icu=icu->next) {
-							if(icu->adrcode == MA_COL_R)
-								ma_r = icu->curval;
-							else if(icu->adrcode == MA_COL_G)
-								ma_g = icu->curval;
-							else if(icu->adrcode == MA_COL_B)
-								ma_b = icu->curval;
-						}
-					}
-					if(part->ipo) {
-						IpoCurve *icu;
-
-						/* correction for lifetime */
-						calc_ipo(part->ipo, 100*pa_time);
-
-						for(icu = part->ipo->curve.first; icu; icu=icu->next) {
-							if(icu->adrcode == PART_SIZE)
-								pa_size = icu->curval;
-						}
-					}
-				}
-#endif // XXX old animation system
-
 				r_tilt = 2.0f*(PSYS_FRAND(a + 21) - 0.5f);
 				r_length = PSYS_FRAND(a + 22);
+
+				if(part->draw_col > PART_DRAW_COL_MAT) {
+					switch(part->draw_col) {
+						case PART_DRAW_COL_VEL:
+							intensity = len_v3(pa->state.vel)/part->color_vec_max;
+							break;
+						case PART_DRAW_COL_ACC:
+							intensity = len_v3v3(pa->state.vel, pa->prev_state.vel)/((pa->state.time-pa->prev_state.time)*part->color_vec_max);
+							break;
+					}
+					CLAMP(intensity, 0.f, 1.f);
+					weight_to_rgb(intensity, &ma_r, &ma_g, &ma_b);
+				}
 			}
 			else{
 				ChildParticle *cpa= &psys->child[a-totpart];
 
 				pa_time=psys_get_child_time(psys,cpa,cfra,&pa_birthtime,&pa_dietime);
-
-#if 0 // XXX old animation system
-				if((part->flag&PART_ABS_TIME)==0) {
-					if(ma && ma->ipo){
-						IpoCurve *icu;
-
-						/* correction for lifetime */
-						calc_ipo(ma->ipo, 100.0f*pa_time);
-
-						for(icu = ma->ipo->curve.first; icu; icu=icu->next) {
-							if(icu->adrcode == MA_COL_R)
-								ma_r = icu->curval;
-							else if(icu->adrcode == MA_COL_G)
-								ma_g = icu->curval;
-							else if(icu->adrcode == MA_COL_B)
-								ma_b = icu->curval;
-						}
-					}
-				}
-#endif // XXX old animation system
-
-				pa_size=psys_get_child_size(psys,cpa,cfra,0);
+				pa_size=psys_get_child_size(psys,cpa,cfra,NULL);
 
 				pa_health = -1.0;
 
@@ -3898,13 +3870,13 @@ static void draw_new_particle_system(Scene *scene, View3D *v3d, RegionView3D *rv
 
 	if(draw_as==PART_DRAW_PATH){
 		ParticleCacheKey **cache, *path;
-		float *cd2=0,*cdata2=0;
+		float *cd2=NULL,*cdata2=NULL;
 
 		/* setup gl flags */
 		if (1) { //ob_dt > OB_WIRE) {
 			glEnableClientState(GL_NORMAL_ARRAY);
 
-			if(part->draw&PART_DRAW_MAT_COL)
+			if(part->draw_col == PART_DRAW_COL_MAT)
 				glEnableClientState(GL_COLOR_ARRAY);
 
 			glEnable(GL_LIGHTING);
@@ -3933,7 +3905,7 @@ static void draw_new_particle_system(Scene *scene, View3D *v3d, RegionView3D *rv
 
 				if(1) { //ob_dt > OB_WIRE) {
 					glNormalPointer(GL_FLOAT, sizeof(ParticleCacheKey), path->vel);
-					if(part->draw&PART_DRAW_MAT_COL)
+					if(part->draw_col == PART_DRAW_COL_MAT)
 						glColorPointer(3, GL_FLOAT, sizeof(ParticleCacheKey), path->col);
 				}
 
@@ -3949,7 +3921,7 @@ static void draw_new_particle_system(Scene *scene, View3D *v3d, RegionView3D *rv
 
 			if(1) { //ob_dt > OB_WIRE) {
 				glNormalPointer(GL_FLOAT, sizeof(ParticleCacheKey), path->vel);
-				if(part->draw&PART_DRAW_MAT_COL)
+				if(part->draw_col == PART_DRAW_COL_MAT)
 					glColorPointer(3, GL_FLOAT, sizeof(ParticleCacheKey), path->col);
 			}
 
@@ -3959,14 +3931,14 @@ static void draw_new_particle_system(Scene *scene, View3D *v3d, RegionView3D *rv
 
 		/* restore & clean up */
 		if(1) { //ob_dt > OB_WIRE) {
-			if(part->draw&PART_DRAW_MAT_COL)
+			if(part->draw_col == PART_DRAW_COL_MAT)
 				glDisable(GL_COLOR_ARRAY);
 			glDisable(GL_COLOR_MATERIAL);
 		}
 
 		if(cdata2)
 			MEM_freeN(cdata2);
-		cd2=cdata2=0;
+		cd2=cdata2=NULL;
 
 		glLineWidth(1.0f);
 
@@ -4070,8 +4042,14 @@ static void draw_new_particle_system(Scene *scene, View3D *v3d, RegionView3D *rv
 		psys->lattice= NULL;
 	}
 
-	if( (base->flag & OB_FROMDUPLI) && (ob->flag & OB_FROMGROUP) )
+	if(pdd) {
+		/* drop references to stack memory */
+		pdd->ma_r= pdd->ma_g= pdd->ma_b= NULL;
+	}
+
+	if( (base->flag & OB_FROMDUPLI) && (ob->flag & OB_FROMGROUP) ) {
 		glLoadMatrixf(rv3d->viewmat);
+	}
 }
 
 static void draw_update_ptcache_edit(Scene *scene, Object *ob, PTCacheEdit *edit)
@@ -4080,7 +4058,7 @@ static void draw_update_ptcache_edit(Scene *scene, Object *ob, PTCacheEdit *edit
 		PE_update_object(scene, ob, 0);
 
 	/* create path and child path cache if it doesn't exist already */
-	if(edit->pathcache==0)
+	if(edit->pathcache == NULL)
 		psys_cache_edit_paths(scene, ob, edit, CFRA);
 }
 
@@ -4096,7 +4074,7 @@ static void draw_ptcache_edit(Scene *scene, View3D *v3d, PTCacheEdit *edit)
 	float nosel_col[3];
 	float *pathcol = NULL, *pcol;
 
-	if(edit->pathcache==0)
+	if(edit->pathcache == NULL)
 		return;
 
 	PE_hide_keys_time(scene, edit, CFRA);
@@ -4155,8 +4133,8 @@ static void draw_ptcache_edit(Scene *scene, View3D *v3d, PTCacheEdit *edit)
 		glPointSize(UI_GetThemeValuef(TH_VERTEX_SIZE));
 
 		if(pset->selectmode==SCE_SELECT_POINT){
-			float *pd=0,*pdata=0;
-			float *cd=0,*cdata=0;
+			float *pd=NULL,*pdata=NULL;
+			float *cd=NULL,*cdata=NULL;
 			int totkeys = 0;
 
 			for (i=0, point=edit->points; i<totpoint; i++, point++)
@@ -4208,8 +4186,8 @@ static void draw_ptcache_edit(Scene *scene, View3D *v3d, PTCacheEdit *edit)
 				pd += pd ? 3 * point->totkey : 0;
 				cd += (timed?4:3) * point->totkey;
 			}
-			if(pdata) { MEM_freeN(pdata); pd=pdata=0; }
-			if(cdata) { MEM_freeN(cdata); cd=cdata=0; }
+			if(pdata) { MEM_freeN(pdata); pd=pdata=NULL; }
+			if(cdata) { MEM_freeN(cdata); cd=cdata=NULL; }
 		}
 		else if(pset->selectmode == SCE_SELECT_END){
 			for(i=0, point=edit->points; i<totpoint; i++, point++){
@@ -5174,13 +5152,13 @@ static void draw_forcefield(Scene *scene, Object *ob, RegionView3D *rv3d)
 		drawcircball(GL_LINE_LOOP, vec, size*2.0, imat);
 	}
 	else if (pd->forcefield == PFIELD_VORTEX) {
-		float ffall_val, force_val;
+		float /*ffall_val,*/ force_val;
 
 		unit_m4(tmat);
 		//if (has_ipo_code(ob->ipo, OB_PD_FFALL)) 
 		//	ffall_val = IPO_GetFloatValue(ob->ipo, OB_PD_FFALL, scene->r.cfra);
 		//else 
-			ffall_val = pd->f_power;
+		//	ffall_val = pd->f_power;
 
 		//if (has_ipo_code(ob->ipo, OB_PD_FSTR))
 		//	force_val = IPO_GetFloatValue(ob->ipo, OB_PD_FSTR, scene->r.cfra);
@@ -5300,7 +5278,8 @@ static void draw_box(float vec[8][3])
 }
 
 /* uses boundbox, function used by Ketsji */
-void get_local_bounds(Object *ob, float *center, float *size)
+#if 0
+static void get_local_bounds(Object *ob, float *center, float *size)
 {
 	BoundBox *bb= object_get_boundbox(ob);
 	
@@ -5318,8 +5297,7 @@ void get_local_bounds(Object *ob, float *center, float *size)
 		center[2]= (bb->vec[0][2] + bb->vec[1][2])/2.0;
 	}
 }
-
-
+#endif
 
 static void draw_bb_quadric(BoundBox *bb, short type)
 {
@@ -5362,7 +5340,7 @@ static void draw_bb_quadric(BoundBox *bb, short type)
 
 static void draw_bounding_volume(Scene *scene, Object *ob)
 {
-	BoundBox *bb=0;
+	BoundBox *bb= NULL;
 	
 	if(ob->type==OB_MESH) {
 		bb= mesh_get_bb(ob);
@@ -5373,7 +5351,7 @@ static void draw_bounding_volume(Scene *scene, Object *ob)
 	else if(ob->type==OB_MBALL) {
 		if(is_basis_mball(ob)) {
 			bb= ob->bb;
-			if(bb==0) {
+			if(bb==NULL) {
 				makeDispListMBall(scene, ob);
 				bb= ob->bb;
 			}
@@ -5384,7 +5362,7 @@ static void draw_bounding_volume(Scene *scene, Object *ob)
 		return;
 	}
 	
-	if(bb==0) return;
+	if(bb==NULL) return;
 	
 	if(ob->boundtype==OB_BOUND_BOX) draw_box(bb->vec);
 	else draw_bb_quadric(bb, ob->boundtype);
@@ -5552,8 +5530,7 @@ static void draw_hooks(Object *ob)
 	}
 }
 
-//<rcruiz>
-void drawRBpivot(bRigidBodyJointConstraint *data)
+static void drawRBpivot(bRigidBodyJointConstraint *data)
 {
 	int axis;
 	float mat[4][4];
@@ -6008,7 +5985,7 @@ void draw_object(Scene *scene, ARegion *ar, View3D *v3d, Base *base, int flag)
 
 		if(ob->soft /*&& flag & OB_SBMOTION*/){
 			float mrt[3][3],msc[3][3],mtr[3][3]; 
-			SoftBody *sb = 0;
+			SoftBody *sb= NULL;
 			float tipw = 0.5f, tiph = 0.5f,drawsize = 4.0f;
 			if ((sb= ob->soft)){
 				if(sb->solverflags & SBSO_ESTIMATEIPO){

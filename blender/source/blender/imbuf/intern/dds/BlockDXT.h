@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -21,6 +21,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/imbuf/intern/dds/BlockDXT.h
+ *  \ingroup imbdds
+ */
+
 
 /*
  * This file is based on a similar file from the NVIDIA texture tools

@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -27,6 +27,11 @@
  * ***** END GPL LICENSE BLOCK *****
  * Convert blender data to ketsji
  */
+
+/** \file gameengine/Converter/BL_BlenderDataConversion.cpp
+ *  \ingroup bgeconv
+ */
+
 
 #if defined(WIN32) && !defined(FREE_WINDOWS)
 #pragma warning (disable : 4786)
@@ -730,13 +735,13 @@ RAS_MeshObject* BL_ConvertMesh(Mesh* mesh, Object* blenderobj, KX_Scene* scene, 
 	MFace *mface = dm->getFaceArray(dm);
 	MTFace *tface = static_cast<MTFace*>(dm->getFaceDataArray(dm, CD_MTFACE));
 	MCol *mcol = static_cast<MCol*>(dm->getFaceDataArray(dm, CD_MCOL));
-	float (*tangent)[3] = NULL;
+	float (*tangent)[4] = NULL;
 	int totface = dm->getNumFaces(dm);
 	const char *tfaceName = "";
 
 	if(tface) {
 		DM_add_tangent_layer(dm);
-		tangent = (float(*)[3])dm->getFaceDataArray(dm, CD_TANGENT);
+		tangent = (float(*)[4])dm->getFaceDataArray(dm, CD_TANGENT);
 	}
 
 	meshobj = new RAS_MeshObject(mesh);
@@ -2645,6 +2650,40 @@ void BL_ConvertBlenderObjects(struct Main* maggie,
 											kxscene->GetPhysicsEnvironment()->setConstraintParam(constraintId,dof,1,-1);
 										}
 										dofbit<<=1;
+									}
+								}
+								else if(dat->type == PHY_CONE_TWIST_CONSTRAINT)
+								{
+									int dof;
+									int dofbit = 1<<3; // bitflag use_angular_limit_x
+									
+									for (dof=3;dof<6;dof++)
+									{
+										if(dat->flag & dofbit)
+										{
+											kxscene->GetPhysicsEnvironment()->setConstraintParam(constraintId,dof,dat->minLimit[dof],dat->maxLimit[dof]);
+										}
+										else
+										{
+											//maxLimit < 0 means free(disabled limit) for this degree of freedom
+											kxscene->GetPhysicsEnvironment()->setConstraintParam(constraintId,dof,1,-1);
+										}
+										dofbit<<=1;
+									}								
+								}
+								else if (dat->type == PHY_LINEHINGE_CONSTRAINT)
+								{
+									int dof = 3; // dof for angular x
+									int dofbit = 1<<3; // bitflag use_angular_limit_x
+									
+									if (dat->flag & dofbit)
+									{
+										kxscene->GetPhysicsEnvironment()->setConstraintParam(constraintId,dof,
+												dat->minLimit[dof],dat->maxLimit[dof]);
+									} else
+									{
+										//minLimit > maxLimit means free(disabled limit) for this degree of freedom
+										kxscene->GetPhysicsEnvironment()->setConstraintParam(constraintId,dof,1,-1);
 									}
 								}
 							}

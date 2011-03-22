@@ -1,6 +1,4 @@
-/**
- * blenlib/BKE_scene.h (mar-2001 nzc)
- *	
+/*
  * $Id$ 
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -30,6 +28,12 @@
  */
 #ifndef BKE_SCENE_H
 #define BKE_SCENE_H
+
+/** \file BKE_scene.h
+ *  \ingroup bke
+ *  \since March 2001
+ *  \author nzc
+ */
 
 #ifdef __cplusplus
 extern "C" {
@@ -62,7 +66,7 @@ struct Scene *add_scene(const char *name);
 struct Base *object_in_scene(struct Object *ob, struct Scene *sce);
 
 void set_scene_bg(struct Main *bmain, struct Scene *sce);
-struct Scene *set_scene_name(struct Main *bmain, char *name);
+struct Scene *set_scene_name(struct Main *bmain, const char *name);
 
 struct Scene *copy_scene(struct Scene *sce, int type);
 void unlink_scene(struct Main *bmain, struct Scene *sce, struct Scene *newsce);
@@ -74,9 +78,6 @@ int scene_camera_switch_update(struct Scene *scene);
 
 char *scene_find_marker_name(struct Scene *scene, int frame);
 char *scene_find_last_marker_name(struct Scene *scene, int frame);
-int scene_marker_tfm_translate(struct Scene *scene, int delta, int flag);
-int scene_marker_tfm_extend(struct Scene *scene, int delta, int flag, int frame, char side);
-int scene_marker_tfm_scale(struct Scene *scene, float value, int flag);
 
 struct Base *scene_add_base(struct Scene *sce, struct Object *ob);
 void scene_deselect_all(struct Scene *sce);

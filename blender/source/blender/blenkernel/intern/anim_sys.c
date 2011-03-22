@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -26,6 +26,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/blenkernel/intern/anim_sys.c
+ *  \ingroup bke
+ */
+
 
 #include <stdio.h>
 #include <string.h>
@@ -304,7 +309,7 @@ void action_move_fcurves_by_basepath (bAction *srcAct, bAction *dstAct, const ch
 	if ELEM3(NULL, srcAct, dstAct, basepath) {
 		if (G.f & G_DEBUG) {
 			printf("ERROR: action_partition_fcurves_by_basepath(%p, %p, %p) has insufficient info to work with\n",
-					srcAct, dstAct, basepath);
+					(void *)srcAct, (void *)dstAct, (void *)basepath);
 		}
 		return;
 	}
@@ -557,7 +562,7 @@ static void drivers_path_rename_fix (ID *owner_id, const char *prefix, char *old
 				DRIVER_TARGETS_USED_LOOPER(dvar) 
 				{
 					/* rename RNA path */
-					if (dtar->rna_path)
+					if (dtar->rna_path && dtar->id)
 						dtar->rna_path= rna_path_rename_fix(dtar->id, prefix, oldKey, newKey, dtar->rna_path, verify_paths);
 					
 					/* also fix the bone-name (if applicable) */
@@ -809,7 +814,7 @@ KS_Path *BKE_keyingset_find_path (KeyingSet *ks, ID *id, const char group_name[]
 			eq_id= 0;
 		
 		/* path */
-		if ((ksp->rna_path==0) || strcmp(rna_path, ksp->rna_path))
+		if ((ksp->rna_path==NULL) || strcmp(rna_path, ksp->rna_path))
 			eq_path= 0;
 			
 		/* index - need to compare whole-array setting too... */
@@ -1856,7 +1861,7 @@ static void animsys_evaluate_nla (PointerRNA *ptr, AnimData *adt, float ctime)
 		/* if there are strips, evaluate action as per NLA rules */
 		if ((has_strips) || (adt->actstrip)) {
 			/* make dummy NLA strip, and add that to the stack */
-			NlaStrip dummy_strip= {0};
+			NlaStrip dummy_strip= {NULL};
 			ListBase dummy_trackslist;
 			
 			dummy_trackslist.first= dummy_trackslist.last= &dummy_strip;
@@ -1915,11 +1920,13 @@ static void animsys_evaluate_nla (PointerRNA *ptr, AnimData *adt, float ctime)
 /* Clear all overides */
 
 /* Add or get existing Override for given setting */
+#if 0
 AnimOverride *BKE_animsys_validate_override (PointerRNA *UNUSED(ptr), char *UNUSED(path), int UNUSED(array_index))
 {
 	// FIXME: need to define how to get overrides
 	return NULL;
 } 
+#endif
 
 /* -------------------- */
 

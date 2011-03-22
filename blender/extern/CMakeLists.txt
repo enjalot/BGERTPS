@@ -31,13 +31,13 @@ if(WITH_BULLET)
 	add_subdirectory(bullet2)
 endif()
 
-if(CMAKE_SYSTEM_NAME MATCHES "Linux")
+if(WITH_BINRELOC)
 	add_subdirectory(binreloc)
 endif()
 
 add_subdirectory(glew)
 
-if(WITH_IMAGE_OPENJPEG)
+if(WITH_IMAGE_OPENJPEG AND (NOT UNIX OR APPLE))
 	add_subdirectory(libopenjpeg)
 endif()
 

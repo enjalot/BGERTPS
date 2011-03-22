@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -26,6 +26,11 @@
  * ***** END GPL LICENSE BLOCK *****
  */
 
+/** \file blender/editors/space_nla/space_nla.c
+ *  \ingroup spnla
+ */
+
+
 #include <string.h>
 #include <stdio.h>
 
@@ -44,6 +49,7 @@
 #include "BKE_main.h"
 #include "BKE_screen.h"
 
+#include "ED_space_api.h"
 #include "ED_anim_api.h"
 #include "ED_markers.h"
 #include "ED_screen.h"

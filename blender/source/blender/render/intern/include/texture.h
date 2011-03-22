@@ -29,6 +29,11 @@
  * ***** END GPL LICENSE BLOCK *****
  */
 
+/** \file blender/render/intern/include/texture.h
+ *  \ingroup render
+ */
+
+
 #ifndef TEXTURE_EXT_H
 #define TEXTURE_EXT_H
 
@@ -48,6 +53,7 @@ if(tex->saturation != 1.0f) { \
 	hsv_to_rgb(_hsv[0], _hsv[1], _hsv[2], &texres->tr, &texres->tg, &texres->tb); \
 } \
 
+#define RGBTOBW(r,g,b)	( r*0.35 + g*0.45 + b*0.2 )		/* keep this in sync with gpu_shader_material.glsl:rgbtobw */
 
 struct HaloRen;
 struct ShadeInput;

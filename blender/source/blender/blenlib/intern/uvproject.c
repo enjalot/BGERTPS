@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -20,6 +20,11 @@
  * ***** END GPL LICENSE BLOCK *****
  */
 
+/** \file blender/blenlib/intern/uvproject.c
+ *  \ingroup bli
+ */
+
+
 #include <math.h>
 
 #include "MEM_guardedalloc.h"
@@ -28,6 +33,7 @@
 #include "DNA_object_types.h"
 
 #include "BLI_math.h"
+#include "BLI_uvproject.h"
 
 typedef struct UvCameraInfo {
 	float camangle;

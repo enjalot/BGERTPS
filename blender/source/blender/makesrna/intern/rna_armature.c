@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -21,6 +21,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/makesrna/intern/rna_armature.c
+ *  \ingroup RNA
+ */
+
 
 #include <stdlib.h>
 
@@ -66,12 +71,16 @@ static void rna_Armature_act_bone_set(PointerRNA *ptr, PointerRNA value)
 	}
 	else {
 		if(value.id.data != arm) {
-			/* raise an error! */
+			Object *ob = (Object *)value.id.data;
+			
+			if(GS(ob->id.name)!=ID_OB || (ob->data != arm)) {
+				printf("ERROR: armature set active bone - new active doesn't come from this armature\n");
+				return;
+			}
 		}
-		else {
-			arm->act_bone= value.data;
-			arm->act_bone->flag |= BONE_SELECTED;
-		}
+		
+		arm->act_bone= value.data;
+		arm->act_bone->flag |= BONE_SELECTED;
 	}
 }
 

@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -26,6 +26,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/editors/object/object_vgroup.c
+ *  \ingroup edobj
+ */
+
 
 #include <string.h>
 #include <stddef.h>
@@ -150,7 +155,7 @@ void ED_vgroup_data_create(ID *id)
 	}
 }
 
-int ED_vgroup_give_parray(ID *id, MDeformVert ***dvert_arr, int *dvert_tot)
+static int ED_vgroup_give_parray(ID *id, MDeformVert ***dvert_arr, int *dvert_tot)
 {
 	if(id) {
 		switch(GS(id->name)) {
@@ -304,7 +309,7 @@ int ED_vgroup_copy_array(Object *ob, Object *ob_from)
 
 /* for mesh in object mode
    lattice can be in editmode */
-void ED_vgroup_nr_vert_remove(Object *ob, int def_nr, int vertnum)
+static void ED_vgroup_nr_vert_remove(Object *ob, int def_nr, int vertnum)
 {
 	/* This routine removes the vertex from the deform
 	 * group with number def_nr.
@@ -372,7 +377,7 @@ void ED_vgroup_nr_vert_remove(Object *ob, int def_nr, int vertnum)
 
 /* for Mesh in Object mode */
 /* allows editmode for Lattice */
-void ED_vgroup_nr_vert_add(Object *ob, int def_nr, int vertnum, float weight, int assignmode)
+static void ED_vgroup_nr_vert_add(Object *ob, int def_nr, int vertnum, float weight, int assignmode)
 {
 	/* add the vert to the deform group with the
 	 * specified number
@@ -550,7 +555,7 @@ float ED_vgroup_vert_weight(Object *ob, bDeformGroup *dg, int vertnum)
 	return get_vert_def_nr(ob, def_nr, vertnum);
 }
 
-void ED_vgroup_select_by_name(Object *ob, char *name)
+void ED_vgroup_select_by_name(Object *ob, const char *name)
 {	/* note: ob->actdef==0 signals on painting to create a new one, if a bone in posemode is selected */
 	ob->actdef= defgroup_name_index(ob, name) + 1;
 }

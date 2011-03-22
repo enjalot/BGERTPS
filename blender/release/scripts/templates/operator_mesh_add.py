@@ -34,7 +34,7 @@ def add_box(width, height, depth):
     return vertices, faces
 
 
-from bpy.props import *
+from bpy.props import FloatProperty, BoolProperty, FloatVectorProperty
 
 
 class AddBox(bpy.types.Operator):
@@ -91,11 +91,16 @@ def menu_func(self, context):
 
 
 def register():
+    bpy.utils.register_class(AddBox)
     bpy.types.INFO_MT_mesh_add.append(menu_func)
 
 
 def unregister():
+    bpy.utils.unregister_class(AddBox)
     bpy.types.INFO_MT_mesh_add.remove(menu_func)
 
 if __name__ == "__main__":
+    register()
+
+    # test call
     bpy.ops.mesh.primitive_box_add()

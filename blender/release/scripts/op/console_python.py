@@ -33,6 +33,20 @@ def add_scrollback(text, text_type):
             type=text_type)
 
 
+def replace_help(namespace):
+    def _help(value):
+        # because of how the console works. we need our own help() pager func.
+        # replace the bold function because it adds crazy chars
+        import pydoc
+        pydoc.getpager = lambda: pydoc.plainpager
+        pydoc.Helper.getline = lambda self, prompt: None
+        pydoc.TextDoc.use_bold = lambda self, text: text
+
+        help(value)
+
+    namespace["help"] = _help
+
+
 def get_console(console_id):
     '''
     helper function for console operators
@@ -83,10 +97,12 @@ def get_console(console_id):
         namespace["bpy"] = bpy
         namespace["C"] = bpy.context
 
-        namespace.update(__import__("mathutils").__dict__)  # from mathutils import *
-        namespace.update(__import__("math").__dict__)  # from math import *
+        replace_help(namespace)
 
         console = InteractiveConsole(locals=namespace, filename="<blender_console>")
+
+        console.push("from mathutils import *")
+        console.push("from math import *")
 
         if _BPY_MAIN_OWN:
             console._bpy_main_mod = bpy_main_mod
@@ -224,12 +240,20 @@ def autocomplete(context):
 
         # This function isnt aware of the text editor or being an operator
         # just does the autocomp then copy its results back
-        current_line.body, current_line.current_character, scrollback = \
-            intellisense.expand(
-                line=current_line.body,
+        result = intellisense.expand(
+                line=line,
                 cursor=current_line.current_character,
                 namespace=console.locals,
                 private=bpy.app.debug)
+
+        line_new = result[0]
+        current_line.body, current_line.current_character, scrollback = result
+        del result
+
+        # update sel. setting body should really do this!
+        ofs = len(line_new) - len(line)
+        sc.select_start += ofs
+        sc.select_end += ofs
     except:
         # unlikely, but this can happen with unicode errors for example.
         # or if the api attribute access its self causes an error.

@@ -1,5 +1,4 @@
-/**
- *	
+/*
  * $Id$ 
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -29,6 +28,10 @@
  */
 #ifndef BKE_MODIFIER_H
 #define BKE_MODIFIER_H
+
+/** \file BKE_modifier.h
+ *  \ingroup bke
+ */
 
 #include "DNA_modifier_types.h"		/* needed for all enum typdefs */
 #include "BKE_customdata.h"
@@ -133,6 +136,12 @@ typedef struct ModifierTypeInfo {
 						struct DerivedMesh *derivedData,
 						float (*vertexCos)[3], int numVerts,
 						int useRenderParams, int isFinalCalc);
+
+	/* Like deformMatricesEM but called from object mode (for supporting modifiers in sculpt mode) */
+	void (*deformMatrices)(
+				struct ModifierData *md, struct Object *ob,
+				struct DerivedMesh *derivedData,
+				float (*vertexCos)[3], float (*defMats)[3][3], int numVerts);
 
 	/* Like deformVerts but called during editmode (for supporting modifiers)
 	 */
@@ -296,7 +305,7 @@ int			  modifier_sameTopology(ModifierData *md);
 int           modifier_isEnabled(struct Scene *scene, struct ModifierData *md, int required_mode);
 void          modifier_setError(struct ModifierData *md, const char *format, ...)
 #ifdef __GNUC__
-__attribute__ ((format (printf, 2, 3)));
+__attribute__ ((format (printf, 2, 3)))
 #endif
 ;
 

@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -21,6 +21,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/makesrna/intern/rna_nla.c
+ *  \ingroup RNA
+ */
+
 
 #include <stdlib.h>
 
@@ -291,7 +296,7 @@ static NlaStrip *rna_NlaStrip_new(NlaTrack *track, bContext *C, ReportList *repo
 	 * 	- only the nla_tracks list is needed there, which we aim to reverse engineer here...
 	 */
 	{
-		AnimData adt = {0};
+		AnimData adt = {NULL};
 		NlaTrack *nlt, *nlt_p;
 		
 		/* 'first' NLA track is found by going back up chain of given track's parents until we fall off */
@@ -317,9 +322,14 @@ static NlaStrip *rna_NlaStrip_new(NlaTrack *track, bContext *C, ReportList *repo
 
 static void rna_NlaStrip_remove(NlaTrack *track, bContext *C, ReportList *reports, NlaStrip *strip)
 {
-	free_nlastrip(&track->strips, strip);
-
-	WM_event_add_notifier(C, NC_ANIMATION|ND_NLA|NA_REMOVED, NULL);
+	if(BLI_findindex(&track->strips, strip) == -1) {
+		BKE_reportf(reports, RPT_ERROR, "NLA's Strip '%s' not found in track '%s'", strip->name, track->name);
+		return;
+	}
+	else {
+		free_nlastrip(&track->strips, strip);
+		WM_event_add_notifier(C, NC_ANIMATION|ND_NLA|NA_REMOVED, NULL);
+	}
 }
 
 #else

@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -24,6 +24,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/windowmanager/intern/wm_files.c
+ *  \ingroup wm
+ */
+
 
 	/* placed up here because of crappy
 	 * winsock stuff.
@@ -105,6 +110,7 @@
 #include "WM_api.h"
 #include "WM_types.h"
 #include "wm.h"
+#include "wm_files.h"
 #include "wm_window.h"
 #include "wm_event_system.h"
 
@@ -256,10 +262,17 @@ static void wm_init_userdef(bContext *C)
 	MEM_CacheLimiter_set_maximum(U.memcachelimit * 1024 * 1024);
 	sound_init(CTX_data_main(C));
 
+	/* needed so loading a file from the command line respects user-pref [#26156] */
+	if(U.flag & USER_FILENOUI)	G.fileflags |= G_FILE_NO_UI;
+	else						G.fileflags &= ~G_FILE_NO_UI;
+
 	/* set the python auto-execute setting from user prefs */
-	/* disabled by default, unless explicitly enabled in the command line */
-	if ((U.flag & USER_SCRIPT_AUTOEXEC_DISABLE) == 0) G.f |=  G_SCRIPT_AUTOEXEC;
-	if(U.tempdir[0]) BLI_where_is_temp(btempdir, 1);
+	/* enabled by default, unless explicitly enabled in the command line which overrides */
+	if((G.f & G_SCRIPT_OVERRIDE_PREF) == 0) {
+		if ((U.flag & USER_SCRIPT_AUTOEXEC_DISABLE) == 0) G.f |=  G_SCRIPT_AUTOEXEC;
+		else											  G.f &= ~G_SCRIPT_AUTOEXEC;
+	}
+	if(U.tempdir[0]) BLI_where_is_temp(btempdir, FILE_MAX, 1);
 }
 
 void WM_read_file(bContext *C, const char *name, ReportList *reports)
@@ -290,8 +303,10 @@ void WM_read_file(bContext *C, const char *name, ReportList *reports)
 
 		/* this flag is initialized by the operator but overwritten on read.
 		 * need to re-enable it here else drivers + registered scripts wont work. */
-		if(G_f & G_SCRIPT_AUTOEXEC) G.f |= G_SCRIPT_AUTOEXEC;
-		else						G.f &= ~G_SCRIPT_AUTOEXEC;
+		if(G.f != G_f) {
+			const int flags_keep= (G_SCRIPT_AUTOEXEC | G_SCRIPT_OVERRIDE_PREF);
+			G.f= (G.f & ~flags_keep) | (G_f & flags_keep);
+		}
 
 		/* match the read WM with current WM */
 		wm_window_match_do(C, &wmbase);
@@ -423,15 +438,19 @@ int WM_read_homefile(bContext *C, ReportList *reports, short from_memory)
 #ifdef WITH_PYTHON
 	if(CTX_py_init_get(C)) {
 		/* sync addons, these may have changed from the defaults */
-		BPY_string_exec(C, "__import__('bpy').utils.addon_reset_all()");
+		BPY_string_exec(C, "__import__('addon_utils').reset_all()");
 
 		BPY_driver_reset();
 		BPY_modules_load_user(C);
 	}
 #endif
-	
+
 	WM_event_add_notifier(C, NC_WM|ND_FILEREAD, NULL);
-	CTX_wm_window_set(C, NULL); /* exits queues */
+
+	/* in background mode the scene will stay NULL */
+	if(!G.background) {
+		CTX_wm_window_set(C, NULL); /* exits queues */
+	}
 
 	return TRUE;
 }
@@ -442,7 +461,7 @@ int WM_read_homefile_exec(bContext *C, wmOperator *op)
 	return WM_read_homefile(C, op->reports, from_memory) ? OPERATOR_FINISHED : OPERATOR_CANCELLED;
 }
 
-void read_history(void)
+void WM_read_history(void)
 {
 	char name[FILE_MAX];
 	LinkNode *l, *lines;
@@ -465,10 +484,7 @@ void read_history(void)
 		if (line[0] && BLI_exists(line)) {
 			recent = (RecentFile*)MEM_mallocN(sizeof(RecentFile),"RecentFile");
 			BLI_addtail(&(G.recent_files), recent);
-			recent->filepath = (char*)MEM_mallocN(sizeof(char)*(strlen(line)+1), "name of file");
-			recent->filepath[0] = '\0';
-			
-			strcpy(recent->filepath, line);
+			recent->filepath = BLI_strdup(line);
 			num++;
 		}
 	}
@@ -499,9 +515,7 @@ static void write_history(void)
 		if (fp) {
 			/* add current file to the beginning of list */
 			recent = (RecentFile*)MEM_mallocN(sizeof(RecentFile),"RecentFile");
-			recent->filepath = (char*)MEM_mallocN(sizeof(char)*(strlen(G.main->name)+1), "name of file");
-			recent->filepath[0] = '\0';
-			strcpy(recent->filepath, G.main->name);
+			recent->filepath = BLI_strdup(G.main->name);
 			BLI_addhead(&(G.recent_files), recent);
 			/* write current file to recent-files.txt */
 			fprintf(fp, "%s\n", recent->filepath);
@@ -539,18 +553,18 @@ static void do_history(char *name, ReportList *reports)
 	if(strlen(name)<2) return;
 		
 	while(hisnr > 1) {
-		sprintf(tempname1, "%s%d", name, hisnr-1);
-		sprintf(tempname2, "%s%d", name, hisnr);
+		BLI_snprintf(tempname1, sizeof(tempname1), "%s%d", name, hisnr-1);
+		BLI_snprintf(tempname2, sizeof(tempname2), "%s%d", name, hisnr);
 	
 		if(BLI_rename(tempname1, tempname2))
 			BKE_report(reports, RPT_ERROR, "Unable to make version backup");
 			
 		hisnr--;
 	}
-		
+
 	/* is needed when hisnr==1 */
-	sprintf(tempname1, "%s%d", name, hisnr);
-	
+	BLI_snprintf(tempname1, sizeof(tempname1), "%s%d", name, hisnr);
+
 	if(BLI_rename(name, tempname1))
 		BKE_report(reports, RPT_ERROR, "Unable to make version backup");
 }
@@ -560,6 +574,7 @@ static ImBuf *blend_file_thumb(Scene *scene, int **thumb_pt)
 	/* will be scaled down, but gives some nice oversampling */
 	ImBuf *ibuf;
 	int *thumb;
+	char err_out[256]= "unknown";
 
 	*thumb_pt= NULL;
 	
@@ -567,7 +582,7 @@ static ImBuf *blend_file_thumb(Scene *scene, int **thumb_pt)
 		return NULL;
 
 	/* gets scaled to BLEN_THUMB_SIZE */
-	ibuf= ED_view3d_draw_offscreen_imbuf_simple(scene, BLEN_THUMB_SIZE * 2, BLEN_THUMB_SIZE * 2, IB_rect, OB_SOLID);
+	ibuf= ED_view3d_draw_offscreen_imbuf_simple(scene, BLEN_THUMB_SIZE * 2, BLEN_THUMB_SIZE * 2, IB_rect, OB_SOLID, err_out);
 	
 	if(ibuf) {		
 		float aspect= (scene->r.xsch*scene->r.xasp) / (scene->r.ysch*scene->r.yasp);
@@ -588,6 +603,7 @@ static ImBuf *blend_file_thumb(Scene *scene, int **thumb_pt)
 	}
 	else {
 		/* '*thumb_pt' needs to stay NULL to prevent a bad thumbnail from being handled */
+		fprintf(stderr, "blend_file_thumb failed to create thumbnail: %s\n", err_out);
 		thumb= NULL;
 	}
 	
@@ -667,7 +683,7 @@ int WM_write_file(bContext *C, const char *target, int fileflags, ReportList *re
 	if (BLO_write_file(CTX_data_main(C), di, fileflags, reports, thumb)) {
 		if(!copy) {
 			G.relbase_valid = 1;
-			strcpy(G.main->name, di);	/* is guaranteed current file */
+			BLI_strncpy(G.main->name, di, sizeof(G.main->name));	/* is guaranteed current file */
 	
 			G.save_over = 1; /* disable untitled.blend convention */
 		}
@@ -740,8 +756,8 @@ void wm_autosave_location(char *filename)
 	char *savedir;
 #endif
 
-	sprintf(pidstr, "%d.blend", abs(getpid()));
-	
+	BLI_snprintf(pidstr, sizeof(pidstr), "%d.blend", abs(getpid()));
+
 #ifdef WIN32
 	/* XXX Need to investigate how to handle default location of '/tmp/'
 	 * This is a relative directory on Windows, and it may be

@@ -25,6 +25,11 @@
  * ***** END GPL LICENSE BLOCK *****
  */
 
+/** \file blender/blenlib/intern/math_matrix.c
+ *  \ingroup bli
+ */
+
+
 #include <assert.h>
 #include "BLI_math.h"
 
@@ -107,6 +112,20 @@ void copy_m4_m3(float m1[][4], float m2[][3])	/* no clear */
 	m1[3][2]=0.0F;	
 	m1[3][3]=1.0F;
 
+}
+
+void swap_m3m3(float m1[][3], float m2[][3])
+{
+	float t;
+	int i, j;
+
+	for(i = 0; i < 3; i++) {
+		for (j = 0; j < 3; j++) {
+			t        = m1[i][j];
+			m1[i][j] = m2[i][j];
+			m2[i][j] = t;
+		}
+	}
 }
 
 void swap_m4m4(float m1[][4], float m2[][4])
@@ -228,7 +247,7 @@ void mul_serie_m3(float answ[][3],
 {
 	float temp[3][3];
 	
-	if(m1==0 || m2==0) return;
+	if(m1==NULL || m2==NULL) return;
 	
 	mul_m3_m3m3(answ, m2, m1);
 	if(m3) {
@@ -261,7 +280,7 @@ void mul_serie_m4(float answ[][4], float m1[][4],
 {
 	float temp[4][4];
 	
-	if(m1==0 || m2==0) return;
+	if(m1==NULL || m2==NULL) return;
 	
 	mul_m4_m4m4(answ, m2, m1);
 	if(m3) {
@@ -1694,5 +1713,5 @@ void pseudoinverse_m4_m4(float Ainv[4][4], float A[4][4], float epsilon)
 
 	transpose_m4(V);
 
-	mul_serie_m4(Ainv, U, Wm, V, 0, 0, 0, 0, 0);
+	mul_serie_m4(Ainv, U, Wm, V, NULL, NULL, NULL, NULL, NULL);
 }

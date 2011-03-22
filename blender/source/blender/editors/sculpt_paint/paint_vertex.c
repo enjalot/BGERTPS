@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -26,6 +26,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/editors/sculpt_paint/paint_vertex.c
+ *  \ingroup edsculpt
+ */
+
 
 #include <math.h>
 #include <string.h>
@@ -157,7 +162,7 @@ static int *get_indexarray(Mesh *me)
 /* in contradiction to cpack drawing colors, the MCOL colors (vpaint colors) are per byte! 
    so not endian sensitive. Mcol = ABGR!!! so be cautious with cpack calls */
 
-unsigned int rgba_to_mcol(float r, float g, float b, float a)
+static unsigned int rgba_to_mcol(float r, float g, float b, float a)
 {
 	int ir, ig, ib, ia;
 	unsigned int col;
@@ -198,7 +203,7 @@ static void do_shared_vertexcol(Mesh *me)
 	short *scolmain, *scol;
 	char *mcol;
 	
-	if(me->mcol==0 || me->totvert==0 || me->totface==0) return;
+	if(me->mcol==NULL || me->totvert==0 || me->totface==0) return;
 	
 	scolmain= MEM_callocN(4*sizeof(short)*me->totvert, "colmain");
 	
@@ -259,7 +264,7 @@ static void make_vertexcol(Object *ob)	/* single ob */
 	Mesh *me;
 	if(!ob || ob->id.lib) return;
 	me= get_mesh(ob);
-	if(me==0) return;
+	if(me==NULL) return;
 	if(me->edit_mesh) return;
 
 	/* copies from shadedisplist to mcol */
@@ -317,7 +322,7 @@ void vpaint_fill(Object *ob, unsigned int paintcol)
 	int i, selected;
 
 	me= get_mesh(ob);
-	if(me==0 || me->totface==0) return;
+	if(me==NULL || me->totface==0) return;
 
 	if(!me->mcol)
 		make_vertexcol(ob);
@@ -353,7 +358,7 @@ void wpaint_fill(VPaint *wp, Object *ob, float paintweight)
 	int selected;
 	
 	me= ob->data;
-	if(me==0 || me->totface==0 || me->dvert==0 || !me->mface) return;
+	if(me==NULL || me->totface==0 || me->dvert==NULL || !me->mface) return;
 	
 	selected= (me->editflag & ME_EDIT_PAINT_MASK);
 
@@ -853,7 +858,7 @@ static void wpaint_blend(VPaint *wp, MDeformWeight *dw, MDeformWeight *uw, float
 /* else */
 /*     sets wp->weight to the closest weight value to vertex */
 /*     note: we cant sample frontbuf, weight colors are interpolated too unpredictable */
-void sample_wpaint(Scene *scene, ARegion *ar, View3D *UNUSED(v3d), int mode)
+static void sample_wpaint(Scene *scene, ARegion *ar, View3D *UNUSED(v3d), int mode)
 {
 	ViewContext vc;
 	ToolSettings *ts= scene->toolsettings;
@@ -1637,7 +1642,7 @@ static int wpaint_invoke(bContext *C, wmOperator *op, wmEvent *event)
 	
 	op->customdata = paint_stroke_new(C, NULL, wpaint_stroke_test_start,
 					  wpaint_stroke_update_step,
-					  wpaint_stroke_done);
+					  wpaint_stroke_done, event->type);
 	
 	/* add modal handler */
 	WM_event_add_modal_handler(C, op);
@@ -1929,7 +1934,7 @@ static int vpaint_invoke(bContext *C, wmOperator *op, wmEvent *event)
 	
 	op->customdata = paint_stroke_new(C, NULL, vpaint_stroke_test_start,
 					  vpaint_stroke_update_step,
-					  vpaint_stroke_done);
+					  vpaint_stroke_done, event->type);
 	
 	/* add modal handler */
 	WM_event_add_modal_handler(C, op);

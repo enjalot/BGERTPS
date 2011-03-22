@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -21,12 +21,20 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/python/intern/bpy.c
+ *  \ingroup pythonintern
+ */
+
  
 /* This file defines the '_bpy' module which is used by python's 'bpy' package.
  * a script writer should never directly access this module */
  
 #define WITH_PYTHON /* for AUD_PyInit.h, possibly others */
 
+#include <Python.h>
+
+#include "bpy.h" 
 #include "bpy_util.h" 
 #include "bpy_rna.h"
 #include "bpy_app.h"
@@ -40,6 +48,8 @@
 
 #include "BKE_global.h" /* XXX, G.main only */
 
+#include "RNA_access.h"
+
 #include "MEM_guardedalloc.h"
 
  /* external util modules */
@@ -50,6 +60,8 @@
 
 #include "AUD_PyInit.h"
 
+PyObject *bpy_package_py= NULL;
+
 static char bpy_script_paths_doc[] =
 ".. function:: script_paths()\n"
 "\n"
@@ -58,7 +70,7 @@ static char bpy_script_paths_doc[] =
 "   :return: (system, user) strings will be empty when not found.\n"
 "   :rtype: tuple of strigs\n";
 
-PyObject *bpy_script_paths(PyObject *UNUSED(self))
+static PyObject *bpy_script_paths(PyObject *UNUSED(self))
 {
 	PyObject *ret= PyTuple_New(2);
 	char *path;
@@ -88,8 +100,8 @@ static PyObject *bpy_blend_paths(PyObject *UNUSED(self), PyObject *args, PyObjec
 	char filepath_expanded[1024];
 	const char *lib;
 
-	int absolute = 0;
-	static const char *kwlist[] = {"absolute", NULL};
+	int absolute= 0;
+	static const char *kwlist[]= {"absolute", NULL};
 
 	if (!PyArg_ParseTupleAndKeywords(args, kw, "|i:blend_paths", (char **)kwlist, &absolute))
 		return NULL;
@@ -102,7 +114,7 @@ static PyObject *bpy_blend_paths(PyObject *UNUSED(self), PyObject *args, PyObjec
 			BLI_bpathIterator_getPathExpanded(bpi, filepath_expanded);
 		}
 		else {
-			lib = BLI_bpathIterator_getLib(bpi);
+			lib= BLI_bpathIterator_getLib(bpi);
 			if (lib && (strcmp(lib, BLI_bpathIterator_getBasePath(bpi)))) { /* relative path to the library is NOT the same as our blendfile path, return an absolute path */
 				BLI_bpathIterator_getPathExpanded(bpi, filepath_expanded);
 			}
@@ -122,13 +134,13 @@ static PyObject *bpy_blend_paths(PyObject *UNUSED(self), PyObject *args, PyObjec
 }
 
 
-// static char bpy_user_resource_doc[] = // now in bpy/utils.py
+// static char bpy_user_resource_doc[]= // now in bpy/utils.py
 static PyObject *bpy_user_resource(PyObject *UNUSED(self), PyObject *args, PyObject *kw)
 {
 	char *type;
 	char *subdir= NULL;
 	int folder_id;
-	static const char *kwlist[] = {"type", "subdir", NULL};
+	static const char *kwlist[]= {"type", "subdir", NULL};
 
 	char *path;
 
@@ -149,16 +161,16 @@ static PyObject *bpy_user_resource(PyObject *UNUSED(self), PyObject *args, PyObj
 	path= BLI_get_folder(folder_id, subdir);
 
 	if (!path)
-		path = BLI_get_user_folder_notest(folder_id, subdir);
+		path= BLI_get_user_folder_notest(folder_id, subdir);
 
-	return PyUnicode_FromString(path ? path : "");
+	return PyUnicode_DecodeFSDefault(path ? path : "");
 }
 
-static PyMethodDef meth_bpy_script_paths = {"script_paths", (PyCFunction)bpy_script_paths, METH_NOARGS, bpy_script_paths_doc};
-static PyMethodDef meth_bpy_blend_paths = {"blend_paths", (PyCFunction)bpy_blend_paths, METH_VARARGS|METH_KEYWORDS, bpy_blend_paths_doc};
-static PyMethodDef meth_bpy_user_resource = {"user_resource", (PyCFunction)bpy_user_resource, METH_VARARGS|METH_KEYWORDS, NULL};
+static PyMethodDef meth_bpy_script_paths= {"script_paths", (PyCFunction)bpy_script_paths, METH_NOARGS, bpy_script_paths_doc};
+static PyMethodDef meth_bpy_blend_paths= {"blend_paths", (PyCFunction)bpy_blend_paths, METH_VARARGS|METH_KEYWORDS, bpy_blend_paths_doc};
+static PyMethodDef meth_bpy_user_resource= {"user_resource", (PyCFunction)bpy_user_resource, METH_VARARGS|METH_KEYWORDS, NULL};
 
-static void bpy_import_test(const char *modname)
+static PyObject *bpy_import_test(const char *modname)
 {
 	PyObject *mod= PyImport_ImportModuleLevel((char *)modname, NULL, NULL, NULL, 0);
 	if(mod) {
@@ -167,7 +179,9 @@ static void bpy_import_test(const char *modname)
 	else {
 		PyErr_Print();
 		PyErr_Clear();
-	}	
+	}
+
+	return mod;
 }
 
 /*****************************************************************************
@@ -176,6 +190,7 @@ static void bpy_import_test(const char *modname)
 void BPy_init_modules( void )
 {
 	extern BPy_StructRNA *bpy_context_module;
+	extern int bpy_lib_init(PyObject *);
 	PointerRNA ctx_ptr;
 	PyObject *mod;
 
@@ -194,7 +209,7 @@ void BPy_init_modules( void )
 	/* stand alone utility modules not related to blender directly */
 	IDProp_Init_Types(); /* not actually a submodule, just types */
 
-	mod = PyModule_New("_bpy");
+	mod= PyModule_New("_bpy");
 
 	/* add the module so we can import it */
 	PyDict_SetItemString(PyImport_GetModuleDict(), "_bpy", mod);
@@ -204,8 +219,10 @@ void BPy_init_modules( void )
 	BPY_rna_init();
 
 	PyModule_AddObject( mod, "types", BPY_rna_types() ); /* needs to be first so bpy_types can run */
-	PyModule_AddObject(mod, "StructMetaIDProp", (PyObject *)&pyrna_struct_meta_idprop_Type); /* metaclass for idprop types, bpy_types.py needs access */
-			
+	PyModule_AddObject(mod, "StructMetaPropGroup", (PyObject *)&pyrna_struct_meta_idprop_Type); /* metaclass for idprop types, bpy_types.py needs access */
+
+	bpy_lib_init(mod); /* adds '_bpy._library_load', must be called before 'bpy_types' which uses it */
+
 	bpy_import_test("bpy_types");
 	PyModule_AddObject( mod, "data", BPY_rna_module() ); /* imports bpy_types by running this */
 	bpy_import_test("bpy_types");
@@ -227,6 +244,10 @@ void BPy_init_modules( void )
 	PyModule_AddObject(mod, meth_bpy_blend_paths.ml_name, (PyObject *)PyCFunction_New(&meth_bpy_blend_paths, NULL));
 	PyModule_AddObject(mod, meth_bpy_user_resource.ml_name, (PyObject *)PyCFunction_New(&meth_bpy_user_resource, NULL));
 
+	/* register funcs (bpy_rna.c) */
+	PyModule_AddObject(mod, meth_bpy_register_class.ml_name, (PyObject *)PyCFunction_New(&meth_bpy_register_class, NULL));
+	PyModule_AddObject(mod, meth_bpy_unregister_class.ml_name, (PyObject *)PyCFunction_New(&meth_bpy_unregister_class, NULL));
+
 	/* add our own modules dir, this is a python package */
-	bpy_import_test("bpy");
+	bpy_package_py= bpy_import_test("bpy");
 }

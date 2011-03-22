@@ -292,7 +292,7 @@ class InputKeyMapPanel(bpy.types.Panel):
 
             box.enabled = km.is_user_defined
 
-            if map_type not in ('TEXTINPUT', 'TIMER'):
+            if map_type not in {'TEXTINPUT', 'TIMER'}:
                 split = box.split(percentage=0.4)
                 sub = split.row()
 
@@ -404,7 +404,7 @@ class InputKeyMapPanel(bpy.types.Panel):
             self.draw_hierarchy(display_keymaps, col)
 
 
-from bpy.props import *
+from bpy.props import StringProperty, BoolProperty, IntProperty
 
 
 def export_properties(prefix, properties, lines=None):
@@ -676,7 +676,6 @@ class WM_OT_keymap_edit(bpy.types.Operator):
     bl_label = "Edit Key Map"
 
     def execute(self, context):
-        wm = context.window_manager
         km = context.keymap
         km.copy_to_user()
         return {'FINISHED'}
@@ -711,11 +710,9 @@ class WM_OT_keyitem_restore(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        km = context.keymap
-        return km.is_user_defined
+        return hasattr(context, "keymap") and context.keymap.is_user_defined
 
     def execute(self, context):
-        wm = context.window_manager
         km = context.keymap
         kmi = km.items.from_id(self.item_id)
 
@@ -758,8 +755,7 @@ class WM_OT_keyitem_remove(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        km = context.keymap
-        return km.is_user_defined
+        return hasattr(context, "keymap") and context.keymap.is_user_defined
 
     def execute(self, context):
         km = context.keymap
@@ -779,7 +775,6 @@ class WM_OT_keyconfig_remove(bpy.types.Operator):
         return wm.keyconfigs.active.is_user_defined
 
     def execute(self, context):
-        import sys
         wm = context.window_manager
         keyconfig = wm.keyconfigs.active
         wm.keyconfigs.remove(keyconfig)
@@ -787,11 +782,11 @@ class WM_OT_keyconfig_remove(bpy.types.Operator):
 
 
 def register():
-    pass
+    bpy.utils.register_module(__name__)
 
 
 def unregister():
-    pass
+    bpy.utils.unregister_module(__name__)
 
 if __name__ == "__main__":
     register()

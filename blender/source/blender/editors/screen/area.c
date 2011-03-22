@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -25,6 +25,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/editors/screen/area.c
+ *  \ingroup edscr
+ */
+
 
 #include <string.h>
 #include <stdio.h>
@@ -164,27 +169,22 @@ void ED_area_overdraw_flush(ScrArea *sa, ARegion *ar)
 
 static void area_draw_azone(short x1, short y1, short x2, short y2)
 {
-	float xmin = x1;
-	float xmax = x2-2;
-	float ymin = y1-1;
-	float ymax = y2-3;
-	
-	float dx= 0.3f*(xmax-xmin);
-	float dy= 0.3f*(ymax-ymin);
+	int dx= floor(0.3f*(x2-x1));
+	int dy= floor(0.3f*(y2-y1));
 	
 	glColor4ub(255, 255, 255, 180);
-	fdrawline(xmin, ymax, xmax, ymin);
+	fdrawline(x1, y2, x2, y1);
 	glColor4ub(255, 255, 255, 130);
-	fdrawline(xmin, ymax-dy, xmax-dx, ymin);
+	fdrawline(x1, y2-dy, x2-dx, y1);
 	glColor4ub(255, 255, 255, 80);
-	fdrawline(xmin, ymax-2*dy, xmax-2*dx, ymin);
+	fdrawline(x1, y2-2*dy, x2-2*dx, y1);
 	
 	glColor4ub(0, 0, 0, 210);
-	fdrawline(xmin, ymax+1, xmax+1, ymin);
+	fdrawline(x1, y2+1, x2+1, y1);
 	glColor4ub(0, 0, 0, 180);
-	fdrawline(xmin, ymax-dy+1, xmax-dx+1, ymin);
+	fdrawline(x1, y2-dy+1, x2-dx+1, y1);
 	glColor4ub(0, 0, 0, 150);
-	fdrawline(xmin, ymax-2*dy+1, xmax-2*dx+1, ymin);
+	fdrawline(x1, y2-2*dy+1, x2-2*dx+1, y1);
 }
 
 
@@ -451,7 +451,6 @@ void ED_area_headerprint(ScrArea *sa, const char *str)
 /* ************************************************************ */
 
 
-#define AZONESPOT		12
 static void area_azone_initialize(ScrArea *sa) 
 {
 	AZone *az;
@@ -465,8 +464,8 @@ static void area_azone_initialize(ScrArea *sa)
 	az->type= AZONE_AREA;
 	az->x1= sa->totrct.xmin;
 	az->y1= sa->totrct.ymin;
-	az->x2= sa->totrct.xmin + AZONESPOT-1;
-	az->y2= sa->totrct.ymin + AZONESPOT-1;
+	az->x2= sa->totrct.xmin + AZONESPOT;
+	az->y2= sa->totrct.ymin + AZONESPOT;
 	BLI_init_rcti(&az->rect, az->x1, az->x2, az->y1, az->y2);
 	
 	az= (AZone *)MEM_callocN(sizeof(AZone), "actionzone");
@@ -474,13 +473,13 @@ static void area_azone_initialize(ScrArea *sa)
 	az->type= AZONE_AREA;
 	az->x1= sa->totrct.xmax+1;
 	az->y1= sa->totrct.ymax+1;
-	az->x2= sa->totrct.xmax-AZONESPOT+1;
-	az->y2= sa->totrct.ymax-AZONESPOT+1;
+	az->x2= sa->totrct.xmax-AZONESPOT;
+	az->y2= sa->totrct.ymax-AZONESPOT;
 	BLI_init_rcti(&az->rect, az->x1, az->x2, az->y1, az->y2);
 }
 
 #define AZONEPAD_EDGE	4
-#define AZONEPAD_ICON	8
+#define AZONEPAD_ICON	9
 static void region_azone_edge(AZone *az, ARegion *ar)
 {
 	switch(az->edge) {
@@ -844,7 +843,7 @@ static void region_subwindow(wmWindow *win, ARegion *ar)
 		wm_subwindow_position(win, ar->swinid, &ar->winrct);
 }
 
-static void ed_default_handlers(wmWindowManager *wm, ListBase *handlers, int flag)
+static void ed_default_handlers(wmWindowManager *wm, ScrArea *sa, ListBase *handlers, int flag)
 {
 	/* note, add-handler checks if it already exists */
 	
@@ -861,8 +860,20 @@ static void ed_default_handlers(wmWindowManager *wm, ListBase *handlers, int fla
 	if(flag & ED_KEYMAP_MARKERS) {
 		/* time-markers */
 		wmKeyMap *keymap= WM_keymap_find(wm->defaultconf, "Markers", 0, 0);
-		WM_event_add_keymap_handler(handlers, keymap);
-		// XXX need boundbox check urgently!!!
+		
+		/* time space only has this keymap, the others get a boundbox restricted map */
+		if(sa->spacetype!=SPACE_TIME) {
+			ARegion *ar;
+			static rcti rect= {0, 10000, 0, 30};	/* same local check for all areas */
+
+			for(ar= sa->regionbase.first; ar; ar= ar->next)
+				if(ar->regiontype == RGN_TYPE_WINDOW)
+					break;
+			if(ar)
+				WM_event_add_keymap_handler_bb(handlers, keymap, &rect, &ar->winrct);
+		}
+		else
+			WM_event_add_keymap_handler(handlers, keymap);
 	}
 	if(flag & ED_KEYMAP_ANIMATION) {
 		/* frame changing and timeline operators (for time spaces) */
@@ -915,7 +926,7 @@ void ED_area_initialize(wmWindowManager *wm, wmWindow *win, ScrArea *sa)
 	region_rect_recursive(sa, sa->regionbase.first, &rect, 0);
 	
 	/* default area handlers */
-	ed_default_handlers(wm, &sa->handlers, sa->type->keymapflag);
+	ed_default_handlers(wm, sa, &sa->handlers, sa->type->keymapflag);
 	/* checks spacedata, adds own handlers */
 	if(sa->type->init)
 		sa->type->init(wm, sa);
@@ -926,7 +937,7 @@ void ED_area_initialize(wmWindowManager *wm, wmWindow *win, ScrArea *sa)
 		
 		if(ar->swinid) {
 			/* default region handlers */
-			ed_default_handlers(wm, &ar->handlers, ar->type->keymapflag);
+			ed_default_handlers(wm, sa, &ar->handlers, ar->type->keymapflag);
 			/* own handlers */
 			if(ar->type->init)
 				ar->type->init(wm, ar);
@@ -1290,6 +1301,9 @@ void ED_region_panels(const bContext *C, ARegion *ar, int vertical, const char *
 				panel->labelofs= xco - triangle;
 				panel->layout= NULL;
 			}
+			else {
+				panel->labelofs= 0;
+			}
 
 			if(open) {
 				short panelContext;
@@ -1421,7 +1435,7 @@ void ED_region_header(const bContext *C, ARegion *ar)
 	uiBlock *block;
 	uiLayout *layout;
 	HeaderType *ht;
-	Header header = {0};
+	Header header = {NULL};
 	int maxco, xco, yco;
 
 	/* clear */	

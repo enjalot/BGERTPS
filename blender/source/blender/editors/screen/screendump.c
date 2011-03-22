@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -25,6 +25,11 @@
  * ***** END GPL LICENSE BLOCK *****
  * Making screendumps.
  */
+
+/** \file blender/editors/screen/screendump.c
+ *  \ingroup edscr
+ */
+
 
 #include <string.h>
 

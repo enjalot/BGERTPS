@@ -21,7 +21,9 @@
 
 set(INC
 	../include
+	../../blenfont
 	../../blenkernel
+	../../blenloader
 	../../blenlib
 	../../imbuf
 	../../makesdna

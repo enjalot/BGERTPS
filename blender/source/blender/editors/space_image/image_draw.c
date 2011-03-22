@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -25,6 +25,11 @@
  * ***** END GPL LICENSE BLOCK *****
  */
 
+/** \file blender/editors/space_image/image_draw.c
+ *  \ingroup spimage
+ */
+
+
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -41,6 +46,7 @@
 #include "PIL_time.h"
 
 #include "BLI_threads.h"
+#include "BLI_string.h"
 #include "BLI_utildefines.h"
 
 #include "IMB_imbuf.h"
@@ -129,26 +135,27 @@ static void draw_render_info(Scene *scene, Image *ima, ARegion *ar)
 void draw_image_info(ARegion *ar, int channels, int x, int y, char *cp, float *fp, int *zp, float *zpf)
 {
 	char str[256];
-	int ofs;
-	
-	ofs= sprintf(str, "X: %4d Y: %4d ", x, y);
+	int ofs= 0;
+
+	ofs += BLI_snprintf(str + ofs, sizeof(str)-ofs, "X: %4d Y: %4d ", x, y);
 	if(cp)
-		ofs+= sprintf(str+ofs, "| R: %3d G: %3d B: %3d A: %3d ", cp[0], cp[1], cp[2], cp[3]);
+		ofs+= BLI_snprintf(str + ofs, sizeof(str)-ofs, "| R: %3d G: %3d B: %3d A: %3d ", cp[0], cp[1], cp[2], cp[3]);
 
 	if(fp) {
 		if(channels==4)
-			ofs+= sprintf(str+ofs, "| R: %.3f G: %.3f B: %.3f A: %.3f ", fp[0], fp[1], fp[2], fp[3]);
+			ofs+= BLI_snprintf(str + ofs, sizeof(str)-ofs, "| R: %.4f G: %.4f B: %.4f A: %.4f ", fp[0], fp[1], fp[2], fp[3]);
 		else if(channels==1)
-			ofs+= sprintf(str+ofs, "| Val: %.3f ", fp[0]);
+			ofs+= BLI_snprintf(str + ofs, sizeof(str)-ofs, "| Val: %.4f ", fp[0]);
 		else if(channels==3)
-			ofs+= sprintf(str+ofs, "| R: %.3f G: %.3f B: %.3f ", fp[0], fp[1], fp[2]);
+			ofs+= BLI_snprintf(str + ofs, sizeof(str)-ofs, "| R: %.4f G: %.4f B: %.4f ", fp[0], fp[1], fp[2]);
 	}
 
 	if(zp)
-		ofs+= sprintf(str+ofs, "| Z: %.4f ", 0.5+0.5*(((float)*zp)/(float)0x7fffffff));
+		ofs+= BLI_snprintf(str + ofs, sizeof(str)-ofs, "| Z: %.4f ", 0.5+0.5*(((float)*zp)/(float)0x7fffffff));
 	if(zpf)
-		ofs+= sprintf(str+ofs, "| Z: %.3f ", *zpf);
-	
+		ofs+= BLI_snprintf(str + ofs, sizeof(str)-ofs, "| Z: %.3f ", *zpf);
+	(void)ofs;
+
 	glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
 	glEnable(GL_BLEND);
 	
@@ -390,7 +397,7 @@ static void draw_image_buffer(SpaceImage *sima, ARegion *ar, Scene *scene, Image
 			sima_draw_alpha_backdrop(x, y, ibuf->x, ibuf->y, zoomx, zoomy, col1, col2);
 
 			glEnable(GL_BLEND);
-			glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		}
 
 		/* we don't draw floats buffers directly but

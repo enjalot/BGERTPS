@@ -1,4 +1,5 @@
-/**
+/*
+ * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
  *
@@ -19,10 +20,15 @@
  * The Original Code is Copyright (C) 2001-2002 by NaN Holding BV.
  * All rights reserved.
  *
-* Contributor(s): Campbell Barton <ideasman42@gmail.com>
+ * Contributor(s): Campbell Barton <ideasman42@gmail.com>
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/blenkernel/intern/pointcache.c
+ *  \ingroup bke
+ */
+
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -280,6 +286,8 @@ static void ptcache_particle_read(int index, void *psys_v, void **data, float cf
 	/* set frames cached before birth to birth time */
 	if(cfra < pa->time)
 		pa->state.time = pa->time;
+	else if(cfra > pa->dietime)
+		pa->state.time = pa->dietime;
 
 	if(data[BPHYS_DATA_SIZE])
 		PTCACHE_DATA_TO(data, BPHYS_DATA_SIZE, 0, &pa->size);
@@ -1390,7 +1398,7 @@ static PTCacheMem *ptcache_disk_frame_to_mem(PTCacheID *pid, int cfra)
 	unsigned int i, error = 0;
 
 	if(pf == NULL)
-		return 0;
+		return NULL;
 
 	if(!ptcache_file_header_begin_read(pf))
 		error = 1;
@@ -1992,7 +2000,7 @@ void BKE_ptcache_id_clear(PTCacheID *pid, int mode, unsigned int cfra)
 					if (strncmp(filename, de->d_name, len ) == 0) { /* do we have the right prefix */
 						if (mode == PTCACHE_CLEAR_ALL) {
 							pid->cache->last_exact = MIN2(pid->cache->startframe, 0);
-							BLI_join_dirfile(path_full, path, de->d_name);
+							BLI_join_dirfile(path_full, sizeof(path_full), path, de->d_name);
 							BLI_delete(path_full, 0, 0);
 						} else {
 							/* read the number of the file */
@@ -2006,7 +2014,7 @@ void BKE_ptcache_id_clear(PTCacheID *pid, int mode, unsigned int cfra)
 								if((mode==PTCACHE_CLEAR_BEFORE && frame < cfra)	|| 
 								(mode==PTCACHE_CLEAR_AFTER && frame > cfra)	) {
 									
-									BLI_join_dirfile(path_full, path, de->d_name);
+									BLI_join_dirfile(path_full, sizeof(path_full), path, de->d_name);
 									BLI_delete(path_full, 0, 0);
 									if(pid->cache->cached_frames && frame >=sta && frame <= end)
 										pid->cache->cached_frames[frame-sta] = 0;
@@ -2354,7 +2362,7 @@ void BKE_ptcache_remove(void)
 			if( strcmp(de->d_name, ".")==0 || strcmp(de->d_name, "..")==0) {
 				/* do nothing */
 			} else if (strstr(de->d_name, PTCACHE_EXT)) { /* do we have the right extension?*/
-				BLI_join_dirfile(path_full, path, de->d_name);
+				BLI_join_dirfile(path_full, sizeof(path_full), path, de->d_name);
 				BLI_delete(path_full, 0, 0);
 			} else {
 				rmdir = 0; /* unknown file, dont remove the dir */
@@ -2390,7 +2398,7 @@ void BKE_ptcache_set_continue_physics(Main *bmain, Scene *scene, int enable)
 	}
 }
 
-int  BKE_ptcache_get_continue_physics()
+int  BKE_ptcache_get_continue_physics(void)
 {
 	return CONTINUE_PHYSICS;
 }
@@ -2509,14 +2517,55 @@ typedef struct {
 	Scene *scene;
 } ptcache_bake_data;
 
+static void ptcache_dt_to_str(char *str, double dtime)
+{
+	if(dtime > 60.0) {
+		if(dtime > 3600.0)
+			sprintf(str, "%ih %im %is", (int)(dtime/3600), ((int)(dtime/60))%60, ((int)dtime) % 60);
+		else
+			sprintf(str, "%im %is", ((int)(dtime/60))%60, ((int)dtime) % 60);
+	}
+	else
+		sprintf(str, "%is", ((int)dtime) % 60);
+}
+
 static void *ptcache_bake_thread(void *ptr) {
+	int usetimer = 0, sfra, efra;
+	double stime, ptime, ctime, fetd;
+	char run[32], cur[32], etd[32];
+
 	ptcache_bake_data *data = (ptcache_bake_data*)ptr;
+
+	stime = ptime = PIL_check_seconds_timer();
+	sfra = *data->cfra_ptr;
+	efra = data->endframe;
 
 	for(; (*data->cfra_ptr <= data->endframe) && !data->break_operation; *data->cfra_ptr+=data->step) {
 		scene_update_for_newframe(data->main, data->scene, data->scene->lay);
 		if(G.background) {
 			printf("bake: frame %d :: %d\n", (int)*data->cfra_ptr, data->endframe);
 		}
+		else {
+			ctime = PIL_check_seconds_timer();
+
+			fetd = (ctime-ptime)*(efra-*data->cfra_ptr)/data->step;
+
+			if(usetimer || fetd > 60.0) {
+				usetimer = 1;
+
+				ptcache_dt_to_str(cur, ctime-ptime);
+				ptcache_dt_to_str(run, ctime-stime);
+				ptcache_dt_to_str(etd, fetd);
+
+				printf("Baked for %s, current frame: %i/%i (%.3fs), ETC: %s          \r", run, *data->cfra_ptr-sfra+1, efra-sfra+1, (float)(ctime-ptime), etd);
+			}
+			ptime = ctime;
+		}
+	}
+
+	if(usetimer) {
+		ptcache_dt_to_str(run, PIL_check_seconds_timer()-stime);
+		printf("Bake %s %s (%i frames simulated).                       \n", (data->break_operation ? "canceled after" : "finished in"), run, *data->cfra_ptr-sfra);
 	}
 
 	data->thread_ended = TRUE;
@@ -2856,13 +2905,14 @@ void BKE_ptcache_disk_cache_rename(PTCacheID *pid, char *from, char *to)
 					BLI_strncpy(num, de->d_name + (strlen(de->d_name) - 15), sizeof(num));
 					frame = atoi(num);
 
-					BLI_join_dirfile(old_path_full, path, de->d_name);
+					BLI_join_dirfile(old_path_full, sizeof(old_path_full), path, de->d_name);
 					ptcache_filename(pid, new_path_full, frame, 1, 1);
 					BLI_rename(old_path_full, new_path_full);
 				}
 			}
 		}
 	}
+	closedir(dir);
 
 	strcpy(pid->cache->name, old_name);
 }
@@ -2929,8 +2979,10 @@ void BKE_ptcache_load_external(PTCacheID *pid)
 		cache->endframe = end;
 		cache->totpoint = 0;
 
+		if(pid->type == PTCACHE_TYPE_SMOKE_DOMAIN)
+			; /*necessary info in every file*/
 		/* read totpoint from info file (frame 0) */
-		if(info) {
+		else if(info) {
 			pf= ptcache_file_open(pid, PTCACHE_FILE_READ, 0);
 
 			if(pf) {

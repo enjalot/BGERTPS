@@ -96,7 +96,7 @@ class DATA_PT_metaball_element(DataButtonsPanel, bpy.types.Panel):
 
         col = split.column(align=True)
 
-        if metaelem.type in ('CUBE', 'ELLIPSOID'):
+        if metaelem.type in {'CUBE', 'ELLIPSOID'}:
             col.label(text="Size:")
             col.prop(metaelem, "size_x", text="X")
             col.prop(metaelem, "size_y", text="Y")
@@ -119,11 +119,11 @@ class DATA_PT_custom_props_metaball(DataButtonsPanel, PropertyPanel, bpy.types.P
 
 
 def register():
-    pass
+    bpy.utils.register_module(__name__)
 
 
 def unregister():
-    pass
+    bpy.utils.unregister_module(__name__)
 
 if __name__ == "__main__":
     register()

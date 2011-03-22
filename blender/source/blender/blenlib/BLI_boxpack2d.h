@@ -1,6 +1,4 @@
-/**
- * 
- *
+/*
  * ***** BEGIN GPL LICENSE BLOCK *****
  *
  * This program is free software; you can redistribute it and/or
@@ -27,6 +25,13 @@
  * ***** END GPL LICENSE BLOCK *****
  */
 
+#ifndef _BLI_BOXPACK2D_H_
+#define _BLI_BOXPACK2D_H_
+
+/** \file BLI_boxpack2d.h
+ *  \ingroup bli
+ */
+
 /* Box Packer */
 
 typedef struct boxPack {
@@ -41,5 +46,7 @@ typedef struct boxPack {
 	struct boxVert *v[4];
 } boxPack;
 
-void boxPack2D(boxPack *boxarray, int len, float *tot_width, float *tot_height); 
+void boxPack2D(boxPack *boxarray, const int len, float *tot_width, float *tot_height);
+
+#endif
 

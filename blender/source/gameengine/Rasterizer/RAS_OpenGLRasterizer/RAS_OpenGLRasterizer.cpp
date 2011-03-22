@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  * ***** BEGIN GPL LICENSE BLOCK *****
  *
@@ -25,6 +25,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file gameengine/Rasterizer/RAS_OpenGLRasterizer/RAS_OpenGLRasterizer.cpp
+ *  \ingroup bgerastogl
+ */
+
  
 #include <math.h>
 #include <stdlib.h>
@@ -742,6 +747,8 @@ static int CheckMaterialDM(int matnr, void *attribs)
 		memcpy(gattribs, &current_gpu_attribs, sizeof(GPUVertexAttribs));
 	return 1;
 }
+
+/*
 static int CheckTexfaceDM(void *mcol, int index)
 {
 
@@ -769,6 +776,7 @@ static int CheckTexfaceDM(void *mcol, int index)
 	}
 	return 0;
 }
+*/
 
 static int CheckTexDM(MTFace *tface, MCol *mcol, int matnr)
 {
@@ -811,7 +819,7 @@ void RAS_OpenGLRasterizer::IndexPrimitivesInternal(RAS_MeshSlot& ms, bool multi)
 		current_ms = &ms;
 		current_mesh = ms.m_mesh;
 		current_wireframe = wireframe;
-		MCol *mcol = (MCol*)ms.m_pDerivedMesh->getFaceDataArray(ms.m_pDerivedMesh, CD_MCOL);
+		// MCol *mcol = (MCol*)ms.m_pDerivedMesh->getFaceDataArray(ms.m_pDerivedMesh, CD_MCOL); /* UNUSED */
 
 		// handle two-side
 		if (current_polymat->GetDrawingMode() & RAS_IRasterizer::KX_TWOSIDE)

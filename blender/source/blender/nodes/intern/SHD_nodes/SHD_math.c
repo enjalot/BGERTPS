@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -27,8 +27,12 @@
  * ***** END GPL LICENSE BLOCK *****
  */
 
-#include "../SHD_util.h"
+/** \file blender/nodes/intern/SHD_nodes/SHD_math.c
+ *  \ingroup shdnodes
+ */
 
+
+#include "../SHD_util.h"
 
 
 /* **************** SCALAR MATH ******************** */ 
@@ -170,9 +174,9 @@ bNodeStack **out)
 	case 14: /* Round */
 		{
 			if(in[0]->hasinput || !in[1]->hasinput) /* This one only takes one input, so we've got to choose. */
-				out[0]->vec[0]= (int)(in[0]->vec[0] + 0.5f);
+				out[0]->vec[0]= (in[0]->vec[0]<0)?(int)(in[0]->vec[0] - 0.5f):(int)(in[0]->vec[0] + 0.5f);
 			else
-				out[0]->vec[0]= (int)(in[1]->vec[0] + 0.5f);
+				out[0]->vec[0]= (in[1]->vec[0]<0)?(int)(in[1]->vec[0] - 0.5f):(int)(in[1]->vec[0] + 0.5f);
 		}
 		break;
 	case 15: /* Less Than */
@@ -234,21 +238,19 @@ static int gpu_shader_math(GPUMaterial *mat, bNode *node, GPUNodeStack *in, GPUN
 	return 1;
 }
 
-bNodeType sh_node_math= {
-	/* *next,*prev */	NULL, NULL,
-	/* type code   */	SH_NODE_MATH, 
-	/* name        */	"Math", 
-	/* width+range */	120, 110, 160, 
-	/* class+opts  */	NODE_CLASS_CONVERTOR, NODE_OPTIONS, 
-	/* input sock  */	sh_node_math_in, 
-	/* output sock */	sh_node_math_out, 
-	/* storage     */	"node_math", 
-	/* execfunc    */	node_shader_exec_math,
-	/* butfunc     */	NULL,
-	/* initfunc    */	NULL,
-	/* freestoragefunc    */	NULL,
-	/* copystoragefunc    */	NULL,
-	/* id          */	NULL, NULL, NULL,
-	/* gpufunc     */	gpu_shader_math
-};
+void register_node_type_sh_math(ListBase *lb)
+{
+	static bNodeType ntype;
+
+	node_type_base(&ntype, SH_NODE_MATH, "Math", NODE_CLASS_CONVERTOR, NODE_OPTIONS,
+		sh_node_math_in, sh_node_math_out);
+	node_type_size(&ntype, 120, 110, 160);
+	node_type_label(&ntype, node_math_label);
+	node_type_storage(&ntype, "node_math", NULL, NULL);
+	node_type_exec(&ntype, node_shader_exec_math);
+	node_type_gpu(&ntype, gpu_shader_math);
+
+	nodeRegisterType(lb, &ntype);
+}
+
 

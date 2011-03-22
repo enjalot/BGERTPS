@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -27,6 +27,11 @@
  * ***** END GPL LICENSE BLOCK *****
  */
 
+/** \file blender/editors/space_graph/graph_edit.c
+ *  \ingroup spgraph
+ */
+
+
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -54,6 +59,7 @@
 #include "BKE_report.h"
 
 #include "UI_interface.h"
+#include "UI_resources.h"
 #include "UI_view2d.h"
 
 #include "ED_anim_api.h"
@@ -75,7 +81,7 @@
 
 /* Get the min/max keyframes*/
 /* note: it should return total boundbox, filter for selection only can be argument... */
-void get_graph_keyframe_extents (bAnimContext *ac, float *xmin, float *xmax, float *ymin, float *ymax)
+void get_graph_keyframe_extents (bAnimContext *ac, float *xmin, float *xmax, float *ymin, float *ymax, const short selOnly)
 {
 	ListBase anim_data = {NULL, NULL};
 	bAnimListElem *ale;
@@ -101,7 +107,7 @@ void get_graph_keyframe_extents (bAnimContext *ac, float *xmin, float *xmax, flo
 			float unitFac;
 			
 			/* get range */
-			calc_fcurve_bounds(fcu, &txmin, &txmax, &tymin, &tymax);
+			calc_fcurve_bounds(fcu, &txmin, &txmax, &tymin, &tymax, selOnly);
 			
 			/* apply NLA scaling */
 			if (adt) {
@@ -161,7 +167,7 @@ static int graphkeys_previewrange_exec(bContext *C, wmOperator *UNUSED(op))
 		scene= ac.scene;
 	
 	/* set the range directly */
-	get_graph_keyframe_extents(&ac, &min, &max, NULL, NULL);
+	get_graph_keyframe_extents(&ac, &min, &max, NULL, NULL, FALSE);
 	scene->r.flag |= SCER_PRV_RANGE;
 	scene->r.psfra= (int)floor(min + 0.5f);
 	scene->r.pefra= (int)floor(max + 0.5f);
@@ -182,7 +188,7 @@ void GRAPH_OT_previewrange_set (wmOperatorType *ot)
 	
 	/* api callbacks */
 	ot->exec= graphkeys_previewrange_exec;
-	ot->poll= ED_operator_ipo_active; // XXX: unchecked poll to get fsamples working too, but makes modifier damage trickier...
+	ot->poll= ED_operator_graphedit_active; // XXX: unchecked poll to get fsamples working too, but makes modifier damage trickier...
 	
 	/* flags */
 	ot->flag= OPTYPE_REGISTER|OPTYPE_UNDO;
@@ -190,37 +196,51 @@ void GRAPH_OT_previewrange_set (wmOperatorType *ot)
 
 /* ****************** View-All Operator ****************** */
 
-static int graphkeys_viewall_exec(bContext *C, wmOperator *UNUSED(op))
+static int graphkeys_viewall(bContext *C, const short selOnly)
 {
 	bAnimContext ac;
 	View2D *v2d;
 	float extra;
-	
+
 	/* get editor data */
 	if (ANIM_animdata_get_context(C, &ac) == 0)
 		return OPERATOR_CANCELLED;
 	v2d= &ac.ar->v2d;
-	
+
 	/* set the horizontal range, with an extra offset so that the extreme keys will be in view */
-	get_graph_keyframe_extents(&ac, &v2d->cur.xmin, &v2d->cur.xmax, &v2d->cur.ymin, &v2d->cur.ymax);
-	
+	get_graph_keyframe_extents(&ac, &v2d->cur.xmin, &v2d->cur.xmax, &v2d->cur.ymin, &v2d->cur.ymax, selOnly);
+
 	extra= 0.1f * (v2d->cur.xmax - v2d->cur.xmin);
 	v2d->cur.xmin -= extra;
 	v2d->cur.xmax += extra;
-	
+
 	extra= 0.1f * (v2d->cur.ymax - v2d->cur.ymin);
 	v2d->cur.ymin -= extra;
 	v2d->cur.ymax += extra;
-	
+
 	/* do View2D syncing */
 	UI_view2d_sync(CTX_wm_screen(C), CTX_wm_area(C), v2d, V2D_LOCK_COPY);
-	
+
 	/* set notifier that things have changed */
 	ED_area_tag_redraw(CTX_wm_area(C));
-	
+
 	return OPERATOR_FINISHED;
 }
+
+/* ......... */
+
+static int graphkeys_viewall_exec(bContext *C, wmOperator *UNUSED(op))
+{
+	/* whole range */
+	return graphkeys_viewall(C, FALSE);
+}
  
+static int graphkeys_view_selected_exec(bContext *C, wmOperator *UNUSED(op))
+{
+	/* only selected */
+	return graphkeys_viewall(C, TRUE);
+}
+
 void GRAPH_OT_view_all (wmOperatorType *ot)
 {
 	/* identifiers */
@@ -230,8 +250,23 @@ void GRAPH_OT_view_all (wmOperatorType *ot)
 	
 	/* api callbacks */
 	ot->exec= graphkeys_viewall_exec;
-	ot->poll= ED_operator_ipo_active; // XXX: unchecked poll to get fsamples working too, but makes modifier damage trickier...
+	ot->poll= ED_operator_graphedit_active; // XXX: unchecked poll to get fsamples working too, but makes modifier damage trickier...
 	
+	/* flags */
+	ot->flag= OPTYPE_REGISTER|OPTYPE_UNDO;
+}
+
+void GRAPH_OT_view_selected (wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name= "View Selected";
+	ot->idname= "GRAPH_OT_view_selected";
+	ot->description= "Reset viewable area to show selected keyframe range";
+
+	/* api callbacks */
+	ot->exec= graphkeys_view_selected_exec;
+	ot->poll= ED_operator_graphedit_active; // XXX: unchecked poll to get fsamples working too, but makes modifier damage trickier...
+
 	/* flags */
 	ot->flag= OPTYPE_REGISTER|OPTYPE_UNDO;
 }
@@ -388,7 +423,7 @@ void GRAPH_OT_ghost_curves_clear (wmOperatorType *ot)
 	
 	/* api callbacks */
 	ot->exec= graphkeys_clear_ghostcurves_exec;
-	ot->poll= ED_operator_ipo_active;
+	ot->poll= ED_operator_graphedit_active;
 	
 	/* flags */
 	ot->flag= OPTYPE_REGISTER|OPTYPE_UNDO;
@@ -400,7 +435,7 @@ void GRAPH_OT_ghost_curves_clear (wmOperatorType *ot)
 /* ******************** Insert Keyframes Operator ************************* */
 
 /* defines for insert keyframes tool */
-EnumPropertyItem prop_graphkeys_insertkey_types[] = {
+static EnumPropertyItem prop_graphkeys_insertkey_types[] = {
 	{1, "ALL", 0, "All Channels", ""},
 	{2, "SEL", 0, "Only Selected Channels", ""},
 	{0, NULL, 0, NULL, NULL}
@@ -775,9 +810,6 @@ static int graphkeys_duplicate_exec(bContext *C, wmOperator *UNUSED(op))
 static int graphkeys_duplicate_invoke(bContext *C, wmOperator *op, wmEvent *UNUSED(event))
 {
 	graphkeys_duplicate_exec(C, op);
-	
-	RNA_int_set(op->ptr, "mode", TFM_TRANSLATION);
-	WM_operator_name_call(C, "TRANSFORM_OT_transform", WM_OP_INVOKE_REGION_WIN, op->ptr);
 
 	return OPERATOR_FINISHED;
 }
@@ -1224,7 +1256,7 @@ void GRAPH_OT_sample (wmOperatorType *ot)
 /* ******************** Set Extrapolation-Type Operator *********************** */
 
 /* defines for set extrapolation-type for selected keyframes tool */
-EnumPropertyItem prop_graphkeys_expo_types[] = {
+static EnumPropertyItem prop_graphkeys_expo_types[] = {
 	{FCURVE_EXTRAPOLATE_CONSTANT, "CONSTANT", 0, "Constant Extrapolation", ""},
 	{FCURVE_EXTRAPOLATE_LINEAR, "LINEAR", 0, "Linear Extrapolation", ""},
 	{0, NULL, 0, NULL, NULL}
@@ -1637,7 +1669,7 @@ void GRAPH_OT_frame_jump (wmOperatorType *ot)
 /* ******************** Snap Keyframes Operator *********************** */
 
 /* defines for snap keyframes tool */
-EnumPropertyItem prop_graphkeys_snap_types[] = {
+static EnumPropertyItem prop_graphkeys_snap_types[] = {
 	{GRAPHKEYS_SNAP_CFRA, "CFRA", 0, "Current Frame", ""},
 	{GRAPHKEYS_SNAP_VALUE, "VALUE", 0, "Cursor Value", ""},
 	{GRAPHKEYS_SNAP_NEAREST_FRAME, "NEAREST_FRAME", 0, "Nearest Frame", ""}, // XXX as single entry?
@@ -1745,7 +1777,7 @@ void GRAPH_OT_snap (wmOperatorType *ot)
 /* ******************** Mirror Keyframes Operator *********************** */
 
 /* defines for mirror keyframes tool */
-EnumPropertyItem prop_graphkeys_mirror_types[] = {
+static EnumPropertyItem prop_graphkeys_mirror_types[] = {
 	{GRAPHKEYS_MIRROR_CFRA, "CFRA", 0, "By Times over Current Frame", ""},
 	{GRAPHKEYS_MIRROR_VALUE, "VALUE", 0, "By Values over Cursor Value", ""},
 	{GRAPHKEYS_MIRROR_YAXIS, "YAXIS", 0, "By Times over Time=0", ""},
@@ -1923,7 +1955,7 @@ static int graph_fmodifier_add_invoke (bContext *C, wmOperator *op, wmEvent *UNU
 	uiLayout *layout;
 	int i;
 	
-	pup= uiPupMenuBegin(C, "Add F-Curve Modifier", ICON_NULL);
+	pup= uiPupMenuBegin(C, "Add F-Curve Modifier", ICON_NONE);
 	layout= uiPupMenuLayout(pup);
 	
 	/* start from 1 to skip the 'Invalid' modifier type */
@@ -1936,7 +1968,7 @@ static int graph_fmodifier_add_invoke (bContext *C, wmOperator *op, wmEvent *UNU
 			continue;
 		
 		/* create operator menu item with relevant properties filled in */
-		props_ptr= uiItemFullO(layout, "GRAPH_OT_fmodifier_add", fmi->name, ICON_NULL, NULL, WM_OP_EXEC_REGION_WIN, UI_ITEM_O_RETURN_PROPS);
+		props_ptr= uiItemFullO(layout, "GRAPH_OT_fmodifier_add", fmi->name, ICON_NONE, NULL, WM_OP_EXEC_REGION_WIN, UI_ITEM_O_RETURN_PROPS);
 			/* the only thing that gets set from the menu is the type of F-Modifier to add */
 		RNA_enum_set(&props_ptr, "type", i);
 			/* the following properties are just repeats of existing ones... */

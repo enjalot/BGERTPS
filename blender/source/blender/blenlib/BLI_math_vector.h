@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -27,6 +27,10 @@
 
 #ifndef BLI_MATH_VECTOR_H
 #define BLI_MATH_VECTOR_H
+
+/** \file BLI_math_vector.h
+ *  \ingroup bli
+ */
 
 #ifdef __cplusplus
 extern "C" {
@@ -84,6 +88,8 @@ MINLINE void madd_v4_v4fl(float r[4], const float a[4], float f);
 
 MINLINE void negate_v3(float r[3]);
 MINLINE void negate_v3_v3(float r[3], const float a[3]);
+MINLINE void negate_v4(float r[4]);
+MINLINE void negate_v4_v4(float r[4], const float a[3]);
 
 MINLINE float dot_v2v2(const float a[2], const float b[2]);
 MINLINE float dot_v3v3(const float a[3], const float b[3]);
@@ -122,6 +128,7 @@ void mid_v3_v3v3(float r[3], const float a[3], const float b[3]);
 /********************************* Comparison ********************************/
 
 MINLINE int is_zero_v3(const float a[3]);
+MINLINE int is_zero_v4(const float a[4]);
 MINLINE int is_one_v3(const float a[3]);
 
 MINLINE int equals_v2v2(const float *v1, const float *v2);
@@ -172,6 +179,8 @@ void minmax_v3v3_v3(float min[3], float max[3], const float vec[3]);
 /***************************** Array Functions *******************************/
 /* attempted to follow fixed length vertex functions. names could be improved*/
 void range_vni(int *array, const int size, const int start);
+void negate_vn(float *array_tar, const int size);
+void negate_vn_vn(float *array_tar, const float *array_src, const int size);
 void mul_vn_fl(float *array, const int size, const float f);
 void mul_vn_vn_fl(float *array_tar, const float *array_src, const int size, const float f);
 void add_vn_vn(float *array_tar, const float *array_src, const int size);

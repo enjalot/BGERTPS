@@ -19,8 +19,7 @@
 # <pep8 compliant>
 
 import bpy
-
-from bpy.props import *
+from bpy.props import StringProperty, BoolProperty, IntProperty, FloatProperty
 from rna_prop_ui import rna_idprop_ui_prop_get, rna_idprop_ui_prop_clear
 
 
@@ -51,7 +50,7 @@ rna_relative_prop = BoolProperty(name="Relative",
 def context_path_validate(context, data_path):
     import sys
     try:
-        value = eval("context.%s" % data_path)
+        value = eval("context.%s" % data_path) if data_path else Ellipsis
     except AttributeError:
         if "'NoneType'" in str(sys.exc_info()[1]):
             # One of the items in the rna path is None, just ignore this
@@ -384,6 +383,39 @@ class WM_OT_context_cycle_array(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class WM_MT_context_menu_enum(bpy.types.Menu):
+    bl_label = ""
+    data_path = ""  # BAD DESIGN, set from operator below.
+
+    def draw(self, context):
+        data_path = self.data_path
+        value = context_path_validate(bpy.context, data_path)
+        if value is Ellipsis:
+            return {'PASS_THROUGH'}
+        base_path, prop_string = data_path.rsplit(".", 1)
+        value_base = context_path_validate(context, base_path)
+
+        values = [(i.name, i.identifier) for i in value_base.bl_rna.properties[prop_string].items]
+
+        for name, identifier in values:
+            prop = self.layout.operator("wm.context_set_enum", text=name)
+            prop.data_path = data_path
+            prop.value = identifier
+
+
+class WM_OT_context_menu_enum(bpy.types.Operator):
+    bl_idname = "wm.context_menu_enum"
+    bl_label = "Context Enum Menu"
+    bl_options = {'UNDO'}
+    data_path = rna_path_prop
+
+    def execute(self, context):
+        data_path = self.data_path
+        WM_MT_context_menu_enum.data_path = data_path
+        bpy.ops.wm.call_menu(name="WM_MT_context_menu_enum")
+        return {'PASS_THROUGH'}
+
+
 class WM_OT_context_set_id(bpy.types.Operator):
     '''Toggle a context value.'''
     bl_idname = "wm.context_set_id"
@@ -543,7 +575,7 @@ class WM_OT_path_open(bpy.types.Operator):
             self.report({'ERROR'}, "File '%s' not found" % filepath)
             return {'CANCELLED'}
 
-        if sys.platform == 'win32':
+        if sys.platform[:3] == "win":
             subprocess.Popen(['start', filepath], shell=True)
         elif sys.platform == 'darwin':
             subprocess.Popen(['open', filepath])
@@ -669,9 +701,6 @@ class WM_OT_doc_edit(bpy.types.Operator):
         return wm.invoke_props_dialog(self, width=600)
 
 
-from bpy.props import *
-
-
 rna_path = StringProperty(name="Property Edit",
     description="Property data_path edit", maxlen=1024, default="", options={'HIDDEN'})
 
@@ -733,6 +762,10 @@ class WM_OT_properties_edit(bpy.types.Operator):
             prop_ui['soft_max'] = prop_ui['max'] = prop_type(self.max)
 
         prop_ui['description'] = self.description
+
+        # otherwise existing buttons which reference freed
+        # memory may crash blender [#26510]
+        context.area.tag_redraw()
 
         return {'FINISHED'}
 
@@ -816,11 +849,71 @@ class WM_OT_sysinfo(bpy.types.Operator):
 
 
 def register():
-    pass
+    bpy.utils.register_module(__name__)
+
+    import os
+
+    # test for X11
+    if os.environ.get("DISPLAY"):
+
+        # BSD licenced code copied from python, temp fix for bug
+        # http://bugs.python.org/issue11432, XXX == added code
+        def _invoke(self, args, remote, autoraise):
+            # XXX, added imports
+            import io
+            import subprocess
+            import time
+
+            raise_opt = []
+            if remote and self.raise_opts:
+                # use autoraise argument only for remote invocation
+                autoraise = int(autoraise)
+                opt = self.raise_opts[autoraise]
+                if opt:
+                    raise_opt = [opt]
+
+            cmdline = [self.name] + raise_opt + args
+
+            if remote or self.background:
+                inout = io.open(os.devnull, "r+")
+            else:
+                # for TTY browsers, we need stdin/out
+                inout = None
+            # if possible, put browser in separate process group, so
+            # keyboard interrupts don't affect browser as well as Python
+            setsid = getattr(os, 'setsid', None)
+            if not setsid:
+                setsid = getattr(os, 'setpgrp', None)
+
+            p = subprocess.Popen(cmdline, close_fds=True,  # XXX, stdin=inout,
+                                 stdout=(self.redirect_stdout and inout or None),
+                                 stderr=inout, preexec_fn=setsid)
+            if remote:
+                # wait five secons. If the subprocess is not finished, the
+                # remote invocation has (hopefully) started a new instance.
+                time.sleep(1)
+                rc = p.poll()
+                if rc is None:
+                    time.sleep(4)
+                    rc = p.poll()
+                    if rc is None:
+                        return True
+                # if remote call failed, open() will try direct invocation
+                return not rc
+            elif self.background:
+                if p.poll() is None:
+                    return True
+                else:
+                    return False
+            else:
+                return not p.wait()
+
+        import webbrowser
+        webbrowser.UnixBrowser._invoke = _invoke
 
 
 def unregister():
-    pass
+    bpy.utils.unregister_module(__name__)
 
 if __name__ == "__main__":
     register()

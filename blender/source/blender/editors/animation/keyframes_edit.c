@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -23,6 +23,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/editors/animation/keyframes_edit.c
+ *  \ingroup edanimation
+ */
+
 
 #include <stdlib.h>
 #include <string.h>
@@ -90,7 +95,7 @@ short ANIM_fcurve_keyframes_loop(KeyframeEditData *ked, FCurve *fcu, KeyframeEdi
 {
 	BezTriple *bezt;
 	short ok = 0;
-	int i;
+	unsigned int i;
 
 	/* sanity check */
 	if (ELEM(NULL, fcu, fcu->bezt))
@@ -995,6 +1000,13 @@ static short set_keytype_extreme(KeyframeEditData *UNUSED(ked), BezTriple *bezt)
 	return 0;
 }
 
+static short set_keytype_jitter(KeyframeEditData *UNUSED(ked), BezTriple *bezt) 
+{
+	if (bezt->f2 & SELECT) 
+		BEZKEYTYPE(bezt)= BEZT_KEYTYPE_JITTER;
+	return 0;
+}
+
 /* Set the interpolation type of the selected BezTriples in each F-Curve to the specified one */
 KeyframeEditFunc ANIM_editkeyframes_keytype(short code)
 {
@@ -1004,6 +1016,9 @@ KeyframeEditFunc ANIM_editkeyframes_keytype(short code)
 			
 		case BEZT_KEYTYPE_EXTREME: /* extreme keyframe */
 			return set_keytype_extreme;
+			
+		case BEZT_KEYTYPE_JITTER: /* jitter keyframe */
+			return set_keytype_jitter;
 			
 		case BEZT_KEYTYPE_KEYFRAME: /* proper keyframe */	
 		default:

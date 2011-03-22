@@ -31,7 +31,7 @@ import os
 # in debian install pylint pyflakes pep8 with apt-get/aptitude/etc
 #
 # on *nix run
-#   python release/test/pep8.py > pep8_error.txt 2>&1
+#   python source/tests/pep8.py > pep8_error.txt 2>&1
 
 # how many lines to read into the file, pep8 comment
 # should be directly after the licence header, ~20 in most cases
@@ -50,6 +50,12 @@ def is_pep8(path):
     print(path)
     if open(path, 'rb').read(3) == b'\xef\xbb\xbf':
         print("\nfile contains BOM, remove first 3 bytes: %r\n" % path)
+
+    # templates dont have a header but should be pep8
+    for d in ("presets", "templates", "examples"):
+        if ("%s%s%s" % (os.sep, d, os.sep)) in path:
+            return 1
+
     f = open(path, 'r', encoding="utf8")
     for i in range(PEP8_SEEK_COMMENT):
         line = f.readline()
@@ -81,7 +87,15 @@ def main():
     for f in files_skip:
         print("    %s" % f)
 
-    # pyflakes
+    # strict imports
+    print("\n\n\n# running pep8...")
+    import re
+    import_check = re.compile(r"\s*from\s+[A-z\.]+\s+import \*\s*")
+    for f, pep8_type in files:
+        for i, l in enumerate(open(f, 'r', encoding='utf8')):
+            if import_check.match(l):
+                print("%s:%d:0: global import bad practice" % (f, i + 1))
+
     print("\n\n\n# running pep8...")
     for f, pep8_type in files:
         if pep8_type == 1:
@@ -90,6 +104,7 @@ def main():
         else:
             os.system("pep8 --repeat '%s'" % (f))
 
+    # pyflakes
     print("\n\n\n# running pyflakes...")
     for f, pep8_type in files:
         os.system("pyflakes '%s'" % f)

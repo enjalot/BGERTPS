@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -25,6 +25,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/windowmanager/WM_types.h
+ *  \ingroup wm
+ */
+
 #ifndef WM_TYPES_H
 #define WM_TYPES_H
 
@@ -174,6 +179,7 @@ typedef struct wmNotifier {
 #define ND_EDITOR_CHANGED	(6<<16) /*sent to new editors after switching to them*/
 #define ND_SCREENSET		(7<<16)
 #define ND_SKETCH			(8<<16)
+#define ND_SUBWINACTIVE		(9<<16)
 
 	/* NC_SCENE Scene */
 #define ND_SCENEBROWSE		(1<<16)
@@ -193,6 +199,7 @@ typedef struct wmNotifier {
 #define ND_TOOLSETTINGS		(15<<16)
 #define ND_LAYER			(16<<16)
 #define ND_FRAME_RANGE		(17<<16)
+#define ND_TRANSFORM_DONE	(18<<16)
 #define ND_WORLD			(92<<16)
 #define ND_LAYER_CONTENT	(101<<16)
 

@@ -1,4 +1,4 @@
-/**
+/*
  *
  * $Id$
  *
@@ -25,6 +25,11 @@
  *
  * ***** END GPL/BL DUAL LICENSE BLOCK *****
  */
+
+/** \file blender/render/intern/source/imagetexture.c
+ *  \ingroup render
+ */
+
 
 
 
@@ -53,12 +58,13 @@
 #include "BLI_threads.h"
 #include "BLI_utildefines.h"
 
-
 #include "BKE_global.h"
 #include "BKE_main.h"
 #include "BKE_image.h"
 #include "BKE_texture.h"
 #include "BKE_library.h"
+
+#include "RE_render_ext.h"
 
 #include "renderpipeline.h"
 #include "render_types.h"
@@ -209,8 +215,14 @@ int imagewrap(Tex *tex, Image *ima, ImBuf *ibuf, float *texvec, TexResult *texre
 	if(texres->nor) {
 		if(tex->imaflag & TEX_NORMALMAP) {
 			// qdn: normal from color
-			texres->nor[0] = 2.f*(texres->tr - 0.5f);
-			texres->nor[1] = 2.f*(0.5f - texres->tg);
+			// The invert of the red channel is to make
+			// the normal map compliant with the outside world.
+			// It needs to be done because in Blender
+			// the normal used in the renderer points inward. It is generated
+			// this way in calc_vertexnormals(). Should this ever change
+			// this negate must be removed.
+			texres->nor[0] = -2.f*(texres->tr - 0.5f);
+			texres->nor[1] = 2.f*(texres->tg - 0.5f);
 			texres->nor[2] = 2.f*(texres->tb - 0.5f);
 		}
 		else {
@@ -246,7 +258,7 @@ int imagewrap(Tex *tex, Image *ima, ImBuf *ibuf, float *texvec, TexResult *texre
 	if(tex->flag & TEX_NEGALPHA) texres->ta= 1.0f-texres->ta;
 
 	/* de-premul, this is being premulled in shade_input_do_shade() */
-	if(texres->ta!=1.0f && texres->ta>FLT_EPSILON) {
+	if(texres->ta!=1.0f && texres->ta>1e-4f) {
 		fx= 1.0f/texres->ta;
 		texres->tr*= fx;
 		texres->tg*= fx;
@@ -1176,10 +1188,8 @@ static int imagewraposa_aniso(Tex *tex, Image *ima, ImBuf *ibuf, float *texvec, 
 	// brecht: added stupid clamping here, large dx/dy can give very large
 	// filter sizes which take ages to render, it may be better to do this
 	// more intelligently later in the code .. probably it's not noticeable
-	if(AFD.dxt[0]*AFD.dxt[0] + AFD.dxt[1]*AFD.dxt[1] > 2.0f*2.0f) {
+	if(AFD.dxt[0]*AFD.dxt[0] + AFD.dxt[1]*AFD.dxt[1] > 2.0f*2.0f)
 		mul_v2_fl(AFD.dxt, 2.0f/len_v2(AFD.dxt));
-		mul_v2_fl(AFD.dyt, 2.0f/len_v2(AFD.dyt));
-	}
 	if(AFD.dyt[0]*AFD.dyt[0] + AFD.dyt[1]*AFD.dyt[1] > 2.0f*2.0f)
 		mul_v2_fl(AFD.dyt, 2.0f/len_v2(AFD.dyt));
 
@@ -1347,8 +1357,14 @@ static int imagewraposa_aniso(Tex *tex, Image *ima, ImBuf *ibuf, float *texvec, 
 		ibuf->rect -= ibuf->x*ibuf->y;
 
 	if (texres->nor && (tex->imaflag & TEX_NORMALMAP)) {	// normal from color
-		texres->nor[0] = 2.f*(texres->tr - 0.5f);
-		texres->nor[1] = 2.f*(0.5f - texres->tg);
+		// The invert of the red channel is to make
+		// the normal map compliant with the outside world.
+		// It needs to be done because in Blender
+		// the normal used in the renderer points inward. It is generated
+		// this way in calc_vertexnormals(). Should this ever change
+		// this negate must be removed.
+		texres->nor[0] = -2.f*(texres->tr - 0.5f);
+		texres->nor[1] = 2.f*(texres->tg - 0.5f);
 		texres->nor[2] = 2.f*(texres->tb - 0.5f);
 	}
 	
@@ -1358,7 +1374,7 @@ static int imagewraposa_aniso(Tex *tex, Image *ima, ImBuf *ibuf, float *texvec, 
 
 	// brecht: tried to fix this, see "TXF alpha" comments
 
-	if (texres->ta != 1.f && (texres->ta > FLT_EPSILON)) {
+	if (texres->ta != 1.f && (texres->ta > 1e-4f)) {
 		fx = 1.f/texres->ta;
 		texres->tr *= fx;
 		texres->tg *= fx;
@@ -1727,13 +1743,19 @@ int imagewraposa(Tex *tex, Image *ima, ImBuf *ibuf, float *texvec, float *DXT, f
 
 	if(texres->nor && (tex->imaflag & TEX_NORMALMAP)) {
 		// qdn: normal from color
-		texres->nor[0] = 2.f*(texres->tr - 0.5f);
-		texres->nor[1] = 2.f*(0.5f - texres->tg);
+		// The invert of the red channel is to make
+		// the normal map compliant with the outside world.
+		// It needs to be done because in Blender
+		// the normal used in the renderer points inward. It is generated
+		// this way in calc_vertexnormals(). Should this ever change
+		// this negate must be removed.
+		texres->nor[0] = -2.f*(texres->tr - 0.5f);
+		texres->nor[1] = 2.f*(texres->tg - 0.5f);
 		texres->nor[2] = 2.f*(texres->tb - 0.5f);
 	}
 	
 	/* de-premul, this is being premulled in shade_input_do_shade() */
-	if(texres->ta!=1.0f && texres->ta>FLT_EPSILON) {
+	if(texres->ta!=1.0f && texres->ta>1e-4f) {
 		fx= 1.0f/texres->ta;
 		texres->tr*= fx;
 		texres->tg*= fx;

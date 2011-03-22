@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -25,6 +25,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/editors/space_view3d/view3d_intern.h
+ *  \ingroup spview3d
+ */
+
 #ifndef ED_VIEW3D_INTERN_H
 #define ED_VIEW3D_INTERN_H
 
@@ -63,6 +68,7 @@ void view3d_operatortypes(void);
 
 /* view3d_edit.c */
 void VIEW3D_OT_zoom(struct wmOperatorType *ot);
+void VIEW3D_OT_zoom_camera_1_to_1(struct wmOperatorType *ot);
 void VIEW3D_OT_move(struct wmOperatorType *ot);
 void VIEW3D_OT_rotate(struct wmOperatorType *ot);
 void VIEW3D_OT_view_all(struct wmOperatorType *ot);
@@ -85,7 +91,6 @@ void VIEW3D_OT_drawtype(struct wmOperatorType *ot);
 
 void view3d_boxview_copy(ScrArea *sa, ARegion *ar);
 void view3d_persp_mat4(struct RegionView3D *rv3d, float mat[][4]);
-int region3d_unlocked_poll(struct bContext *C);
 
 /* view3d_fly.c */
 void view3d_keymap(struct wmKeyConfig *keyconf);
@@ -127,6 +132,7 @@ void draw_depth_gpencil(Scene *scene, ARegion *ar, View3D *v3d);
 void view3d_clr_clipping(void);
 void view3d_set_clipping(RegionView3D *rv3d);
 void add_view3d_after(ListBase *lb, Base *base, int flag);
+void view3d_viewborder_size_get(struct Scene *scene, struct ARegion *ar, float size_r[2]);
 
 void circf(float x, float y, float rad);
 void circ(float x, float y, float rad);
@@ -187,6 +193,8 @@ void VIEW3D_OT_snap_cursor_to_active(struct wmOperatorType *ot);
 /* space_view3d.c */
 ARegion *view3d_has_buttons_region(ScrArea *sa);
 ARegion *view3d_has_tools_region(ScrArea *sa);
+
+extern const char *view3d_context_dir[]; /* doc access */
 
 /* draw_volume.c */
 void draw_volume(struct ARegion *ar, struct GPUTexture *tex, float *min, float *max, int res[3], float dx, struct GPUTexture *tex_shadow);

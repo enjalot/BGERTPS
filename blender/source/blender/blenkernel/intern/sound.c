@@ -1,3 +1,6 @@
+/** \file blender/blenkernel/intern/sound.c
+ *  \ingroup bke
+ */
 /**
  * sound.c (mar-2001 nzc)
  *
@@ -55,7 +58,7 @@ static void sound_sync_callback(void* data, int mode, float time)
 }
 #endif
 
-int sound_define_from_str(char *str)
+int sound_define_from_str(const char *str)
 {
 	if (BLI_strcaseeq(str, "NULL"))
 		return AUD_NULL_DEVICE;
@@ -74,7 +77,7 @@ void sound_force_device(int device)
 	force_device = device;
 }
 
-void sound_init_once()
+void sound_init_once(void)
 {
 	AUD_initOnce();
 }
@@ -115,7 +118,7 @@ void sound_init(struct Main *bmain)
 #endif
 }
 
-void sound_exit()
+void sound_exit(void)
 {
 	AUD_exit();
 }
@@ -382,7 +385,7 @@ void sound_move_scene_sound(struct Scene *scene, void* handle, int startframe, i
 	AUD_moveSequencer(scene->sound_scene, handle, startframe / FPS, endframe / FPS, frameskip / FPS);
 }
 
-void sound_start_play_scene(struct Scene *scene)
+static void sound_start_play_scene(struct Scene *scene)
 {
 	scene->sound_scene_handle = AUD_play(scene->sound_scene, 1);
 	AUD_setLoop(scene->sound_scene_handle, -1);

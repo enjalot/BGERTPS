@@ -1,4 +1,4 @@
-/**
+/*
 * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -26,6 +26,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/editors/transform/transform_manipulator.c
+ *  \ingroup edtransform
+ */
+
 
 #include <stdlib.h>
 #include <string.h>
@@ -546,7 +551,7 @@ int calc_manipulator_stats(const bContext *C)
 }
 
 /* don't draw axis perpendicular to the view */
-void test_manipulator_axis(const bContext *C)
+static void test_manipulator_axis(const bContext *C)
 {
 	RegionView3D *rv3d= CTX_wm_region_view3d(C);
 	float angle;

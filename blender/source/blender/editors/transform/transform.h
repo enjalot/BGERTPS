@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -26,6 +26,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/editors/transform/transform.h
+ *  \ingroup edtransform
+ */
+
 
 #ifndef TRANSFORM_H
 #define TRANSFORM_H

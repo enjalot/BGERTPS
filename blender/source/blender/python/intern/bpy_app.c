@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -22,7 +22,15 @@
  * ***** END GPL LICENSE BLOCK *****
  */
 
+/** \file blender/python/intern/bpy_app.c
+ *  \ingroup pythonintern
+ */
+
+
+#include <Python.h>
+
 #include "bpy_app.h"
+#include "bpy_driver.h"
 
 #include "BLI_path_util.h"
 #include "BLI_utildefines.h"
@@ -48,7 +56,7 @@ extern char build_system[];
 
 static PyTypeObject BlenderAppType;
 
-static PyStructSequence_Field app_info_fields[] = {
+static PyStructSequence_Field app_info_fields[]= {
 	{(char *)"version", (char *)"The Blender version as a tuple of 3 numbers. eg. (2, 50, 11)"},
 	{(char *)"version_string", (char *)"The Blender version formatted as a string"},
 	{(char *)"binary_path", (char *)"The location of blenders executable, useful for utilities that spawn new instances"},
@@ -64,10 +72,10 @@ static PyStructSequence_Field app_info_fields[] = {
 	{(char *)"build_cxxflags", (char *)"C++ compiler flags"},
 	{(char *)"build_linkflags", (char *)"Binary linking flags"},
 	{(char *)"build_system", (char *)"Build system used"},
-	{0}
+	{NULL}
 };
 
-static PyStructSequence_Desc app_info_desc = {
+static PyStructSequence_Desc app_info_desc= {
 	(char *)"bpy.app",     /* name */
 	(char *)"This module contains application values that remain unchanged during runtime.",    /* doc */
 	app_info_fields,    /* fields */
@@ -79,9 +87,9 @@ static PyObject *make_app_info(void)
 	extern char bprogname[]; /* argv[0] from creator.c */
 
 	PyObject *app_info;
-	int pos = 0;
+	int pos= 0;
 
-	app_info = PyStructSequence_New(&BlenderAppType);
+	app_info= PyStructSequence_New(&BlenderAppType);
 	if (app_info == NULL) {
 		return NULL;
 	}
@@ -192,7 +200,7 @@ static PyObject *bpy_app_driver_dict_get(PyObject *UNUSED(self), void *UNUSED(cl
 }
 
 
-PyGetSetDef bpy_app_getsets[]= {
+static PyGetSetDef bpy_app_getsets[]= {
 	{(char *)"debug", bpy_app_debug_get, bpy_app_debug_set, (char *)"Boolean, set when blender is running in debug mode (started with -d)", NULL},
 	{(char *)"debug_value", bpy_app_debug_value_get, bpy_app_debug_value_set, (char *)"Int, number which can be set to non-zero values for testing purposes.", NULL},
 	{(char *)"tempdir", bpy_app_tempdir_get, NULL, (char *)"String, the temp directory used by blender (read-only)", NULL},
@@ -221,8 +229,8 @@ PyObject *BPY_app_struct(void)
 	ret= make_app_info();
 
 	/* prevent user from creating new instances */
-	BlenderAppType.tp_init = NULL;
-	BlenderAppType.tp_new = NULL;
+	BlenderAppType.tp_init= NULL;
+	BlenderAppType.tp_new= NULL;
 
 	/* kindof a hack ontop of PyStructSequence */
 	py_struct_seq_getset_init();

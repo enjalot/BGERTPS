@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -24,6 +24,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/editors/gpencil/gpencil_edit.c
+ *  \ingroup edgpencil
+ */
+
  
 
 #include <stdio.h>
@@ -64,6 +69,7 @@
 
 #include "UI_view2d.h"
 
+#include "ED_gpencil.h"
 #include "ED_view3d.h"
 
 #include "gpencil_intern.h"

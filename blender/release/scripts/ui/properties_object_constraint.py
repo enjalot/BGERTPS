@@ -34,7 +34,7 @@ class ConstraintButtonsPanel():
             # match enum type to our functions, avoids a lookup table.
             getattr(self, con.type)(context, box, con)
 
-            if con.type not in ('RIGID_BODY_JOINT', 'NULL'):
+            if con.type not in {'RIGID_BODY_JOINT', 'NULL'}:
                 box.prop(con, "influence")
 
     def space_template(self, layout, con, target=True, owner=True):
@@ -65,7 +65,7 @@ class ConstraintButtonsPanel():
                     row = layout.row()
                     row.label(text="Head/Tail:")
                     row.prop(con, "head_tail", text="")
-            elif con.target.type in ('MESH', 'LATTICE'):
+            elif con.target.type in {'MESH', 'LATTICE'}:
                 layout.prop_search(con, "subtarget", con.target, "vertex_groups", text="Vertex Group")
 
     def ik_template(self, layout, con):
@@ -112,13 +112,9 @@ class ConstraintButtonsPanel():
         col.prop(con, "use_scale_y", text="Y")
         col.prop(con, "use_scale_z", text="Z")
 
-        split = layout.split()
-
-        col = split.column()
-        col.operator("constraint.childof_set_inverse")
-
-        col = split.column()
-        col.operator("constraint.childof_clear_inverse")
+        row = layout.row()
+        row.operator("constraint.childof_set_inverse")
+        row.operator("constraint.childof_clear_inverse")
 
     def TRACK_TO(self, context, layout, con):
         self.target_template(layout, con)
@@ -127,13 +123,9 @@ class ConstraintButtonsPanel():
         row.label(text="To:")
         row.prop(con, "track_axis", expand=True)
 
-        split = layout.split()
-
-        col = split.column()
-        col.prop(con, "up_axis", text="Up")
-
-        col = split.column()
-        col.prop(con, "use_target_z")
+        row = layout.row()
+        row.prop(con, "up_axis", text="Up")
+        row.prop(con, "use_target_z")
 
         self.space_template(layout, con)
 
@@ -212,6 +204,7 @@ class ConstraintButtonsPanel():
         self.ik_template(layout, con)
 
         layout.prop(con, "limit_mode")
+
         row = layout.row()
         row.prop(con, "weight", text="Weight", slider=True)
         row.prop(con, "distance", text="Distance", slider=True)
@@ -486,16 +479,11 @@ class ConstraintButtonsPanel():
     def STRETCH_TO(self, context, layout, con):
         self.target_template(layout, con)
 
-        split = layout.split()
+        row = layout.row()
+        row.prop(con, "rest_length", text="Rest Length")
+        row.operator("constraint.stretchto_reset", text="Reset")
 
-        col = split.column()
-        col.prop(con, "rest_length", text="Rest Length")
-
-        col = split.column()
-        col.operator("constraint.stretchto_reset", text="Reset")
-
-        col = layout.column()
-        col.prop(con, "bulge", text="Volume Variation")
+        layout.prop(con, "bulge", text="Volume Variation")
 
         row = layout.row()
         row.label(text="Volume:")
@@ -507,13 +495,9 @@ class ConstraintButtonsPanel():
     def FLOOR(self, context, layout, con):
         self.target_template(layout, con)
 
-        split = layout.split()
-
-        col = split.column()
-        col.prop(con, "use_sticky")
-
-        col = split.column()
-        col.prop(con, "use_rotation")
+        row = layout.row()
+        row.prop(con, "use_sticky")
+        row.prop(con, "use_rotation")
 
         layout.prop(con, "offset")
 
@@ -529,13 +513,9 @@ class ConstraintButtonsPanel():
         layout.prop(con, "pivot_type")
         layout.prop(con, "child")
 
-        split = layout.split()
-
-        col = split.column()
-        col.prop(con, "use_linked_collision", text="Linked Collision")
-
-        col = split.column()
-        col.prop(con, "show_pivot", text="Display Pivot")
+        row = layout.row()
+        row.prop(con, "use_linked_collision", text="Linked Collision")
+        row.prop(con, "show_pivot", text="Display Pivot")
 
         split = layout.split()
 
@@ -555,15 +535,23 @@ class ConstraintButtonsPanel():
             layout.label(text="Limits:")
             split = layout.split()
 
-            col = split.column(align=True)
-            col.prop(con, "use_angular_limit_x", text="Angular X")
-            col.prop(con, "use_angular_limit_y", text="Angular Y")
-            col.prop(con, "use_angular_limit_z", text="Angular Z")
+            col = split.column()
+            col.prop(con, "use_angular_limit_x", text="Angle X")
+            sub = col.column()
+            sub.active = con.use_angular_limit_x
+            sub.prop(con, "limit_angle_max_x", text="")
 
             col = split.column()
-            col.prop(con, "limit_cone_min", text="")
+            col.prop(con, "use_angular_limit_y", text="Angle Y")
+            sub = col.column()
+            sub.active = con.use_angular_limit_y
+            sub.prop(con, "limit_angle_max_y", text="")
+
             col = split.column()
-            col.prop(con, "limit_cone_max", text="")
+            col.prop(con, "use_angular_limit_z", text="Angle Z")
+            sub = col.column()
+            sub.active = con.use_angular_limit_z
+            sub.prop(con, "limit_angle_max_z", text="")
 
         elif con.pivot_type == 'GENERIC_6_DOF':
             layout.label(text="Limits:")
@@ -571,16 +559,62 @@ class ConstraintButtonsPanel():
 
             col = split.column(align=True)
             col.prop(con, "use_limit_x", text="X")
-            col.prop(con, "use_limit_y", text="Y")
-            col.prop(con, "use_limit_z", text="Z")
-            col.prop(con, "use_angular_limit_x", text="Angular X")
-            col.prop(con, "use_angular_limit_y", text="Angular Y")
-            col.prop(con, "use_angular_limit_z", text="Angular Z")
+            sub = col.column()
+            sub.active = con.use_limit_x
+            sub.prop(con, "limit_min_x", text="Min")
+            sub.prop(con, "limit_max_x", text="Max")
 
-            col = split.column()
-            col.prop(con, "limit_generic_min", text="")
-            col = split.column()
-            col.prop(con, "limit_generic_max", text="")
+            col = split.column(align=True)
+            col.prop(con, "use_limit_y", text="Y")
+            sub = col.column()
+            sub.active = con.use_limit_y
+            sub.prop(con, "limit_min_y", text="Min")
+            sub.prop(con, "limit_max_y", text="Max")
+
+            col = split.column(align=True)
+            col.prop(con, "use_limit_z", text="Z")
+            sub = col.column()
+            sub.active = con.use_limit_z
+            sub.prop(con, "limit_min_z", text="Min")
+            sub.prop(con, "limit_max_z", text="Max")
+
+            split = layout.split()
+
+            col = split.column(align=True)
+            col.prop(con, "use_angular_limit_x", text="Angle X")
+            sub = col.column()
+            sub.active = con.use_angular_limit_x
+            sub.prop(con, "limit_angle_min_x", text="Min")
+            sub.prop(con, "limit_angle_max_x", text="Max")
+
+            col = split.column(align=True)
+            col.prop(con, "use_angular_limit_y", text="Angle Y")
+            sub = col.column()
+            sub.active = con.use_angular_limit_y
+            sub.prop(con, "limit_angle_min_y", text="Min")
+            sub.prop(con, "limit_angle_max_y", text="Max")
+
+            col = split.column(align=True)
+            col.prop(con, "use_angular_limit_z", text="Angle Z")
+            sub = col.column()
+            sub.active = con.use_angular_limit_z
+            sub.prop(con, "limit_angle_min_z", text="Min")
+            sub.prop(con, "limit_angle_max_z", text="Max")
+
+        elif con.pivot_type == 'HINGE':
+            layout.label(text="Limits:")
+            split = layout.split()
+
+            row = split.row(align=True)
+            col = row.column()
+            col.prop(con, "use_angular_limit_x", text="Angle X")
+
+            col = row.column()
+            col.active = con.use_angular_limit_x
+            col.prop(con, "limit_angle_min_x", text="Min")
+            col = row.column()
+            col.active = con.use_angular_limit_x
+            col.prop(con, "limit_angle_max_x", text="Max")
 
     def CLAMP_TO(self, context, layout, con):
         self.target_template(layout, con)
@@ -589,8 +623,7 @@ class ConstraintButtonsPanel():
         row.label(text="Main Axis:")
         row.prop(con, "main_axis", expand=True)
 
-        row = layout.row()
-        row.prop(con, "use_cyclic")
+        layout.prop(con, "use_cyclic")
 
     def TRANSFORM(self, context, layout, con):
         self.target_template(layout, con)
@@ -749,11 +782,11 @@ class BONE_PT_constraints(ConstraintButtonsPanel, bpy.types.Panel):
 
 
 def register():
-    pass
+    bpy.utils.register_module(__name__)
 
 
 def unregister():
-    pass
+    bpy.utils.unregister_module(__name__)
 
 if __name__ == "__main__":
     register()

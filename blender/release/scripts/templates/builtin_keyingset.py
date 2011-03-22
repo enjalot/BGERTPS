@@ -1,5 +1,4 @@
 import bpy
-from keyingsets_utils import *
 
 
 class BUILTIN_KSI_hello(bpy.types.KeyingSetInfo):
@@ -7,7 +6,7 @@ class BUILTIN_KSI_hello(bpy.types.KeyingSetInfo):
 
     # poll - test for whether Keying Set can be used at all
     def poll(ksi, context):
-        return (context.active_object) or (context.selected_objects)
+        return context.active_object or context.selected_objects
 
     # iterator - go over all relevant data, calling generate()
     def iterator(ksi, context, ks):
@@ -25,5 +24,14 @@ class BUILTIN_KSI_hello(bpy.types.KeyingSetInfo):
 
         ks.paths.add(id_block, "show_x_ray", group_method='NONE')
 
-# manually register
-bpy.types.register(BUILTIN_KSI_hello)
+
+def register():
+    bpy.utils.register_class(BUILTIN_KSI_hello)
+
+
+def unregister():
+    bpy.utils.unregister_class(BUILTIN_KSI_hello)
+
+
+if __name__ == '__main__':
+    register()

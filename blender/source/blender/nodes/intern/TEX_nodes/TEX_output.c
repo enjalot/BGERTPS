@@ -1,4 +1,4 @@
-/**
+/*
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
  *
@@ -25,6 +25,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/nodes/intern/TEX_nodes/TEX_output.c
+ *  \ingroup texnodes
+ */
+
 
 #include "../TEX_util.h"
 
@@ -66,7 +71,7 @@ static void exec(void *data, bNode *node, bNodeStack **in, bNodeStack **UNUSED(o
 				if(in[1] && in[1]->hasinput)
 					tex_input_vec(target->nor, in[1], &params, cdata->thread);
 				else
-					target->nor = 0;
+					target->nor = NULL;
 			}
 		}
 	}
@@ -75,7 +80,7 @@ static void exec(void *data, bNode *node, bNodeStack **in, bNodeStack **UNUSED(o
 static void unique_name(bNode *node)
 {
 	TexNodeOutput *tno = (TexNodeOutput *)node->storage;
-	char *new_name = 0;
+	char *new_name = NULL;
 	int new_len = 0;
 	int suffix;
 	bNode *i;
@@ -152,20 +157,16 @@ static void copy(bNode *orig, bNode *new)
 	assign_index(new);
 }
 
-bNodeType tex_node_output= {
-	/* *next,*prev     */  NULL, NULL,
-	/* type code       */  TEX_NODE_OUTPUT,
-	/* name            */  "Output",
-	/* width+range     */  150, 60, 200,
-	/* class+opts      */  NODE_CLASS_OUTPUT, NODE_PREVIEW | NODE_OPTIONS, 
-	/* input sock      */  inputs,
-	/* output sock     */  NULL,
-	/* storage         */  "TexNodeOutput",
-	/* execfunc        */  exec,
-	/* butfunc         */  NULL,
-	/* initfunc        */  init,
-	/* freestoragefunc */  node_free_standard_storage,
-	/* copystoragefunc */  copy,  
-	/* id              */  NULL
-};
-
+void register_node_type_tex_output(ListBase *lb)
+{
+	static bNodeType ntype;
+	
+	node_type_base(&ntype, TEX_NODE_OUTPUT, "Output", NODE_CLASS_OUTPUT, NODE_PREVIEW|NODE_OPTIONS,
+				   inputs, NULL);
+	node_type_size(&ntype, 150, 60, 200);
+	node_type_init(&ntype, init);
+	node_type_storage(&ntype, "TexNodeOutput", node_free_standard_storage, copy);
+	node_type_exec(&ntype, exec);
+	
+	nodeRegisterType(lb, &ntype);
+}

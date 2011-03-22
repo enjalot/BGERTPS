@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -24,6 +24,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  * */
+
+/** \file blender/blenlib/intern/math_geom.c
+ *  \ingroup bli
+ */
+
 
 
 #include "MEM_guardedalloc.h"
@@ -1358,6 +1363,71 @@ int clip_line_plane(float p1[3], float p2[3], float plane[4])
 	}
 }
 
+
+void plot_line_v2v2i(int p1[2], int p2[2], int (*callback)(int, int, void *), void *userData)
+{
+	int x1= p1[0];
+	int y1= p1[1];
+	int x2= p2[0];
+	int y2= p2[1];
+
+	signed char ix;
+	signed char iy;
+
+	// if x1 == x2 or y1 == y2, then it does not matter what we set here
+	int delta_x = (x2 > x1?(ix = 1, x2 - x1):(ix = -1, x1 - x2)) << 1;
+	int delta_y = (y2 > y1?(iy = 1, y2 - y1):(iy = -1, y1 - y2)) << 1;
+
+	if(callback(x1, y1, userData) == 0) {
+		return;
+	}
+
+	if (delta_x >= delta_y) {
+		// error may go below zero
+		int error = delta_y - (delta_x >> 1);
+
+		while (x1 != x2) {
+			if (error >= 0) {
+				if (error || (ix > 0)) {
+					y1 += iy;
+					error -= delta_x;
+				}
+				// else do nothing
+			}
+			// else do nothing
+
+			x1 += ix;
+			error += delta_y;
+
+			if(callback(x1, y1, userData) == 0) {
+				return ;
+			}
+		}
+	}
+	else {
+		// error may go below zero
+		int error = delta_x - (delta_y >> 1);
+
+		while (y1 != y2) {
+			if (error >= 0) {
+				if (error || (iy > 0)) {
+					x1 += ix;
+					error -= delta_y;
+				}
+				// else do nothing
+			}
+			// else do nothing
+
+			y1 += iy;
+			error += delta_x;
+
+			if(callback(x1, y1, userData) == 0) {
+				return;
+			}
+		}
+	}
+}
+
 /****************************** Interpolation ********************************/
 
 static float tri_signed_area(float *v1, float *v2, float *v3, int i, int j)
@@ -1910,6 +1980,49 @@ void map_to_sphere(float *u, float *v,float x, float y, float z)
 	}
 }
 
+/********************************* Normals **********************************/
+
+void accumulate_vertex_normals(float n1[3], float n2[3], float n3[3],
+	float n4[3], const float f_no[3], const float co1[3], const float co2[3],
+	const float co3[3], const float co4[3])
+{
+	float vdiffs[4][3];
+	const int nverts= (n4!=NULL && co4!=NULL)? 4: 3;
+
+	/* compute normalized edge vectors */
+	sub_v3_v3v3(vdiffs[0], co2, co1);
+	sub_v3_v3v3(vdiffs[1], co3, co2);
+
+	if(nverts==3) {
+		sub_v3_v3v3(vdiffs[2], co1, co3);
+	}
+	else {
+		sub_v3_v3v3(vdiffs[2], co4, co3);
+		sub_v3_v3v3(vdiffs[3], co1, co4);
+		normalize_v3(vdiffs[3]);
+	}
+
+	normalize_v3(vdiffs[0]);
+	normalize_v3(vdiffs[1]);
+	normalize_v3(vdiffs[2]);
+
+	/* accumulate angle weighted face normal */
+	{
+		float *vn[]= {n1, n2, n3, n4};
+		const float *prev_edge = vdiffs[nverts-1];
+		int i;
+
+		for(i=0; i<nverts; i++) {
+			const float *cur_edge= vdiffs[i];
+			const float fac= saacos(-dot_v3v3(cur_edge, prev_edge));
+
+			// accumulate
+			madd_v3_v3fl(vn[i], f_no, fac);
+			prev_edge = cur_edge;
+		}
+	}
+}
+
 /********************************* Tangents **********************************/
 
 /* For normal map tangents we need to detect uv boundaries, and only average
@@ -2015,7 +2128,7 @@ pointers may be NULL if not needed
 
 */
 /* can't believe there is none in math utils */
-float _det_m3(float m2[3][3])
+static float _det_m3(float m2[3][3])
 {
 	float det = 0.f;
 	if (m2){
@@ -2566,4 +2679,3 @@ float form_factor_hemi_poly(float p[3], float n[3], float v1[3], float v2[3], fl
 
 	return contrib;
 }
-

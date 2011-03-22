@@ -26,6 +26,11 @@
  *
  */
 
+/** \file blender/editors/sculpt_paint/paint_stroke.c
+ *  \ingroup edsculpt
+ */
+
+
 #include "MEM_guardedalloc.h"
 
 #include "BLI_math.h"
@@ -74,7 +79,9 @@ typedef struct PaintStroke {
 	   e.g. in sculpt mode, stroke doesn't start until cursor
 	   passes over the mesh */
 	int stroke_started;
-
+	/* event that started stroke, for modal() return */
+	int event_type;
+	
 	StrokeGetLocation get_location;
 	StrokeTestStart test_start;
 	StrokeUpdateStep update_step;
@@ -160,7 +167,7 @@ static int load_tex(Sculpt *sd, Brush* br, ViewContext* vc)
 	static Snapshot snap;
 	static int old_size = -1;
 
-	GLubyte* buffer = 0;
+	GLubyte* buffer = NULL;
 
 	int size;
 	int j;
@@ -362,14 +369,14 @@ static int project_brush_radius(RegionView3D* rv3d, float radius, float location
 	return len_v2v2(p1, p2);
 }
 
-int sculpt_get_brush_geometry(bContext* C, int x, int y, int* pixel_radius,
+static int sculpt_get_brush_geometry(bContext* C, int x, int y, int* pixel_radius,
 			      float location[3])
 {
 	struct PaintStroke *stroke;
 	float window[2];
 	int hit;
 
-	stroke = paint_stroke_new(C, NULL, NULL, NULL, NULL);
+	stroke = paint_stroke_new(C, NULL, NULL, NULL, NULL, 0);
 
 	window[0] = x + stroke->vc.ar->winrct.xmin;
 	window[1] = y + stroke->vc.ar->winrct.ymin;
@@ -383,7 +390,7 @@ int sculpt_get_brush_geometry(bContext* C, int x, int y, int* pixel_radius,
 		if (*pixel_radius == 0)
 			*pixel_radius = brush_size(stroke->brush);
 
-		mul_m4_v3(stroke->vc.obact->sculpt->ob->obmat, location);
+		mul_m4_v3(stroke->vc.obact->obmat, location);
 
 		hit = 1;
 	}
@@ -789,7 +796,7 @@ PaintStroke *paint_stroke_new(bContext *C,
 				  StrokeGetLocation get_location,
 				  StrokeTestStart test_start,
 				  StrokeUpdateStep update_step,
-				  StrokeDone done)
+				  StrokeDone done, int event_type)
 {
 	PaintStroke *stroke = MEM_callocN(sizeof(PaintStroke), "PaintStroke");
 
@@ -801,7 +808,8 @@ PaintStroke *paint_stroke_new(bContext *C,
 	stroke->test_start = test_start;
 	stroke->update_step = update_step;
 	stroke->done = done;
-
+	stroke->event_type= event_type;	/* for modal, return event */
+	
 	return stroke;
 }
 
@@ -841,8 +849,7 @@ int paint_stroke_modal(bContext *C, wmOperator *op, wmEvent *event)
 		//ED_region_tag_redraw(ar);
 	}
 
-	/* TODO: fix hardcoded events here */
-	if(event->type == LEFTMOUSE && event->val == KM_RELEASE) {
+	if(event->type == stroke->event_type && event->val == KM_RELEASE) {
 		/* exit stroke, free data */
 		if(stroke->smooth_stroke_cursor)
 			WM_paint_cursor_end(CTX_wm_manager(C), stroke->smooth_stroke_cursor);

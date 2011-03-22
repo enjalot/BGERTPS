@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -25,6 +25,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/windowmanager/intern/wm_init_exit.c
+ *  \ingroup wm
+ */
+
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -112,7 +117,7 @@ static void wm_free_reports(bContext *C)
 
 
 /* only called once, for startup */
-void WM_init(bContext *C, int argc, char **argv)
+void WM_init(bContext *C, int argc, const char **argv)
 {
 
 	if (!G.background) {
@@ -175,7 +180,7 @@ void WM_init(bContext *C, int argc, char **argv)
 	
 	G.ndofdevice = -1;	/* XXX bad initializer, needs set otherwise buttons show! */
 	
-	read_history();
+	WM_read_history();
 
 	/* allow a path of "", this is what happens when making a new file */
 	/*
@@ -274,7 +279,7 @@ int WM_init_game(bContext *C)
 
 		/* full screen the area */
 		if(!sa->full) {
-			ED_screen_full_toggle(C, wm->windows.first, sa);
+			ED_screen_full_toggle(C, win, sa);
 		}
 
 		/* Fullscreen */
@@ -425,7 +430,7 @@ void WM_exit(bContext *C)
 // XXX		UI_filelist_free_icons();
 	}
 	
-	GPU_buffer_pool_free(0);
+	GPU_buffer_pool_free(NULL);
 	GPU_free_unused_buffers();
 	GPU_extensions_exit();
 	

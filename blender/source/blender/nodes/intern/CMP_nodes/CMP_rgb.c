@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -27,6 +27,11 @@
  * ***** END GPL LICENSE BLOCK *****
  */
 
+/** \file blender/nodes/intern/CMP_nodes/CMP_rgb.c
+ *  \ingroup cmpnodes
+ */
+
+
 #include "../CMP_util.h"
 
 
@@ -43,22 +48,17 @@ static void node_composit_exec_rgb(void *UNUSED(data), bNode *node, bNodeStack *
 	VECCOPY(out[0]->vec, sock->ns.vec);
 }
 
-bNodeType cmp_node_rgb= {
-	/* *next,*prev */	NULL, NULL,
-	/* type code   */	CMP_NODE_RGB,
-	/* name        */	"RGB",
-	/* width+range */	140, 80, 140,
-	/* class+opts  */	NODE_CLASS_INPUT, NODE_OPTIONS,
-	/* input sock  */	NULL,
-	/* output sock */	cmp_node_rgb_out,
-	/* storage     */	"",
-	/* execfunc    */	node_composit_exec_rgb,
-	/* butfunc     */	NULL,
-	/* initfunc    */	NULL,
-	/* freestoragefunc    */	NULL,
-	/* copystoragefunc    */	NULL,
-	/* id          */	NULL
-	
-};
+void register_node_type_cmp_rgb(ListBase *lb)
+{
+	static bNodeType ntype;
+
+	node_type_base(&ntype, CMP_NODE_RGB, "RGB", NODE_CLASS_INPUT, NODE_OPTIONS,
+		NULL, cmp_node_rgb_out);
+	node_type_size(&ntype, 140, 80, 140);
+	node_type_exec(&ntype, node_composit_exec_rgb);
+
+	nodeRegisterType(lb, &ntype);
+}
+
 
 

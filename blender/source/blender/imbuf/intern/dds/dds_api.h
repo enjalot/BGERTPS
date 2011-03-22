@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -21,6 +21,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/imbuf/intern/dds/dds_api.h
+ *  \ingroup imbdds
+ */
+
 
 #ifndef _DDS_API_H
 #define _DDS_API_H

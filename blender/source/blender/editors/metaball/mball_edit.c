@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -27,6 +27,11 @@
  * ***** END GPL LICENSE BLOCK *****
  */
 
+/** \file blender/editors/metaball/mball_edit.c
+ *  \ingroup edmeta
+ */
+
+
 #include <math.h>
 #include <string.h>
 
@@ -48,6 +53,7 @@
 #include "BKE_context.h"
 #include "BKE_mball.h"
 
+#include "ED_mball.h"
 #include "ED_screen.h"
 #include "ED_view3d.h"
 #include "ED_transform.h"
@@ -55,6 +61,8 @@
 
 #include "WM_api.h"
 #include "WM_types.h"
+
+#include "mball_intern.h"
 
 /* This function is used to free all MetaElems from MetaBall */
 void free_editMball(Object *obedit)
@@ -371,25 +379,15 @@ static int hide_metaelems_exec(bContext *C, wmOperator *op)
 	Object *obedit= CTX_data_edit_object(C);
 	MetaBall *mb= (MetaBall*)obedit->data;
 	MetaElem *ml;
-	int hide_unselected= RNA_boolean_get(op->ptr, "unselected");
+	const int invert= RNA_boolean_get(op->ptr, "unselected") ? SELECT : 0;
 
 	ml= mb->editelems->first;
 
 	if(ml) {
-		/* Hide unselected metaelems */
-		if(hide_unselected) {
-			while(ml){
-				if(!(ml->flag & SELECT))
-					ml->flag |= MB_HIDE;
-				ml= ml->next;
-			}
-		/* Hide selected metaelems */	
-		} else {
-			while(ml){
-				if(ml->flag & SELECT)
-					ml->flag |= MB_HIDE;
-				ml= ml->next;
-			}
+		while(ml){
+			if((ml->flag & SELECT) != invert)
+				ml->flag |= MB_HIDE;
+			ml= ml->next;
 		}
 		WM_event_add_notifier(C, NC_GEOM|ND_DATA, mb);
 		DAG_id_tag_update(obedit->data, 0);
@@ -605,7 +603,7 @@ static void free_undoMball(void *lbv)
 	MEM_freeN(lb);
 }
 
-ListBase *metaball_get_editelems(Object *ob)
+static ListBase *metaball_get_editelems(Object *ob)
 {
 	if(ob && ob->type==OB_MBALL) {
 		struct MetaBall *mb= (struct MetaBall*)ob->data;

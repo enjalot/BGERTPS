@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -26,6 +26,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/editors/mesh/editmesh_lib.c
+ *  \ingroup edmesh
+ */
+
 
 /*
 
@@ -2005,21 +2010,34 @@ void recalc_editnormals(EditMesh *em)
 		if(efa->v4) {
 			normal_quad_v3( efa->n,efa->v1->co, efa->v2->co, efa->v3->co, efa->v4->co);
 			cent_quad_v3(efa->cent, efa->v1->co, efa->v2->co, efa->v3->co, efa->v4->co);
-			add_v3_v3(efa->v4->no, efa->n);
 		}
 		else {
 			normal_tri_v3( efa->n,efa->v1->co, efa->v2->co, efa->v3->co);
 			cent_tri_v3(efa->cent, efa->v1->co, efa->v2->co, efa->v3->co);
 		}
-		add_v3_v3(efa->v1->no, efa->n);
-		add_v3_v3(efa->v2->no, efa->n);
-		add_v3_v3(efa->v3->no, efa->n);
+
+		if((efa->flag&ME_SMOOTH)!=0) {
+			float *n4= (efa->v4)? efa->v4->no: NULL;
+			float *c4= (efa->v4)? efa->v4->co: NULL;
+
+			accumulate_vertex_normals(efa->v1->no, efa->v2->no, efa->v3->no, n4,
+				efa->n, efa->v1->co, efa->v2->co, efa->v3->co, c4);
+		}
+	}
+
+	for(efa= em->faces.first; efa; efa=efa->next) {
+		if((efa->flag&ME_SMOOTH)==0) {
+			if(is_zero_v3(efa->v1->no)) copy_v3_v3(efa->v1->no, efa->n);
+			if(is_zero_v3(efa->v2->no)) copy_v3_v3(efa->v2->no, efa->n);
+			if(is_zero_v3(efa->v3->no)) copy_v3_v3(efa->v3->no, efa->n);
+			if(efa->v4 && is_zero_v3(efa->v4->no)) copy_v3_v3(efa->v4->no, efa->n);
+		}
 	}
 
 	/* following Mesh convention; we use vertex coordinate itself for normal in this case */
 	for(eve= em->verts.first; eve; eve=eve->next) {
-		if (normalize_v3(eve->no)==0.0) {
-			VECCOPY(eve->no, eve->co);
+		if(normalize_v3(eve->no) == 0.0f) {
+			copy_v3_v3(eve->no, eve->co);
 			normalize_v3(eve->no);
 		}
 	}
@@ -2551,7 +2569,7 @@ static int tag_face_edges_test(EditFace *efa)
 		return (efa->e1->tmp.l || efa->e2->tmp.l || efa->e3->tmp.l) ? 1:0;
 }
 
-void em_deselect_nth_face(EditMesh *em, int nth, EditFace *efa_act)
+static void em_deselect_nth_face(EditMesh *em, int nth, EditFace *efa_act)
 {
 	EditFace *efa;
 	EditEdge *eed;
@@ -2623,7 +2641,7 @@ static int tag_edge_verts_test(EditEdge *eed)
 	return (eed->v1->tmp.l || eed->v2->tmp.l) ? 1:0;
 }
 
-void em_deselect_nth_edge(EditMesh *em, int nth, EditEdge *eed_act)
+static void em_deselect_nth_edge(EditMesh *em, int nth, EditEdge *eed_act)
 {
 	EditEdge *eed;
 	EditVert *eve;
@@ -2699,7 +2717,7 @@ void em_deselect_nth_edge(EditMesh *em, int nth, EditEdge *eed_act)
 	EM_nfaces_selected(em);
 }
 
-void em_deselect_nth_vert(EditMesh *em, int nth, EditVert *eve_act)
+static void em_deselect_nth_vert(EditMesh *em, int nth, EditVert *eve_act)
 {
 	EditVert *eve;
 	EditEdge *eed;

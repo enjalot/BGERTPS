@@ -128,6 +128,10 @@ class IMAGE_MT_image(bpy.types.Menu):
 
             layout.operator("image.external_edit", "Edit Externally")
 
+            layout.separator()
+
+            layout.menu("IMAGE_MT_image_invert")
+
             if not show_render:
                 layout.separator()
 
@@ -139,12 +143,38 @@ class IMAGE_MT_image(bpy.types.Menu):
                 # only for dirty && specific image types, perhaps
                 # this could be done in operator poll too
                 if ima.is_dirty:
-                    if ima.source in ('FILE', 'GENERATED') and ima.type != 'MULTILAYER':
+                    if ima.source in {'FILE', 'GENERATED'} and ima.type != 'MULTILAYER':
                         layout.operator("image.pack", text="Pack As PNG").as_png = True
 
             layout.separator()
 
             layout.prop(sima, "use_image_paint")
+
+
+class IMAGE_MT_image_invert(bpy.types.Menu):
+    bl_label = "Invert"
+
+    def draw(self, context):
+        layout = self.layout
+
+        op = layout.operator("image.invert", text="Invert Image Colors")
+        op.invert_r = True
+        op.invert_g = True
+        op.invert_b = True
+
+        layout.separator()
+
+        op = layout.operator("image.invert", text="Invert Red Channel")
+        op.invert_r = True
+
+        op = layout.operator("image.invert", text="Invert Green Channel")
+        op.invert_g = True
+
+        op = layout.operator("image.invert", text="Invert Blue Channel")
+        op.invert_b = True
+
+        op = layout.operator("image.invert", text="Invert Alpha Channel")
+        op.invert_a = True
 
 
 class IMAGE_MT_uvs_showhide(bpy.types.Menu):
@@ -204,7 +234,7 @@ class IMAGE_MT_uvs_weldalign(bpy.types.Menu):
         layout = self.layout
 
         layout.operator("uv.weld")  # W, 1
-        layout.operator_enums("uv.align", "axis")  # W, 2/3/4
+        layout.operator_enum("uv.align", "axis")  # W, 2/3/4
 
 
 class IMAGE_MT_uvs(bpy.types.Menu):
@@ -357,8 +387,8 @@ class IMAGE_HT_header(bpy.types.Header):
             row.prop(toolsettings, "use_snap", text="")
             row.prop(toolsettings, "snap_element", text="", icon_only=True)
 
-            # mesh = context.edit_object.data
-            # row.prop_search(mesh.uv_textures, "active", mesh, "uv_textures")
+            mesh = context.edit_object.data
+            layout.prop_search(mesh.uv_textures, "active", mesh, "uv_textures", text="")
 
         if ima:
             # layers
@@ -374,7 +404,7 @@ class IMAGE_HT_header(bpy.types.Header):
             row = layout.row(align=True)
             if ima.type == 'COMPOSITE':
                 row.operator("image.record_composite", icon='REC')
-            if ima.type == 'COMPOSITE' and ima.source in ('MOVIE', 'SEQUENCE'):
+            if ima.type == 'COMPOSITE' and ima.source in {'MOVIE', 'SEQUENCE'}:
                 row.operator("image.play_composite", icon='PLAY')
 
         if show_uvedit or sima.use_image_paint:
@@ -395,7 +425,6 @@ class IMAGE_PT_image_properties(bpy.types.Panel):
         layout = self.layout
 
         sima = context.space_data
-        # ima = sima.image
         iuser = sima.image_user
 
         layout.template_image(sima, "image", iuser)
@@ -654,11 +683,9 @@ class IMAGE_PT_tools_brush_texture(BrushButtonsPanel, bpy.types.Panel):
         toolsettings = context.tool_settings.image_paint
         brush = toolsettings.brush
 
-#        tex_slot = brush.texture_slot
-
         col = layout.column()
-
         col.template_ID_preview(brush, "texture", new="texture.new", rows=3, cols=8)
+        col.prop(brush, "use_fixed_texture")
 
 
 class IMAGE_PT_tools_brush_tool(BrushButtonsPanel, bpy.types.Panel):
@@ -727,11 +754,11 @@ class IMAGE_PT_paint_curve(BrushButtonsPanel, bpy.types.Panel):
 
 
 def register():
-    pass
+    bpy.utils.register_module(__name__)
 
 
 def unregister():
-    pass
+    bpy.utils.unregister_module(__name__)
 
 if __name__ == "__main__":
     register()

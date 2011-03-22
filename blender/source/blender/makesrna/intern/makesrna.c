@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -21,6 +21,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/makesrna/intern/makesrna.c
+ *  \ingroup RNA
+ */
+
 
 #include <float.h>
 #include <limits.h>
@@ -1013,7 +1018,7 @@ static char *rna_def_property_lookup_int_func(FILE *f, StructRNA *srna, Property
 		fprintf(f, "		else {\n");
 		fprintf(f, "			while(index-- > 0 && internal->link)\n");
 		fprintf(f, "				internal->link= internal->link->next;\n");
-		fprintf(f, "			found= 1;\n");
+		fprintf(f, "			found= (index == -1 && internal->link);\n");
 		fprintf(f, "		}\n");
 	}
 
@@ -1679,7 +1684,7 @@ static void rna_def_function_funcs(FILE *f, StructDefRNA *dsrna, FunctionDefRNA 
 	dfunc->gencall= funcname;
 }
 
-static void rna_auto_types()
+static void rna_auto_types(void)
 {
 	StructDefRNA *ds;
 	PropertyDefRNA *dp;
@@ -1785,7 +1790,7 @@ static const char *rna_property_subtypename(PropertySubType type)
 	}
 }
 
-static const char *rna_property_subtype_unit(PropertyType type)
+static const char *rna_property_subtype_unit(PropertySubType type)
 {
 	switch(RNA_SUBTYPE_UNIT(type)) {
 		case PROP_UNIT_NONE:		return "PROP_UNIT_NONE";
@@ -2357,7 +2362,7 @@ typedef struct RNAProcessItem {
 	void (*define)(BlenderRNA *brna);
 } RNAProcessItem;
 
-RNAProcessItem PROCESS_ITEMS[]= {
+static RNAProcessItem PROCESS_ITEMS[]= {
 	{"rna_rna.c", NULL, RNA_def_rna},
 	{"rna_ID.c", NULL, RNA_def_ID},
 	{"rna_texture.c", NULL, RNA_def_texture},

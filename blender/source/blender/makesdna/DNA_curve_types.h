@@ -1,8 +1,4 @@
-/**
- * blenlib/DNA_curve_types.h (mar-2001 nzc)
- *
- * Curve stuff.
- *
+/*
  * $Id$ 
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -32,6 +28,10 @@
  */
 #ifndef DNA_CURVE_TYPES_H
 #define DNA_CURVE_TYPES_H
+
+/** \file DNA_curve_types.h
+ *  \ingroup DNA
+ */
 
 #include "DNA_listBase.h"
 #include "DNA_vec_types.h"
@@ -328,7 +328,8 @@ typedef enum eBezTriple_Interpolation {
 typedef enum eBezTriple_KeyframeType {
 	BEZT_KEYTYPE_KEYFRAME = 0,	/* default - 'proper' Keyframe */
 	BEZT_KEYTYPE_EXTREME,		/* 'extreme' keyframe */
-	BEZT_KEYTYPE_BREAKDOWN		/* 'breakdown' keyframe */
+	BEZT_KEYTYPE_BREAKDOWN,		/* 'breakdown' keyframe */
+	BEZT_KEYTYPE_JITTER,		/* 'jitter' keyframe (for adding 'filler' secondary motion) */
 } eBezTriple_KeyframeType;
 
 /* checks if the given BezTriple is selected */

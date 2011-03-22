@@ -93,6 +93,10 @@ class NLA_MT_select(bpy.types.Menu):
         layout.operator("nla.select_border")
         layout.operator("nla.select_border", text="Border Axis Range").axis_range = True
 
+        layout.separator()
+        layout.operator("nla.select_leftright", text="Before Current Frame").mode = 'LEFT'
+        layout.operator("nla.select_leftright", text="After Current Frame").mode = 'RIGHT'
+
 
 class NLA_MT_marker(bpy.types.Menu):
     bl_label = "Marker"
@@ -188,11 +192,11 @@ class NLA_MT_edit_transform(bpy.types.Menu):
 
 
 def register():
-    pass
+    bpy.utils.register_module(__name__)
 
 
 def unregister():
-    pass
+    bpy.utils.unregister_module(__name__)
 
 if __name__ == "__main__":
     register()

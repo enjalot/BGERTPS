@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -25,12 +25,15 @@
  * Contributor(s): none yet.
  *
  * ***** END GPL LICENSE BLOCK *****
- * General operations, lookup, etc. for blender objects.
  */
 
 #ifndef BKE_OBJECT_H
 #define BKE_OBJECT_H
 
+/** \file BKE_object.h
+ *  \ingroup bke
+ *  \brief General operations, lookup, etc. for blender objects.
+ */
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -132,6 +135,8 @@ int give_obdata_texspace(struct Object *ob, short **texflag, float **loc, float 
 int object_insert_ptcache(struct Object *ob);
 // void object_delete_ptcache(struct Object *ob, int index);
 struct KeyBlock *object_insert_shape_key(struct Scene *scene, struct Object *ob, const char *name, int from_mix);
+
+int object_is_modified(struct Scene *scene, struct Object *ob);
 
 void object_camera_matrix(
 		struct RenderData *rd, struct Object *camera, int winx, int winy, short field_second,

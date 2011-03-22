@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -25,6 +25,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/makesrna/intern/rna_ui_api.c
+ *  \ingroup RNA
+ */
+
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -202,14 +207,14 @@ void RNA_api_ui_layout(StructRNA *srna)
 	RNA_def_function_return(func, parm);
 	RNA_def_function_ui_description(func, "Item. Places a button into the layout to call an Operator.");
 
-/*	func= RNA_def_function(srna, "operator_enum", "uiItemEnumO_string");
+/*	func= RNA_def_function(srna, "operator_enum_single", "uiItemEnumO_string");
 	api_ui_item_op_common(func);
 	parm= RNA_def_string(func, "property", "", 0, "", "Identifier of property in operator.");
 	RNA_def_property_flag(parm, PROP_REQUIRED);
 	parm= RNA_def_string(func, "value", "", 0, "", "Enum property value.");
 	RNA_def_property_flag(parm, PROP_REQUIRED); */
 
-	func= RNA_def_function(srna, "operator_enums", "uiItemsEnumO");
+	func= RNA_def_function(srna, "operator_enum", "uiItemsEnumO");
 	parm= RNA_def_string(func, "operator", "", 0, "", "Identifier of the operator.");
 	RNA_def_property_flag(parm, PROP_REQUIRED);
 	parm= RNA_def_string(func, "property", "", 0, "", "Identifier of property in operator.");

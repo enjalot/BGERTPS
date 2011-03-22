@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -26,6 +26,11 @@
  * ***** END GPL LICENSE BLOCK *****
  * support for animation modes - Reevan McKay
  */
+
+/** \file blender/editors/armature/poseobject.c
+ *  \ingroup edarmature
+ */
+
 
 #include <stdlib.h>
 #include <stddef.h>
@@ -68,15 +73,9 @@
 #include "ED_screen.h"
 
 #include "UI_interface.h"
+#include "UI_resources.h"
 
 #include "armature_intern.h"
-
-/* ************* XXX *************** */
-static int pupmenu(const char *UNUSED(dummy)) {return 0;}
-static void error(const char *UNUSED(dummy)) {}
-static void BIF_undo_push(const char *UNUSED(dummy)) {}
-/* ************* XXX *************** */
-
 
 static int object_pose_context(Object *ob)
 {
@@ -110,7 +109,7 @@ Object *ED_object_pose_armature(Object *ob)
 
 
 /* This function is used to indicate that a bone is selected and needs keyframes inserted */
-void set_pose_keys (Object *ob)
+static void set_pose_keys (Object *ob)
 {
 	bArmature *arm= ob->data;
 	bPoseChannel *chan;
@@ -167,6 +166,7 @@ void ED_armature_exit_posemode(bContext *C, Base *base)
 
 /* if a selected or active bone is protected, throw error (oonly if warn==1) and return 1 */
 /* only_selected==1 : the active bone is allowed to be protected */
+#if 0 /* UNUSED 2.5 */
 static short pose_has_protected_selected(Object *ob, short warn)
 {
 	/* check protection */
@@ -189,6 +189,7 @@ static short pose_has_protected_selected(Object *ob, short warn)
 	}
 	return 0;
 }
+#endif
 
 /* only for real IK, not for auto-IK */
 static int pose_channel_in_IK_chain(Object *ob, bPoseChannel *pchan, int level)
@@ -295,7 +296,7 @@ void POSE_OT_paths_calculate (wmOperatorType *ot)
 /* --------- */
 
 /* for the object with pose/action: clear path curves for selected bones only */
-void ED_pose_clear_paths(Object *ob)
+static void ED_pose_clear_paths(Object *ob)
 {
 	bPoseChannel *pchan;
 	short skipped = 0;
@@ -661,9 +662,65 @@ void POSE_OT_select_grouped (wmOperatorType *ot)
 	ot->prop= RNA_def_enum(ot->srna, "type", prop_select_grouped_types, 0, "Type", "");
 }
 
+
 /* ********************************************** */
 
-void pose_copy_menu(Scene *scene)
+/* context active object, or weightpainted object with armature in posemode */
+static int pose_bone_flip_active_exec (bContext *C, wmOperator *UNUSED(op))
+{
+	Object *ob_act= CTX_data_active_object(C);
+	Object *ob= ED_object_pose_armature(ob_act);
+
+	if(ob && (ob->mode & OB_MODE_POSE)) {
+		bArmature *arm= ob->data;
+
+		if(arm->act_bone) {
+			bPoseChannel *pchanf;
+			char name[MAXBONENAME];
+			flip_side_name(name, arm->act_bone->name, TRUE);
+
+			pchanf= get_pose_channel(ob->pose, name);
+			if(pchanf && pchanf->bone != arm->act_bone) {
+				arm->act_bone->flag &= ~BONE_SELECTED;
+				pchanf->bone->flag |= BONE_SELECTED;
+
+				arm->act_bone= pchanf->bone;
+
+				/* in weightpaint we select the associated vertex group too */
+				if(ob_act->mode & OB_MODE_WEIGHT_PAINT) {
+					ED_vgroup_select_by_name(ob_act, name);
+					DAG_id_tag_update(&ob_act->id, OB_RECALC_DATA);
+				}
+
+				WM_event_add_notifier(C, NC_OBJECT|ND_BONE_SELECT, ob);
+
+				return OPERATOR_FINISHED;
+			}
+		}
+	}
+
+	return OPERATOR_CANCELLED;
+}
+
+void POSE_OT_select_flip_active(wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name= "Flip Selected Active Bone";
+	ot->idname= "POSE_OT_select_flip_active";
+	ot->description= "Activate the bone with a flipped name.";
+	
+	/* api callbacks */
+	ot->exec= pose_bone_flip_active_exec;
+	ot->poll= ED_operator_posemode;
+	
+	/* flags */
+	ot->flag = OPTYPE_REGISTER|OPTYPE_UNDO;
+}
+
+
+/* ********************************************** */
+#if 0 /* UNUSED 2.5 */
+static void pose_copy_menu(Scene *scene)
 {
 	Object *obedit= scene->obedit; // XXX context
 	Object *ob= OBACT;
@@ -860,6 +917,7 @@ void pose_copy_menu(Scene *scene)
 	BIF_undo_push("Copy Pose Attributes");
 	
 }
+#endif
 
 /* ******************** copy/paste pose ********************** */
 
@@ -932,6 +990,7 @@ static int pose_paste_exec (bContext *C, wmOperator *op)
 	Object *ob= ED_object_pose_armature(CTX_data_active_object(C));
 	bPoseChannel *chan, *pchan;
 	int flip= RNA_boolean_get(op->ptr, "flipped");
+	int selOnly= RNA_boolean_get(op->ptr, "selected_mask");
 	
 	/* sanity checks */
 	if ELEM(NULL, ob, ob->pose)
@@ -945,17 +1004,28 @@ static int pose_paste_exec (bContext *C, wmOperator *op)
 	/* Safely merge all of the channels in the buffer pose into any existing pose */
 	for (chan= g_posebuf->chanbase.first; chan; chan=chan->next) {
 		if (chan->flag & POSE_KEY) {
-			/* get the name - if flipping, we must flip this first */
 			char name[32];
+			short paste_ok;
+			
+			/* get the name - if flipping, we must flip this first */
 			if (flip)
 				flip_side_name(name, chan->name, 0);		/* 0 = don't strip off number extensions */
 			else
 				BLI_strncpy(name, chan->name, sizeof(name));
 			
-			/* only copy when channel exists, poses are not meant to add random channels to anymore */
+			/* only copy when:
+			 * 	1) channel exists - poses are not meant to add random channels to anymore
+			 * 	2) if selection-masking is on, channel is selected - only selected bones get pasted on, allowing making both sides symmetrical
+			 */
 			pchan= get_pose_channel(ob->pose, name);
 			
-			if (pchan) {
+			if (selOnly)
+				paste_ok= ((pchan) && (pchan->bone->flag & BONE_SELECTED));
+			else
+				paste_ok= ((pchan != NULL));
+			
+			/* continue? */
+			if (paste_ok) {
 				/* only loc rot size 
 				 *	- only copies transform info for the pose 
 				 */
@@ -1098,6 +1168,7 @@ void POSE_OT_paste (wmOperatorType *ot)
 	
 	/* properties */
 	RNA_def_boolean(ot->srna, "flipped", 0, "Flipped on X-Axis", "Paste the stored pose flipped on to current pose");
+	RNA_def_boolean(ot->srna, "selected_mask", 0, "On Selected Only", "Only paste the stored post on to selected bones in the current pose");
 }
 
 /* ********************************************** */
@@ -1210,20 +1281,20 @@ static int pose_groups_menu_invoke (bContext *C, wmOperator *op, wmEvent *UNUSED
 	/* if there's no active group (or active is invalid), create a new menu to find it */
 	if (pose->active_group <= 0) {
 		/* create a new menu, and start populating it with group names */
-		pup= uiPupMenuBegin(C, op->type->name, ICON_NULL);
+		pup= uiPupMenuBegin(C, op->type->name, ICON_NONE);
 		layout= uiPupMenuLayout(pup);
 		
 		/* special entry - allow to create new group, then use that 
 		 *	(not to be used for removing though)
 		 */
 		if (strstr(op->idname, "assign")) {
-			uiItemIntO(layout, "New Group", ICON_NULL, op->idname, "type", 0);
+			uiItemIntO(layout, "New Group", ICON_NONE, op->idname, "type", 0);
 			uiItemS(layout);
 		}
 		
 		/* add entries for each group */
 		for (grp= pose->agroups.first, i=1; grp; grp=grp->next, i++)
-			uiItemIntO(layout, grp->name, ICON_NULL, op->idname, "type", i);
+			uiItemIntO(layout, grp->name, ICON_NONE, op->idname, "type", i);
 			
 		/* finish building the menu, and process it (should result in calling self again) */
 		uiPupMenuEnd(C, pup);
@@ -1553,48 +1624,6 @@ void POSE_OT_autoside_names (wmOperatorType *ot)
 
 /* ********************************************** */
 
-/* context active object, or weightpainted object with armature in posemode */
-void pose_activate_flipped_bone(Scene *scene)
-{
-	Object *ob= OBACT;
-
-	if(ob==NULL) return;
-
-	if(ob->mode & OB_MODE_WEIGHT_PAINT) {
-		ob= modifiers_isDeformedByArmature(ob);
-	}
-
-	if(ob && (ob->mode & OB_MODE_POSE)) {
-		bPoseChannel *pchanf;
-		bArmature *arm= ob->data;
-
-		if(arm->act_bone) {
-			char name[32];
-			flip_side_name(name, arm->act_bone->name, TRUE);
-			
-			pchanf= get_pose_channel(ob->pose, name);
-			if(pchanf && pchanf->bone != arm->act_bone) {
-				arm->act_bone->flag &= ~BONE_SELECTED;
-				pchanf->bone->flag |= BONE_SELECTED;
-				
-				arm->act_bone= pchanf->bone;
-				
-				/* in weightpaint we select the associated vertex group too */
-				if(ob->mode & OB_MODE_WEIGHT_PAINT) {
-					ED_vgroup_select_by_name(OBACT, name);
-					DAG_id_tag_update(&OBACT->id, OB_RECALC_DATA);
-				}
-				
-				// XXX notifiers need to be sent to other editors to update
-				
-			}			
-		}
-	}
-}
-
-
-/* ********************************************** */
-
 /* Show all armature layers */
 static int pose_armature_layers_showall_poll (bContext *C)
 {
@@ -1892,11 +1921,8 @@ static int pose_flip_quats_exec (bContext *C, wmOperator *UNUSED(op))
 		/* only if bone is using quaternion rotation */
 		if (pchan->rotmode == ROT_MODE_QUAT) {
 			/* quaternions have 720 degree range */
-			pchan->quat[0]= -pchan->quat[0];
-			pchan->quat[1]= -pchan->quat[1];
-			pchan->quat[2]= -pchan->quat[2];
-			pchan->quat[3]= -pchan->quat[3];
-			
+			negate_v4(pchan->quat);
+
 			/* tagging */
 			if (autokeyframe_cfra_can_key(scene, &ob->id)) {
 				ListBase dsources = {NULL, NULL};

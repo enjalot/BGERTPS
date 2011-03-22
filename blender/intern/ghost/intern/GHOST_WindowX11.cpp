@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  * ***** BEGIN GPL LICENSE BLOCK *****
  *
@@ -25,6 +25,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file ghost/intern/GHOST_WindowX11.cpp
+ *  \ingroup GHOST
+ */
+
 
 #include "GHOST_WindowX11.h"
 #include "GHOST_SystemX11.h"
@@ -674,7 +679,7 @@ setTitle(
 	XChangeProperty(m_display, m_window,
 	                name, utf8str, 8, PropModeReplace,
 	                (const unsigned char*) title.ReadPtr(),
-	                strlen(title.ReadPtr()));
+	                title.Length());
 
 // This should convert to valid x11 string
 //  and getTitle would need matching change

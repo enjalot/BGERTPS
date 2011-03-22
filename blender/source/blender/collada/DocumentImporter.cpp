@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -21,6 +21,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/collada/DocumentImporter.cpp
+ *  \ingroup collada
+ */
+
 // TODO:
 // * name imported objects
 // * import object rotation as euler
@@ -70,6 +75,7 @@
 #include "MEM_guardedalloc.h"
 
 #include "DocumentImporter.h"
+#include "TransformReader.h"
 #include "collada_internal.h"
 
 #include "collada_utils.h"
@@ -120,22 +126,37 @@ private:
 //public:
 
 	/** Constructor. */
-	DocumentImporter::DocumentImporter(bContext *C, const char *filename) : mFilename(filename), mContext(C),
-												armature_importer(&unit_converter, &mesh_importer, &anim_importer, CTX_data_scene(C)),
-												mesh_importer(&unit_converter, &armature_importer, CTX_data_scene(C)),
-												anim_importer(&unit_converter, &armature_importer, CTX_data_scene(C)) {}
+	DocumentImporter::DocumentImporter(bContext *C, const char *filename) :
+		mImportStage(General),
+		mFilename(filename),
+		mContext(C),
+		armature_importer(&unit_converter, &mesh_importer, &anim_importer, CTX_data_scene(C)),
+		mesh_importer(&unit_converter, &armature_importer, CTX_data_scene(C)),
+		anim_importer(&unit_converter, &armature_importer, CTX_data_scene(C))
+	{}
 
 	/** Destructor. */
 	DocumentImporter::~DocumentImporter() {}
 
 	bool DocumentImporter::import()
 	{
+		/** TODO Add error handler (implement COLLADASaxFWL::IErrorHandler */
 		COLLADASaxFWL::Loader loader;
 		COLLADAFW::Root root(&loader, this);
 
-		// XXX report error
 		if (!root.loadDocument(mFilename))
 			return false;
+		
+		/** TODO set up scene graph and such here */
+		
+		mImportStage = Controller;
+		
+		COLLADASaxFWL::Loader loader2;
+		COLLADAFW::Root root2(&loader2, this);
+		
+		if (!root2.loadDocument(mFilename))
+			return false;
+		
 
 		return true;
 	}
@@ -155,6 +176,10 @@ private:
 	/** This method is called after the last write* method. No other methods will be called after this.*/
 	void DocumentImporter::finish()
 	{
+		if(mImportStage!=General)
+			return;
+			
+		/** TODO Break up and put into 2-pass parsing of DAE */
 		std::vector<const COLLADAFW::VisualScene*>::iterator it;
 		for (it = vscenes.begin(); it != vscenes.end(); it++) {
 			PointerRNA sceneptr, unit_settings;
@@ -312,10 +337,29 @@ private:
 		obn->recalc |= OB_RECALC_OB|OB_RECALC_DATA|OB_RECALC_TIME;
 		scene_add_base(sce, obn);
 
-		if (instance_node)
+		if (instance_node) {
 			anim_importer.read_node_transform(instance_node, obn);
-		else
+			// if we also have a source_node (always ;), take its
+			// transformation matrix and apply it to the newly instantiated
+			// object to account for node hierarchy transforms in
+			// .dae
+			if(source_node) {
+				COLLADABU::Math::Matrix4 mat4 = source_node->getTransformationMatrix();
+				COLLADABU::Math::Matrix4 bmat4 = mat4.transpose(); // transpose to get blender row-major order
+				float mat[4][4];
+				for (int i = 0; i < 4; i++) {
+					for (int j = 0; j < 4; j++) {
+						mat[i][j] = bmat4[i][j];
+					}
+				}
+				// calc new matrix and apply
+				mul_m4_m4m4(obn->obmat, mat, obn->obmat);
+				object_apply_mat4(obn, obn->obmat, 0, 0);
+			}
+		}
+		else {
 			anim_importer.read_node_transform(source_node, obn);
+		}
 
 		DAG_scene_sort(CTX_data_main(mContext), sce);
 		DAG_ids_flush_update(CTX_data_main(mContext), 0);
@@ -329,7 +373,7 @@ private:
 					continue;
 				COLLADAFW::InstanceNodePointerArray &inodes = child_node->getInstanceNodes();
 				Object *new_child = NULL;
-				if (inodes.getCount()) {
+				if (inodes.getCount()) { // \todo loop through instance nodes
 					const COLLADAFW::UniqueId& id = inodes[0]->getInstanciatedObjectId();
 					new_child = create_instance_node(object_map[id], node_map[id], child_node, sce, is_library_node);
 				}
@@ -343,7 +387,10 @@ private:
 			}
 		}
 
-		return obn;
+		// when we have an instance_node, don't return the object, because otherwise
+		// its correct location gets overwritten in write_node(). Fixes bug #26012.
+		if(instance_node) return NULL;
+		else return obn;
 	}
 	
 	void DocumentImporter::write_node (COLLADAFW::Node *node, COLLADAFW::Node *parent_node, Scene *sce, Object *par, bool is_library_node)
@@ -420,7 +467,7 @@ private:
 				libnode_ob.push_back(ob);
 		}
 
-		anim_importer.read_node_transform(node, ob);
+		anim_importer.read_node_transform(node, ob); // overwrites location set earlier
 
 		if (!is_joint) {
 			// if par was given make this object child of the previous 
@@ -439,6 +486,9 @@ private:
 		@return The writer should return true, if writing succeeded, false otherwise.*/
 	bool DocumentImporter::writeVisualScene ( const COLLADAFW::VisualScene* visualScene ) 
 	{
+		if(mImportStage!=General)
+			return true;
+			
 		// this method called on post process after writeGeometry, writeMaterial, etc.
 
 		// for each <node> in <visual_scene>:
@@ -459,6 +509,9 @@ private:
 		@return The writer should return true, if writing succeeded, false otherwise.*/
 	bool DocumentImporter::writeLibraryNodes ( const COLLADAFW::LibraryNodes* libraryNodes ) 
 	{
+		if(mImportStage!=General)
+			return true;
+			
 		Scene *sce = CTX_data_scene(mContext);
 
 		const COLLADAFW::NodePointerArray& nodes = libraryNodes->getNodes();
@@ -474,6 +527,9 @@ private:
 		@return The writer should return true, if writing succeeded, false otherwise.*/
 	bool DocumentImporter::writeGeometry ( const COLLADAFW::Geometry* geom ) 
 	{
+		if(mImportStage!=General)
+			return true;
+			
 		return mesh_importer.write_geometry(geom);
 	}
 
@@ -481,6 +537,9 @@ private:
 		@return The writer should return true, if writing succeeded, false otherwise.*/
 	bool DocumentImporter::writeMaterial( const COLLADAFW::Material* cmat ) 
 	{
+		if(mImportStage!=General)
+			return true;
+			
 		const std::string& str_mat_id = cmat->getOriginalId();
 		Material *ma = add_material((char*)str_mat_id.c_str());
 		
@@ -655,6 +714,8 @@ private:
 	
 	bool DocumentImporter::writeEffect( const COLLADAFW::Effect* effect ) 
 	{
+		if(mImportStage!=General)
+			return true;
 		
 		const COLLADAFW::UniqueId& uid = effect->getUniqueId();
 		if (uid_effect_map.find(uid) == uid_effect_map.end()) {
@@ -682,6 +743,9 @@ private:
 		@return The writer should return true, if writing succeeded, false otherwise.*/
 	bool DocumentImporter::writeCamera( const COLLADAFW::Camera* camera ) 
 	{
+		if(mImportStage!=General)
+			return true;
+			
 		Camera *cam = NULL;
 		std::string cam_id, cam_name;
 		
@@ -794,6 +858,9 @@ private:
 		@return The writer should return true, if writing succeeded, false otherwise.*/
 	bool DocumentImporter::writeImage( const COLLADAFW::Image* image ) 
 	{
+		if(mImportStage!=General)
+			return true;
+			
 		// XXX maybe it is necessary to check if the path is absolute or relative
 	    const std::string& filepath = image->getImageURI().toNativePath();
 		const char *filename = (const char*)mFilename.c_str();
@@ -801,7 +868,7 @@ private:
 		char full_path[FILE_MAX];
 		
 		BLI_split_dirfile(filename, dir, NULL);
-		BLI_join_dirfile(full_path, dir, filepath.c_str());
+		BLI_join_dirfile(full_path, sizeof(full_path), dir, filepath.c_str());
 		Image *ima = BKE_add_image_file(full_path);
 		if (!ima) {
 			fprintf(stderr, "Cannot create image. \n");
@@ -816,6 +883,9 @@ private:
 		@return The writer should return true, if writing succeeded, false otherwise.*/
 	bool DocumentImporter::writeLight( const COLLADAFW::Light* light ) 
 	{
+		if(mImportStage!=General)
+			return true;
+			
 		Lamp *lamp = NULL;
 		std::string la_id, la_name;
 		
@@ -911,6 +981,9 @@ private:
 	// this function is called only for animations that pass COLLADAFW::validate
 	bool DocumentImporter::writeAnimation( const COLLADAFW::Animation* anim ) 
 	{
+		if(mImportStage!=General)
+			return true;
+			
 		// return true;
 		return anim_importer.write_animation(anim);
 	}
@@ -918,6 +991,9 @@ private:
 	// called on post-process stage after writeVisualScenes
 	bool DocumentImporter::writeAnimationList( const COLLADAFW::AnimationList* animationList ) 
 	{
+		if(mImportStage!=General)
+			return true;
+			
 		// return true;
 		return anim_importer.write_animation_list(animationList);
 	}
@@ -932,6 +1008,9 @@ private:
 	// this is called on postprocess, before writeVisualScenes
 	bool DocumentImporter::writeController( const COLLADAFW::Controller* controller ) 
 	{
+		if(mImportStage!=General)
+			return true;
+			
 		return armature_importer.write_controller(controller);
 	}
 

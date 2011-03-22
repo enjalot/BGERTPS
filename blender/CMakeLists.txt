@@ -28,8 +28,7 @@
 #-----------------------------------------------------------------------------
 # We don't allow in-source builds. This causes no end of troubles because 
 # all out-of-source builds will use the CMakeCache.txt file there and even 
-# build the libs and objects in it. It will also conflict with the current 
-# Makefile system for Blender
+# build the libs and objects in it.
 
 if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
 message(FATAL_ERROR "CMake generation for blender is not allowed within the source directory! 
@@ -39,11 +38,11 @@ Remove the CMakeCache.txt file and try again from another folder, e.g.:
 	cd ..
 	mkdir cmake-make 
 	cd cmake-make
-	cmake -G \"Unix Makefiles\" ../blender
+	cmake ../blender
 ")
 endif()
 
-cmake_minimum_required(VERSION 2.6)
+cmake_minimum_required(VERSION 2.8)
 
 # quiet output for Makefiles, 'make -s' helps too
 # set_property(GLOBAL PROPERTY RULE_MESSAGES OFF)
@@ -68,10 +67,12 @@ include(build_files/cmake/macros.cmake)
 get_blender_version()
 
 # Blender internal features
-option(WITH_INTERNATIONAL "Enable I18N   (International fonts and text)" ON)
-option(WITH_PYTHON        "Enable Embedded Python API" ON)
-option(WITH_BUILDINFO     "Include extra build details" ON)
-option(WITH_IK_ITASC      "Enable ITASC IK solver" ON)
+option(WITH_INTERNATIONAL "Enable I18N (International fonts and text)" ON)
+option(WITH_PYTHON        "Enable Embedded Python API  (only disable for development)" ON)
+option(WITH_PYTHON_SAFETY "Enable internal API error checking to track invalid data to prevent crash on access (at the expense of some effeciency, only enable for development)." OFF)
+option(WITH_PYTHON_MODULE "Enable building as a python module (experemental, only enable for development)" OFF)
+option(WITH_BUILDINFO     "Include extra build details (only disable for development & faster builds)" ON)
+option(WITH_IK_ITASC      "Enable ITASC IK solver (only disable for development & for incompatible C++ compilers)" ON)
 option(WITH_FFTW3         "Enable FFTW3 support (Used for smoke and audio effects)" OFF)
 option(WITH_BULLET        "Enable Bullet (Physics Engine)" ON)
 option(WITH_GAMEENGINE    "Enable Game Engine" ON)
@@ -124,17 +125,29 @@ option(WITH_LZMA          "Enable best LZMA compression, (used for pointcache)" 
 
 # Misc
 option(WITH_RAYOPTIMIZATION	"Enable use of SIMD (SSE) optimizations for the raytracer" ON) 
-option(WITH_INSTALL       "Install accompanying scripts and language files needed to run blender" ON)
+if(UNIX AND NOT APPLE)
+	option(WITH_INSTALL_PORTABLE "Install redistributeable runtime, otherwise install into CMAKE_INSTALL_PREFIX" ON)
+endif()
 option(WITH_PYTHON_INSTALL       "Copy system python into the blender install folder" ON)
 
 # Debug
-option(WITH_CXX_GUARDEDALLOC "Enable GuardedAlloc for C++ memory allocation tracking" OFF)
+option(WITH_CXX_GUARDEDALLOC "Enable GuardedAlloc for C++ memory allocation tracking (only enable for development)" OFF)
 mark_as_advanced(WITH_CXX_GUARDEDALLOC)
 
 option(WITH_ASSERT_ABORT "Call abort() when raising an assertion through BLI_assert()" OFF)
 mark_as_advanced(WITH_ASSERT_ABORT)
 
 if(APPLE)
+	if(NOT CMAKE_OSX_ARCHITECTURES)
+		set(CMAKE_OSX_ARCHITECTURES x86_64 CACHE STRING
+		"Choose the architecture you want to build Blender for: i386, x86_64 or ppc"
+		FORCE)
+	endif()
+	if(NOT CMAKE_OSX_DEPLOYMENT_TARGET)
+		set(CMAKE_OSX_DEPLOYMENT_TARGET 10.5 CACHE STRING
+		"Choose the minimum OSX version required: 10.4 or 10.5"
+		FORCE)
+	endif()
 	option(WITH_COCOA	  "Use Cocoa framework instead of deprecated Carbon" ON)
 	option(USE_QTKIT	  "Use QtKit instead of Carbon quicktime (needed for having partial quicktime for 64bit)" OFF)
 	option(WITH_LIBS10.5  "Use 10.5 libs (needed for 64bit builds)" OFF)
@@ -147,10 +160,6 @@ if(NOT WITH_GAMEENGINE AND WITH_PLAYER)
 	message(FATAL_ERROR "WITH_PLAYER requires WITH_GAMEENGINE")
 endif()
 
-if(NOT WITH_INSTALL AND WITH_PYTHON_INSTALL)
-	message("WARNING: WITH_PYTHON_INSTALL requires WITH_INSTALL")
-endif()
-
 if(NOT WITH_SAMPLERATE AND (WITH_OPENAL OR WITH_SDL OR WITH_JACK))
 	message(FATAL_ERROR "WITH_OPENAL/WITH_SDL/WITH_JACK require WITH_SAMPLERATE")
 endif()
@@ -158,6 +167,18 @@ endif()
 if(NOT WITH_IMAGE_OPENJPEG AND WITH_IMAGE_REDCODE)
 	message(FATAL_ERROR "WITH_IMAGE_REDCODE requires WITH_IMAGE_OPENJPEG")
 endif()
+
+# python module, needs some different options
+if(WITH_PYTHON_MODULE AND WITH_PLAYER)
+	message(FATAL_ERROR "WITH_PYTHON_MODULE requires WITH_PLAYER to be OFF")
+endif()
+
+if(WITH_PYTHON_MODULE AND WITH_PYTHON_INSTALL)
+	message(FATAL_ERROR "WITH_PYTHON_MODULE requires WITH_PYTHON_INSTALL to be OFF")
+endif()
+
+# remove old vars
+unset(WITH_INSTALL CACHE)
 
 TEST_SSE_SUPPORT()
 
@@ -221,6 +242,15 @@ IF(WITH_OPENCL)
 ENDIF(WITH_OPENCL)
 
 
+#-----------------------------------------------------------------------------
+# Initialize un-cached vars, avoid unused warning
+
+# linux only, not cached
+set(WITH_BINRELOC OFF)
+
+# these are added to later on.
+set(C_WARNINGS "")
+set(CXX_WARNINGS "")
 
 
 # disabled for now, not supported
@@ -228,9 +258,17 @@ ENDIF(WITH_OPENCL)
 
 # For alternate Python locations the commandline can be used to override detected/default cache settings, e.g:
 # On Unix: 
-#   cmake -D PYTHON_LIBRARY=/usr/local/lib/python3.1/config/libpython3.1.so -D PYTHON_INCLUDE_DIRS=/usr/local/include/python3.1 -G "Unix Makefiles" ../blender
+#   cmake ../blender \
+#         -D PYTHON_VERSION=3.2 \
+#         -D PYTHON_INCLUDE_DIRS=/opt/py32/include/python3.2d \
+#         -D PYTHON_LIBPATH=/opt/py32/lib \
+#         -D PYTHON_LIBRARY=python3.2d
+#
 # On Macs: 
-#   cmake -D PYTHON_INCLUDE_DIRS=/System/Library/Frameworks/Python.framework/Versions/3.1/include/python3.1 -D PYTHON_LIBPATH=/System/Library/Frameworks/Python.framework/Versions/3.1/lib/python3.1/config -G Xcode ../blender
+#   cmake ../blender \
+#         -D PYTHON_INCLUDE_DIRS=/System/Library/Frameworks/Python.framework/Versions/3.2/include/python3.2 \
+#         -D PYTHON_LIBPATH=/System/Library/Frameworks/Python.framework/Versions/3.2/lib/python3.2/config \
+#         -G Xcode
 #
 # When changing any of this remember to update the notes in doc/build_systems/cmake.txt
 
@@ -238,6 +276,11 @@ ENDIF(WITH_OPENCL)
 #Platform specifics
 
 if(UNIX AND NOT APPLE)
+	
+	# needed for ubuntu 11.04
+	if(EXISTS "/usr/lib/x86_64-linux-gnu")
+		set(CMAKE_LIBRARY_PATH "/usr/lib/x86_64-linux-gnu;${CMAKE_LIBRARY_PATH}")
+	endif()
 
 	if(WITH_OPENAL)
 		find_package(OpenAL)
@@ -285,22 +328,19 @@ if(UNIX AND NOT APPLE)
 
 
 	if(WITH_PYTHON)
-		# No way to set py31. remove for now.
+		# No way to set py32. remove for now.
 		# find_package(PythonLibs)
-		set(PYTHON /usr)
-		set(PYTHON_VERSION 3.1)
-		set(PYTHON_INCLUDE_DIRS "${PYTHON}/include/python${PYTHON_VERSION}" CACHE STRING "")
-		mark_as_advanced(PYTHON_INCLUDE_DIRS)
-		# set(PYTHON_BINARY python) # not used yet
-		set(PYTHON_LIBRARY python${PYTHON_VERSION} CACHE STRING "")
-		mark_as_advanced(PYTHON_LIBRARY)
-		set(PYTHON_LIBPATH ${PYTHON}/lib CACHE STRING "")
-		mark_as_advanced(PYTHON_LIBPATH)
-		# find_package(PythonInterp) # not used yet
-		# set(PYTHON_BINARY ${PYTHON_EXECUTABLE} CACHE STRING "")
 
-		set(PYTHON_LINKFLAGS "-Xlinker -export-dynamic")
-		mark_as_advanced(PYTHON_LINKFLAGS)
+		# defines...
+		
+		#  PYTHON_VERSION
+		#  PYTHON_INCLUDE_DIRS
+		#  PYTHON_LIBRARY
+		#  PYTHON_LIBPATH
+		#  PYTHON_LINKFLAGS
+
+		include(build_files/cmake/FindPythonLibsUnix.cmake)
+
 	endif()
 
 	if(WITH_SDL)
@@ -400,17 +440,22 @@ if(UNIX AND NOT APPLE)
 	endif()
 
 	find_package(X11 REQUIRED)
+	find_path(X11_XF86keysym_INCLUDE_PATH X11/XF86keysym.h ${X11_INC_SEARCH_PATH})
+	mark_as_advanced(X11_XF86keysym_INCLUDE_PATH)
 
 	# OpenSuse needs lutil, ArchLinux not, for now keep, can avoid by using --as-needed
 	set(LLIBS "-lutil -lc -lm -lpthread -lstdc++ ${X11_X11_LIB} ${X11_Xinput_LIB}")
 
 	if(CMAKE_SYSTEM_NAME MATCHES "Linux")
-		# BSD's dont use libdl.so
-		list(APPEND LLIBS -ldl)
+		if(NOT WITH_PYTHON_MODULE)
+			# BSD's dont use libdl.so
+			list(APPEND LLIBS -ldl)
 
-		# binreloc is linux only
-		set(BINRELOC ${CMAKE_SOURCE_DIR}/extern/binreloc)
-		set(BINRELOC_INC ${BINRELOC}/include)
+			# binreloc is linux only
+			set(BINRELOC ${CMAKE_SOURCE_DIR}/extern/binreloc)
+			set(BINRELOC_INC ${BINRELOC}/include)
+			set(WITH_BINRELOC ON)
+		endif()
 	endif()
 
 	set(PLATFORM_LINKFLAGS "-pthread")
@@ -590,7 +635,7 @@ elseif(WIN32)
 			set(OPENCOLLADA ${LIBDIR}/opencollada)
 			set(OPENCOLLADA_INC ${OPENCOLLADA}/include)
 			set(OPENCOLLADA_LIBPATH ${OPENCOLLADA}/lib)
-			set(OPENCOLLADA_LIB OpenCOLLADASaxFrameworkLoader OpenCOLLADAFramework OpenCOLLADABaseUtils OpenCOLLADAStreamWriter MathMLSolver GeneratedSaxParser xml2 buffer ftoa)
+			set(OPENCOLLADA_LIB OpenCOLLADASaxFrameworkLoader OpenCOLLADAFramework OpenCOLLADABaseUtils OpenCOLLADAStreamWriter MathMLSolver GeneratedSaxParser xml2 buffer ftoa UTF)
 			set(PCRE_LIB pcre)
 		endif()
 		
@@ -609,17 +654,24 @@ elseif(WIN32)
 		endif()
 
 		if(WITH_IMAGE_OPENEXR)
-			set(OPENEXR ${LIBDIR}/openexr)
-			set(OPENEXR_INC ${OPENEXR}/include ${OPENEXR}/include/IlmImf ${OPENEXR}/include/Iex ${OPENEXR}/include/Imath)
-			set(OPENEXR_LIB Iex Half IlmImf Imath IlmThread)
 			if(MSVC80)
-				set(OPENEXR_LIBPATH ${OPENEXR}/lib_vs2005)
+				set(MSVC_LIB _vs2005)
+				set(MSVC_INC)
+			elseif(MSVC90)
+				set(MSVC_LIB _vs2008)
+				set(MSVC_INC)
+			elseif(MSVC10)
+				set(MSVC_LIB _vs2010)
+				set(MSVC_INC _vs2010)
 			else()
-				set(OPENEXR_LIBPATH ${OPENEXR}/lib_msvc)
+				set(MSVC_LIB msvc)
+				set(MSVC_INC)
 			endif()
-			if(MSVC90)
-				set(OPENEXR_LIBPATH ${OPENEXR}/lib_vs2008)
-			endif()
+			set(OPENEXR ${LIBDIR}/openexr)			
+			set(OPENEXR_LIB Iex Half IlmImf Imath IlmThread)
+			set(OPENEXR_LIBPATH ${OPENEXR}/lib${MSVC_LIB})
+			set(OPENEXR_INCUDE ${OPENEXR}/include${MSVC_INC})
+			set(OPENEXR_INC ${OPENEXR_INCUDE}/ ${OPENEXR_INCUDE}/IlmImf ${OPENEXR_INCUDE}/Iex ${OPENEXR_INCUDE}/Imath)
 		endif()
 
 		if(WITH_IMAGE_TIFF)
@@ -638,18 +690,18 @@ elseif(WIN32)
 
 		if(WITH_PYTHON)
 			set(PYTHON ${LIBDIR}/python)
-			set(PYTHON_VERSION 3.1)
+			set(PYTHON_VERSION 3.2)
 			set(PYTHON_INCLUDE_DIRS "${PYTHON}/include/python${PYTHON_VERSION}")
 			# set(PYTHON_BINARY python) # not used yet
-			set(PYTHON_LIBRARY python31)
+			set(PYTHON_LIBRARY python32)
 			set(PYTHON_LIBPATH ${PYTHON}/lib)
 		endif()
 
 		# MSVC only, Mingw doesnt need
 		if(CMAKE_CL_64)
-			set(PLATFORM_LINKFLAGS "/MACHINE:X64 /NODEFAULTLIB:libc.lib ")
+			set(PLATFORM_LINKFLAGS "/MACHINE:X64 /NODEFAULTLIB:libc.lib /STACK:2097152 ")
 		else()
-			set(PLATFORM_LINKFLAGS "/NODEFAULTLIB:libc.lib ")
+			set(PLATFORM_LINKFLAGS "/NODEFAULTLIB:libc.lib /STACK:2097152 ")
 		endif()
 
 		set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG} /NODEFAULTLIB:libcmt.lib;libc.lib ")
@@ -745,12 +797,14 @@ elseif(WIN32)
 
 		if(WITH_PYTHON)
 			set(PYTHON ${LIBDIR}/python)
-			set(PYTHON_VERSION 3.1)
+			set(PYTHON_VERSION 3.2)
 			set(PYTHON_INCLUDE_DIRS "${PYTHON}/include/python${PYTHON_VERSION}")
 			# set(PYTHON_BINARY python) # not used yet
-			set(PYTHON_LIBRARY python31mw)
+			set(PYTHON_LIBRARY python32mw)
 			set(PYTHON_LIBPATH ${PYTHON}/lib)
 		endif()
+
+		set(PLATFORM_LINKFLAGS "--stack,2097152")
 
 	endif()
 
@@ -758,6 +812,10 @@ elseif(WIN32)
 	blender_include_dirs("${PTHREADS_INC}")
 
 elseif(APPLE)
+
+	if (${CMAKE_OSX_DEPLOYMENT_TARGET} STREQUAL "10.5")
+		set(WITH_LIBS10.5 ON CACHE BOOL "Use 10.5 libs" FORCE)
+	endif()
 
 	if(WITH_LIBS10.5)
 		set(LIBDIR ${CMAKE_SOURCE_DIR}/../lib/darwin-9.x.universal)
@@ -794,10 +852,10 @@ elseif(APPLE)
 		set(SNDFILE_LIBPATH ${SNDFILE}/lib ${FFMPEG}/lib)
 	endif()
 
-	set(PYTHON_VERSION 3.1)
+	set(PYTHON_VERSION 3.2)
 
-	if(PYTHON_VERSION MATCHES 3.1)
-		# we use precompiled libraries for py 3.1 and up by default
+	if(PYTHON_VERSION MATCHES 3.2)
+		# we use precompiled libraries for py 3.2 and up by default
 
 		set(PYTHON ${LIBDIR}/python)
 		set(PYTHON_INCLUDE_DIRS "${PYTHON}/include/python${PYTHON_VERSION}")
@@ -809,7 +867,7 @@ elseif(APPLE)
 		# otherwise, use custom system framework
 
 		set(PYTHON /System/Library/Frameworks/Python.framework/Versions/)
-		set(PYTHON_VERSION 3.1)
+		set(PYTHON_VERSION 3.2)
 		set(PYTHON_INCLUDE_DIRS "${PYTHON}${PYTHON_VERSION}/include/python${PYTHON_VERSION}")
 		# set(PYTHON_BINARY ${PYTHON}${PYTHON_VERSION}/bin/python${PYTHON_VERSION}) # not used yet
 		set(PYTHON_LIBRARY "")
@@ -945,28 +1003,6 @@ elseif(APPLE)
 	endif()
 endif()
 
-
-# buildinfo
-if(WITH_BUILDINFO)
-	# BUILD_PLATFORM and BUILD_PLATFORM are taken from CMake
-	if(UNIX)
-		execute_process(COMMAND date "+%Y-%m-%d" OUTPUT_VARIABLE BUILD_DATE OUTPUT_STRIP_TRAILING_WHITESPACE)
-		execute_process(COMMAND date "+%H:%M:%S" OUTPUT_VARIABLE BUILD_TIME OUTPUT_STRIP_TRAILING_WHITESPACE)  
-		execute_process(COMMAND svnversion ${CMAKE_SOURCE_DIR} OUTPUT_VARIABLE BUILD_REV RESULT_VARIABLE BUILD_REV_RETURN OUTPUT_STRIP_TRAILING_WHITESPACE)
-		if(BUILD_REV_RETURN)
-			set(BUILD_REV "unknown")
-		endif()
-	endif()
-	
-	if(WIN32)
-		execute_process(COMMAND cmd /c date /t OUTPUT_VARIABLE BUILD_DATE OUTPUT_STRIP_TRAILING_WHITESPACE)
-		execute_process(COMMAND cmd /c time /t OUTPUT_VARIABLE BUILD_TIME OUTPUT_STRIP_TRAILING_WHITESPACE)  
-		execute_process(COMMAND svnversion ${CMAKE_SOURCE_DIR} OUTPUT_VARIABLE BUILD_REV RESULT_VARIABLE BUILD_REV_RETURN OUTPUT_STRIP_TRAILING_WHITESPACE)
-		if(BUILD_REV_RETURN)
-			set(BUILD_REV "unknown")
-		endif()
-	endif()
-endif()
 #-----------------------------------------------------------------------------
 # Common.
 
@@ -987,8 +1023,15 @@ if(WITH_RAYOPTIMIZATION)
 endif()
 
 if(WITH_IMAGE_OPENJPEG)
-	set(OPENJPEG ${CMAKE_SOURCE_DIR}/extern/libopenjpeg)
-	set(OPENJPEG_INC ${OPENJPEG})
+	if(UNIX AND NOT APPLE)
+		set(OPENJPEG /usr)
+		set(OPENJPEG_INC ${OPENJPEG}/include)
+		set(OPENJPEG_LIB openjpeg)
+		set(OPENJPEG_LIBPATH ${OPENJPEG}/lib)
+	else()
+		set(OPENJPEG ${CMAKE_SOURCE_DIR}/extern/libopenjpeg)
+		set(OPENJPEG_INC ${OPENJPEG})
+	endif()
 endif()
 
 if(WITH_IMAGE_REDCODE)
@@ -1058,7 +1101,8 @@ if(CMAKE_COMPILER_IS_GNUCC)
 	ADD_CHECK_C_COMPILER_FLAG(C_WARNINGS C_WARN_ERROR_DECLARATION_AFTER_STATEMENT -Werror=declaration-after-statement)
 	ADD_CHECK_C_COMPILER_FLAG(C_WARNINGS C_WARN_ERROR_IMPLICIT_FUNCTION_DECLARATION -Werror=implicit-function-declaration)
 	ADD_CHECK_C_COMPILER_FLAG(C_WARNINGS C_WARN_ERROR_RETURN_TYPE -Werror=return-type)
-	ADD_CHECK_C_COMPILER_FLAG(C_WARNINGS C_WARN_ERROR_STRICT_PROTOTYPES -Werror=strict-prototypes)
+	# system headers sometimes do this, disable for now, was: -Werror=strict-prototypes
+	ADD_CHECK_C_COMPILER_FLAG(C_WARNINGS C_WARN_ERROR_STRICT_PROTOTYPES -Wstrict-prototypes)
 	ADD_CHECK_C_COMPILER_FLAG(C_WARNINGS C_WARN_NO_CHAR_SUBSCRIPTS -Wno-char-subscripts)
 	ADD_CHECK_C_COMPILER_FLAG(C_WARNINGS C_WARN_NO_UNKNOWN_PRAGMAS -Wno-unknown-pragmas)
 	ADD_CHECK_C_COMPILER_FLAG(C_WARNINGS C_WARN_POINTER_ARITH -Wpointer-arith)
@@ -1081,9 +1125,19 @@ elseif(CMAKE_C_COMPILER_ID MATCHES "Intel")
 
 endif()
 
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+	if(WITH_IK_ITASC OR WITH_MOD_FLUID)
+		message(WARNING "Using Clang as CXX compiler: disabling WITH_IK_ITASC and WITH_MOD_FLUID, these features will be missing.")
+		set(WITH_IK_ITASC OFF)
+		set(WITH_MOD_FLUID OFF)
+	endif()
+endif()
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${PLATFORM_CFLAGS} ${C_WARNINGS}")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${PLATFORM_CFLAGS} ${CXX_WARNINGS}")
+
+#-------------------------------------------------------------------------------
+# Global Defines
 
 # better not define flags here but this is a debugging option thats off by default.
 if(WITH_CXX_GUARDEDALLOC)
@@ -1115,3 +1169,7 @@ add_subdirectory(source/creator)
 if(WITH_PLAYER)
 	add_subdirectory(source/blenderplayer)
 endif()
+
+#-----------------------------------------------------------------------------
+# CPack for generating packages
+include(build_files/cmake/packaging.cmake)

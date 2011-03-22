@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -24,6 +24,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/editors/interface/interface.c
+ *  \ingroup edinterface
+ */
+
 
 #include <float.h>
 #include <limits.h>
@@ -80,17 +85,17 @@ static void ui_free_but(const bContext *C, uiBut *but);
 
 /* ************* translation ************** */
 
-int ui_translate_buttons()
+int ui_translate_buttons(void)
 {
 	return (U.transopts & USER_TR_BUTTONS);
 }
 
-int ui_translate_menus()
+int ui_translate_menus(void)
 {
 	return (U.transopts & USER_TR_MENUS);
 }
 
-int ui_translate_tooltips()
+int ui_translate_tooltips(void)
 {
 	return (U.transopts & USER_TR_TOOLTIPS);
 }
@@ -497,14 +502,47 @@ static int ui_but_equals_old(uiBut *but, uiBut *oldbut)
 	if(oldbut->func_arg1 != oldbut && but->func_arg1 != oldbut->func_arg1) return 0;
 	if(oldbut->func_arg2 != oldbut && but->func_arg2 != oldbut->func_arg2) return 0;
 	if(!but->funcN && ((but->poin != oldbut->poin && (uiBut*)oldbut->poin != oldbut) || but->pointype != oldbut->pointype)) return 0;
+	if(but->optype != oldbut->optype) return 0;
 
 	return 1;
 }
 
-static int ui_but_update_from_old_block(const bContext *C, uiBlock *block, uiBut *but)
+/* oldbut is being inserted in new block, so we use the lines from new button, and replace button pointers */
+static void ui_but_update_linklines(uiBlock *block, uiBut *oldbut, uiBut *newbut)
+{
+	uiLinkLine *line;
+	uiBut *but;
+	
+	/* if active button is LINK */
+	if(newbut->type==LINK && newbut->link) {
+		
+		SWAP(uiLink *, oldbut->link, newbut->link);
+		
+		for(line= oldbut->link->lines.first; line; line= line->next) {
+			if(line->to==newbut)
+				line->to= oldbut;
+			if(line->from==newbut)
+				line->from= oldbut;
+		}
+	}		
+	
+	/* check all other button links */
+	for(but= block->buttons.first; but; but= but->next) {
+		if(but!=newbut && but->type==LINK && but->link) {
+			for(line= but->link->lines.first; line; line= line->next) {
+				if(line->to==newbut)
+					line->to= oldbut;
+				if(line->from==newbut)
+					line->from= oldbut;
+			}
+		}
+	}
+}
+
+static int ui_but_update_from_old_block(const bContext *C, uiBlock *block, uiBut **butpp)
 {
 	uiBlock *oldblock;
-	uiBut *oldbut;
+	uiBut *oldbut, *but= *butpp;
 	int found= 0;
 
 	oldblock= block->oldblock;
@@ -515,35 +553,60 @@ static int ui_but_update_from_old_block(const bContext *C, uiBlock *block, uiBut
 		if(ui_but_equals_old(oldbut, but)) {
 			if(oldbut->active) {
 #if 0
-				but->flag= oldbut->flag;
+//				but->flag= oldbut->flag;
 #else
 				/* exception! redalert flag can't be update from old button. 
 				 * perhaps it should only copy spesific flags rather then all. */
-				but->flag= (oldbut->flag & ~UI_BUT_REDALERT) | (but->flag & UI_BUT_REDALERT);
+//				but->flag= (oldbut->flag & ~UI_BUT_REDALERT) | (but->flag & UI_BUT_REDALERT);
 #endif
-				but->active= oldbut->active;
-				but->pos= oldbut->pos;
-				but->ofs= oldbut->ofs;
-				but->editstr= oldbut->editstr;
-				but->editval= oldbut->editval;
-				but->editvec= oldbut->editvec;
-				but->editcoba= oldbut->editcoba;
-				but->editcumap= oldbut->editcumap;
-				but->selsta= oldbut->selsta;
-				but->selend= oldbut->selend;
-				but->softmin= oldbut->softmin;
-				but->softmax= oldbut->softmax;
-				but->linkto[0]= oldbut->linkto[0];
-				but->linkto[1]= oldbut->linkto[1];
+//				but->active= oldbut->active;
+//				but->pos= oldbut->pos;
+//				but->ofs= oldbut->ofs;
+//				but->editstr= oldbut->editstr;
+//				but->editval= oldbut->editval;
+//				but->editvec= oldbut->editvec;
+//				but->editcoba= oldbut->editcoba;
+//				but->editcumap= oldbut->editcumap;
+//				but->selsta= oldbut->selsta;
+//				but->selend= oldbut->selend;
+//				but->softmin= oldbut->softmin;
+//				but->softmax= oldbut->softmax;
+//				but->linkto[0]= oldbut->linkto[0];
+//				but->linkto[1]= oldbut->linkto[1];
 				found= 1;
-
-				oldbut->active= NULL;
+//				oldbut->active= NULL;
+			
+				/* move button over from oldblock to new block */
+				BLI_remlink(&oldblock->buttons, oldbut);
+				BLI_insertlink(&block->buttons, but, oldbut);
+				oldbut->block= block;
+				*butpp= oldbut;
+				
+				/* still stuff needs to be copied */
+				oldbut->x1= but->x1; oldbut->y1= but->y1;
+				oldbut->x2= but->x2; oldbut->y2= but->y2;
+				oldbut->context= but->context; /* set by Layout */
+				
+				/* typically the same pointers, but not on undo/redo */
+				/* XXX some menu buttons store button itself in but->poin. Ugly */
+				if(oldbut->poin != (char *)oldbut) {
+					SWAP(char *, oldbut->poin, but->poin)
+					SWAP(void *, oldbut->func_argN, but->func_argN)
+				}
+				
+				ui_but_update_linklines(block, oldbut, but);
+				
+				BLI_remlink(&block->buttons, but);
+				ui_free_but(C, but);
+				
+				/* note: if layout hasn't been applied yet, it uses old button pointers... */
 			}
-
-			/* ensures one button can get activated, and in case the buttons
-			 * draw are the same this gives O(1) lookup for each button */
-			BLI_remlink(&oldblock->buttons, oldbut);
-			ui_free_but(C, oldbut);
+			else {
+				/* ensures one button can get activated, and in case the buttons
+				 * draw are the same this gives O(1) lookup for each button */
+				BLI_remlink(&oldblock->buttons, oldbut);
+				ui_free_but(C, oldbut);
+			}
 			
 			break;
 		}
@@ -660,11 +723,11 @@ static void ui_menu_block_set_keyaccels(uiBlock *block)
 }
 
 
-void ui_menu_block_set_keymaps(const bContext *C, uiBlock *block)
+static void ui_menu_block_set_keymaps(const bContext *C, uiBlock *block)
 {
 	uiBut *but;
 	IDProperty *prop;
-	char buf[512], *butstr;
+	char buf[512];
 
 	/* only do it before bounding */
 	if(block->minx != block->maxx)
@@ -675,15 +738,10 @@ void ui_menu_block_set_keymaps(const bContext *C, uiBlock *block)
 			prop= (but->opptr)? but->opptr->data: NULL;
 
 			if(WM_key_event_operator_string(C, but->optype->idname, but->opcontext, prop, buf, sizeof(buf))) {
-				butstr= MEM_mallocN(strlen(but->str)+strlen(buf)+2, "menu_block_set_keymaps");
-				strcpy(butstr, but->str);
-				strcat(butstr, "|");
-				strcat(butstr, buf);
-
+				char *butstr_orig= BLI_strdup(but->str);
+				BLI_snprintf(but->strdata, sizeof(but->strdata), "%s|%s", butstr_orig, buf);
+				MEM_freeN(butstr_orig);
 				but->str= but->strdata;
-				BLI_strncpy(but->str, butstr, sizeof(but->strdata));
-				MEM_freeN(butstr);
-
 				ui_check_but(but);
 			}
 		}
@@ -700,7 +758,7 @@ void uiEndBlock(const bContext *C, uiBlock *block)
 	 * blocking, while still alowing buttons to be remade each redraw as it
 	 * is expected by blender code */
 	for(but=block->buttons.first; but; but=but->next) {
-		if(ui_but_update_from_old_block(C, block, but))
+		if(ui_but_update_from_old_block(C, block, &but))
 			ui_check_but(but);
 		
 		/* temp? Proper check for greying out */
@@ -856,15 +914,14 @@ void uiDrawBlock(const bContext *C, uiBlock *block)
 
 static void ui_is_but_sel(uiBut *but)
 {
-	double value;
-	int lvalue;
+	double value; /* only initialized when needed, to avoid calling when not used */
 	short push=0, true=1;
-
-	value= ui_get_but_val(but);
 
 	if(ELEM3(but->type, TOGN, ICONTOGN, OPTIONN)) true= 0;
 
 	if( but->bit ) {
+		int lvalue;
+		value= ui_get_but_val(but);
 		lvalue= (int)value;
 		if( BTST(lvalue, (but->bitnr)) ) push= true;
 		else push= !true;
@@ -885,15 +942,18 @@ static void ui_is_but_sel(uiBut *but)
 		case BUT_TOGDUAL:
 		case ICONTOG:
 		case OPTION:
+			value= ui_get_but_val(but);
 			if(value!=but->hardmin) push= 1;
 			break;
 		case ICONTOGN:
 		case TOGN:
 		case OPTIONN:
+			value= ui_get_but_val(but);
 			if(value==0.0) push= 1;
 			break;
 		case ROW:
 		case LISTROW:
+			value= ui_get_but_val(but);
 			/* support for rna enum buts */
 			if(but->rnaprop && (RNA_property_flag(but->rnaprop) & PROP_ENUM_FLAG)) {
 				if((int)value & (int)but->hardmax) push= 1;
@@ -915,40 +975,6 @@ static void ui_is_but_sel(uiBut *but)
 	else if(push==1) but->flag |= UI_SELECT;
 	else but->flag &= ~UI_SELECT;
 }
-
-/* XXX 2.50 no links supported yet */
-
-static int uibut_contains_pt(uiBut *UNUSED(but), short *UNUSED(mval))
-{
-	return 0;
-
-}
-
-uiBut *ui_get_valid_link_button(uiBlock *block, uiBut *but, short *mval)
-{
-	uiBut *bt;
-	
-		/* find button to link to */
-	for (bt= block->buttons.first; bt; bt= bt->next)
-		if(bt!=but && uibut_contains_pt(bt, mval))
-			break;
-
-	if (bt) {
-		if (but->type==LINK && bt->type==INLINK) {
-			if( but->link->tocode == (int)bt->hardmin ) {
-				return bt;
-			}
-		}
-		else if(but->type==INLINK && bt->type==LINK) {
-			if( bt->link->tocode == (int)but->hardmin ) {
-				return bt;
-			}
-		}
-	}
-
-	return NULL;
-}
-
 
 static uiBut *ui_find_inlink(uiBlock *block, void *poin)
 {
@@ -1069,166 +1095,6 @@ void ui_delete_linkline(uiLinkLine *line, uiBut *but)
 	MEM_freeN(line);
 	//REDRAW
 }
-/* XXX 2.50 no links supported yet */
-#if 0
-static void ui_delete_active_linkline(uiBlock *block)
-{
-	uiBut *but;
-	uiLink *link;
-	uiLinkLine *line, *nline;
-	int a, b;
-	
-	but= block->buttons.first;
-	while(but) {
-		if(but->type==LINK && but->link) {
-			line= but->link->lines.first;
-			while(line) {
-				
-				nline= line->next;
-				
-				if(line->flag & UI_SELECT) {
-					BLI_remlink(&but->link->lines, line);
-
-					link= line->from->link;
-
-					/* are there more pointers allowed? */
-					if(link->ppoin) {
-						
-						if(*(link->totlink)==1) {
-							*(link->totlink)= 0;
-							MEM_freeN(*(link->ppoin));
-							*(link->ppoin)= NULL;
-						}
-						else {
-							b= 0;
-							for(a=0; a< (*(link->totlink)); a++) {
-								
-								if( (*(link->ppoin))[a] != line->to->poin ) {
-									(*(link->ppoin))[b]= (*(link->ppoin))[a];
-									b++;
-								}
-							}	
-							(*(link->totlink))--;
-						}
-					}
-					else {
-						*(link->poin)= NULL;
-					}
-
-					MEM_freeN(line);
-				}
-				line= nline;
-			}
-		}
-		but= but->next;
-	}
-	
-	/* temporal! these buttons can be everywhere... */
-	allqueue(REDRAWBUTSLOGIC, 0);
-}
-
-static void ui_do_active_linklines(uiBlock *block, short *mval)
-{
-	uiBut *but;
-	uiLinkLine *line, *act= NULL;
-	float mindist= 12.0, fac, v1[2], v2[2], v3[3];
-	int foundone= 0; 
-	
-	if(mval) {
-		v1[0]= mval[0];
-		v1[1]= mval[1];
-		
-		/* find a line close to the mouse */
-		but= block->buttons.first;
-		while(but) {
-			if(but->type==LINK && but->link) {
-				foundone= 1;
-				line= but->link->lines.first;
-				while(line) {
-					v2[0]= line->from->x2;
-					v2[1]= (line->from->y1+line->from->y2)/2.0;
-					v3[0]= line->to->x1;
-					v3[1]= (line->to->y1+line->to->y2)/2.0;
-					
-					fac= dist_to_line_segment_v2(v1, v2, v3);
-					if(fac < mindist) {
-						mindist= fac;
-						act= line;
-					}
-					line= line->next;
-				}
-			}
-			but= but->next;
-		}
-	}
-
-	/* check for a 'found one' to prevent going to 'frontbuffer' mode.
-		this slows done gfx quite some, and at OSX the 'finish' forces a swapbuffer */
-	if(foundone) {
-		glDrawBuffer(GL_FRONT);
-		
-		/* draw */
-		but= block->buttons.first;
-		while(but) {
-			if(but->type==LINK && but->link) {
-				line= but->link->lines.first;
-				while(line) {
-					if(line==act) {
-						if((line->flag & UI_SELECT)==0) {
-							line->flag |= UI_SELECT;
-							ui_draw_linkline(line);
-						}
-					}
-					else if(line->flag & UI_SELECT) {
-						line->flag &= ~UI_SELECT;
-						ui_draw_linkline(line);
-					}
-					line= line->next;
-				}
-			}
-			but= but->next;
-		}
-		bglFlush();
-		glDrawBuffer(GL_BACK);
-	}
-}
-#endif
-
-/* ******************************************************* */
-
-/* XXX 2.50 no screendump supported yet */
-
-#if 0
-/* nasty but safe way to store screendump rect */
-static int scr_x=0, scr_y=0, scr_sizex=0, scr_sizey=0;
-
-static void ui_set_screendump_bbox(uiBlock *block)
-{
-	if(block) {
-		scr_x= block->minx;
-		scr_y= block->miny;
-		scr_sizex= block->maxx - block->minx;
-		scr_sizey= block->maxy - block->miny;
-	}
-	else {
-		scr_sizex= scr_sizey= 0;
-	}
-}
-
-/* used for making screenshots for menus, called in screendump.c */
-int uiIsMenu(int *x, int *y, int *sizex, int *sizey)
-{
-	if(scr_sizex!=0 && scr_sizey!=0) {
-		*x= scr_x;
-		*y= scr_y;
-		*sizex= scr_sizex;
-		*sizey= scr_sizey;
-		return 1;
-	}
-	
-	return 0;
-}
-#endif
 
 /* *********************** data get/set ***********************
  * this either works with the pointed to data, or can work with
@@ -1567,7 +1433,7 @@ static void ui_get_but_string_unit(uiBut *but, char *str, int len_max, double va
 	if(scene->unit.scale_length<0.0001) scene->unit.scale_length= 1.0; // XXX do_versions
 
 	/* Sanity checks */
-	if(precision>4)		precision= 4;
+	if(precision>7)		precision= 7;
 	else if(precision==0)	precision= 2;
 
 	bUnit_AsString(str, len_max, ui_get_but_scale_unit(but, value), precision, scene->unit.system, unit_type>>16, do_split, pad);
@@ -1655,6 +1521,10 @@ void ui_get_but_string(uiBut *but, char *str, int maxlen)
 				if(but->a2==1) BLI_snprintf(str, maxlen, "%.1f", value);
 				else if(but->a2==2) BLI_snprintf(str, maxlen, "%.2f", value);
 				else if(but->a2==3) BLI_snprintf(str, maxlen, "%.3f", value);
+				else if(but->a2==4) BLI_snprintf(str, maxlen, "%.4f", value);
+				else if(but->a2==5) BLI_snprintf(str, maxlen, "%.5f", value);
+				else if(but->a2==6) BLI_snprintf(str, maxlen, "%.6f", value);
+				else if(but->a2==7) BLI_snprintf(str, maxlen, "%.7f", value);
 				else BLI_snprintf(str, maxlen, "%.4f", value);
 			}
 			else
@@ -1762,11 +1632,13 @@ int ui_set_but_string(bContext *C, uiBut *but, const char *str)
 	return 0;
 }
 
-void ui_set_but_default(bContext *C, uiBut *but)
+void ui_set_but_default(bContext *C, uiBut *but, short all)
 {
 	/* if there is a valid property that is editable... */
 	if (but->rnapoin.data && but->rnaprop && RNA_property_editable(&but->rnapoin, but->rnaprop)) {
-		if(RNA_property_reset(&but->rnapoin, but->rnaprop, -1)) {
+		int index = (all)? -1 : but->rnaindex;
+		
+		if(RNA_property_reset(&but->rnapoin, but->rnaprop, index)) {
 			/* perform updates required for this property */
 			RNA_property_update(C, &but->rnapoin, but->rnaprop);
 		}
@@ -2118,6 +1990,10 @@ void ui_check_but(uiBut *but)
 				if(but->a2==1) sprintf(but->drawstr, "%s%.1f", but->str, value);
 				else if(but->a2==2) sprintf(but->drawstr, "%s%.2f", but->str, value);
 				else if(but->a2==3) sprintf(but->drawstr, "%s%.3f", but->str, value);
+				else if(but->a2==4) sprintf(but->drawstr, "%s%.4f", but->str, value);
+				else if(but->a2==5) sprintf(but->drawstr, "%s%.5f", but->str, value);
+				else if(but->a2==6) sprintf(but->drawstr, "%s%.6f", but->str, value);
+				else if(but->a2==7) sprintf(but->drawstr, "%s%.7f", but->str, value);
 				else sprintf(but->drawstr, "%s%.4f", but->str, value);
 			}
 			else {
@@ -2144,6 +2020,10 @@ void ui_check_but(uiBut *but)
 				if(but->a2==1) sprintf(but->drawstr, "%s%.1f", but->str, value);
 				else if(but->a2==2) sprintf(but->drawstr, "%s%.2f", but->str, value);
 				else if(but->a2==3) sprintf(but->drawstr, "%s%.3f", but->str, value);
+				else if(but->a2==4) sprintf(but->drawstr, "%s%.4f", but->str, value);
+				else if(but->a2==5) sprintf(but->drawstr, "%s%.5f", but->str, value);
+				else if(but->a2==6) sprintf(but->drawstr, "%s%.6f", but->str, value);
+				else if(but->a2==7) sprintf(but->drawstr, "%s%.7f", but->str, value);
 				else sprintf(but->drawstr, "%s%.4f", but->str, value);
 			}
 			else {
@@ -2162,8 +2042,7 @@ void ui_check_but(uiBut *but)
 
 			ui_get_but_string(but, str, UI_MAX_DRAW_STR-strlen(but->str));
 
-			strcpy(but->drawstr, but->str);
-			strcat(but->drawstr, str);
+			BLI_snprintf(but->drawstr, sizeof(but->drawstr), "%s%s", but->str, str);
 		}
 		break;
 	
@@ -2317,7 +2196,7 @@ static void ui_block_do_align_but(uiBut *first, int nr)
 						if(bt->next && bt->next->alignnr == nr && buts_are_horiz(bt, bt->next)==0 ) break; 
 						bt= bt->next;
 					}
-					if(bt==0 || bt->alignnr != nr) flag= UI_BUT_ALIGN_TOP|UI_BUT_ALIGN_RIGHT;
+					if(bt==NULL || bt->alignnr != nr) flag= UI_BUT_ALIGN_TOP|UI_BUT_ALIGN_RIGHT;
 				}
 			}
 			else flag |= UI_BUT_ALIGN_LEFT;
@@ -2508,7 +2387,7 @@ static uiBut *ui_def_but(uiBlock *block, int type, int retval, const char *str, 
 
 	/* keep track of UI_interface.h */
 	if(ELEM7(but->type, BLOCK, BUT, LABEL, PULLDOWN, ROUNDBOX, LISTBOX, BUTM));
-	else if(ELEM5(but->type, SCROLL, SEPR, LINK, INLINK, FTPREVIEW));
+	else if(ELEM3(but->type, SCROLL, SEPR, FTPREVIEW));
 	else if(but->type >= SEARCH_MENU);
 	else but->flag |= UI_BUT_UNDO;
 
@@ -2556,8 +2435,11 @@ static uiBut *ui_def_but_rna(uiBlock *block, int type, int retval, const char *s
 					else
 						BLI_dynstr_appendf(dynstr, "|%s %%x%d", item[i].name, item[i].value);
 
-					if(value == item[i].value)
+					if(value == item[i].value) {
 						icon= item[i].icon;
+						if(!tip)
+							tip= item[i].description;
+					}
 				}
 				str= BLI_dynstr_get_cstring(dynstr);
 				BLI_dynstr_free(dynstr);
@@ -3496,6 +3378,22 @@ void uiButSetSearchFunc(uiBut *but, uiButSearchFunc sfunc, void *arg, uiButHandl
 		if(but->drawstr[0])
 			ui_but_search_test(but);
 	}
+}
+
+/* push a new event onto event queue to activate the given button 
+ * (usually a text-field) upon entering a popup
+ */
+void uiButSetFocusOnEnter(wmWindow *win, uiBut *but)
+{
+	wmEvent event;
+	
+	event= *(win->eventstate);
+	event.type= EVT_BUT_OPEN;
+	event.val= KM_PRESS;
+	event.customdata= but;
+	event.customdatafree= FALSE;
+	
+	wm_event_add(win, &event);
 }
 
 /* Program Init/Exit */

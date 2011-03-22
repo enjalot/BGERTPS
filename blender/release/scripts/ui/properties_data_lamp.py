@@ -91,7 +91,7 @@ class DATA_PT_lamp(DataButtonsPanel, bpy.types.Panel):
         sub.prop(lamp, "color", text="")
         sub.prop(lamp, "energy")
 
-        if lamp.type in ('POINT', 'SPOT'):
+        if lamp.type in {'POINT', 'SPOT'}:
             sub.label(text="Falloff:")
             sub.prop(lamp, "falloff_type", text="")
             sub.prop(lamp, "distance")
@@ -195,7 +195,7 @@ class DATA_PT_shadow(DataButtonsPanel, bpy.types.Panel):
     def poll(cls, context):
         lamp = context.lamp
         engine = context.scene.render.engine
-        return (lamp and lamp.type in ('POINT', 'SUN', 'SPOT', 'AREA')) and (engine in cls.COMPAT_ENGINES)
+        return (lamp and lamp.type in {'POINT', 'SUN', 'SPOT', 'AREA'}) and (engine in cls.COMPAT_ENGINES)
 
     def draw(self, context):
         layout = self.layout
@@ -234,7 +234,7 @@ class DATA_PT_shadow(DataButtonsPanel, bpy.types.Panel):
             col = split.column()
             col.label(text="Sampling:")
 
-            if lamp.type in ('POINT', 'SUN', 'SPOT'):
+            if lamp.type in {'POINT', 'SUN', 'SPOT'}:
                 sub = col.row()
 
                 sub.prop(lamp, "shadow_ray_samples", text="Samples")
@@ -251,26 +251,21 @@ class DATA_PT_shadow(DataButtonsPanel, bpy.types.Panel):
 
             col.row().prop(lamp, "shadow_ray_sample_method", expand=True)
 
-            split = layout.split()
-            col = split.column()
-
             if lamp.shadow_ray_sample_method == 'ADAPTIVE_QMC':
-                col.prop(lamp, "shadow_adaptive_threshold", text="Threshold")
-                col = split.column()
+                layout.prop(lamp, "shadow_adaptive_threshold", text="Threshold")
 
             if lamp.type == 'AREA' and lamp.shadow_ray_sample_method == 'CONSTANT_JITTERED':
-                col = split.column()
-                col = split.column()
-                col.prop(lamp, "use_umbra")
-                col.prop(lamp, "use_dither")
-                col.prop(lamp, "use_jitter")
+                row = layout.row()
+                row.prop(lamp, "use_umbra")
+                row.prop(lamp, "use_dither")
+                row.prop(lamp, "use_jitter")
 
         elif lamp.shadow_method == 'BUFFER_SHADOW':
             col = layout.column()
             col.label(text="Buffer Type:")
             col.row().prop(lamp, "shadow_buffer_type", expand=True)
 
-            if lamp.shadow_buffer_type in ('REGULAR', 'HALFWAY', 'DEEP'):
+            if lamp.shadow_buffer_type in {'REGULAR', 'HALFWAY', 'DEEP'}:
                 split = layout.split()
 
                 col = split.column()
@@ -318,13 +313,11 @@ class DATA_PT_area(DataButtonsPanel, bpy.types.Panel):
         return (lamp and lamp.type == 'AREA') and (engine in cls.COMPAT_ENGINES)
 
     def draw(self, context):
+        layout = self.layout
+
         lamp = context.lamp
 
-        layout = self.layout
-        split = layout.split()
-
-        col = split.column()
-
+        col = layout.column()
         col.row().prop(lamp, "shape", expand=True)
         sub = col.row(align=True)
 
@@ -379,7 +372,7 @@ class DATA_PT_falloff_curve(DataButtonsPanel, bpy.types.Panel):
         lamp = context.lamp
         engine = context.scene.render.engine
 
-        return (lamp and lamp.type in ('POINT', 'SPOT') and lamp.falloff_type == 'CUSTOM_CURVE') and (engine in cls.COMPAT_ENGINES)
+        return (lamp and lamp.type in {'POINT', 'SPOT'} and lamp.falloff_type == 'CUSTOM_CURVE') and (engine in cls.COMPAT_ENGINES)
 
     def draw(self, context):
         lamp = context.lamp
@@ -394,11 +387,11 @@ class DATA_PT_custom_props_lamp(DataButtonsPanel, PropertyPanel, bpy.types.Panel
 
 
 def register():
-    pass
+    bpy.utils.register_module(__name__)
 
 
 def unregister():
-    pass
+    bpy.utils.unregister_module(__name__)
 
 if __name__ == "__main__":
     register()

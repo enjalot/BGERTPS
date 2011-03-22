@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -25,6 +25,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/blenkernel/intern/action.c
+ *  \ingroup bke
+ */
+
 
 #include <string.h>
 #include <math.h>
@@ -93,11 +98,11 @@ void make_local_action(bAction *act)
 	bAction *actn;
 	int local=0, lib=0;
 	
-	if (act->id.lib==0) return;
+	if (act->id.lib==NULL) return;
 	if (act->id.us==1) {
-		act->id.lib= 0;
+		act->id.lib= NULL;
 		act->id.flag= LIB_LOCAL;
-		new_id(0, (ID *)act, 0);
+		new_id(NULL, (ID *)act, NULL);
 		return;
 	}
 	
@@ -113,10 +118,10 @@ void make_local_action(bAction *act)
 #endif
 	
 	if(local && lib==0) {
-		act->id.lib= 0;
+		act->id.lib= NULL;
 		act->id.flag= LIB_LOCAL;
 		//make_local_action_channels(act);
-		new_id(0, (ID *)act, 0);
+		new_id(NULL, (ID *)act, NULL);
 	}
 	else if(local && lib) {
 		actn= copy_action(act);
@@ -424,7 +429,8 @@ bPoseChannel *verify_pose_channel(bPose *pose, const char *name)
 	
 	BLI_strncpy(chan->name, name, sizeof(chan->name));
 	/* init vars to prevent math errors */
-	chan->quat[0] = chan->rotAxis[1]= 1.0f;
+	unit_qt(chan->quat);
+	unit_axis_angle(chan->rotAxis, &chan->rotAngle);
 	chan->size[0] = chan->size[1] = chan->size[2] = 1.0f;
 	
 	chan->limitmin[0]= chan->limitmin[1]= chan->limitmin[2]= -180.0f;
@@ -861,7 +867,8 @@ void calc_action_range(const bAction *act, float *start, float *end, short incl_
 				float nmin, nmax;
 				
 				/* get extents for this curve */
-				calc_fcurve_range(fcu, &nmin, &nmax);
+				// TODO: allow enabling/disabling this?
+				calc_fcurve_range(fcu, &nmin, &nmax, FALSE);
 				
 				/* compare to the running tally */
 				min= MIN2(min, nmin);
@@ -967,6 +974,11 @@ short action_get_item_transforms (bAction *act, Object *ob, bPoseChannel *pchan,
 		bPtr= strstr(fcu->rna_path, basePath);
 		
 		if (bPtr) {
+			/* we must add len(basePath) bytes to the match so that we are at the end of the 
+			 * base path so that we don't get false positives with these strings in the names
+			 */
+			bPtr += strlen(basePath);
+			
 			/* step 2: check for some property with transforms 
 			 *	- to speed things up, only check for the ones not yet found 
 			 * 	  unless we're getting the curves too
@@ -975,8 +987,8 @@ short action_get_item_transforms (bAction *act, Object *ob, bPoseChannel *pchan,
 			 *	- once a match has been found, the curve cannot possibly be any other one
 			 */
 			if ((curves) || (flags & ACT_TRANS_LOC) == 0) {
-				pPtr= strstr(fcu->rna_path, "location");
-				if ((pPtr) && (pPtr >= bPtr)) {
+				pPtr= strstr(bPtr, "location");
+				if (pPtr) {
 					flags |= ACT_TRANS_LOC;
 					
 					if (curves) 
@@ -986,8 +998,8 @@ short action_get_item_transforms (bAction *act, Object *ob, bPoseChannel *pchan,
 			}
 			
 			if ((curves) || (flags & ACT_TRANS_SCALE) == 0) {
-				pPtr= strstr(fcu->rna_path, "scale");
-				if ((pPtr) && (pPtr >= bPtr)) {
+				pPtr= strstr(bPtr, "scale");
+				if (pPtr) {
 					flags |= ACT_TRANS_SCALE;
 					
 					if (curves) 
@@ -997,11 +1009,23 @@ short action_get_item_transforms (bAction *act, Object *ob, bPoseChannel *pchan,
 			}
 			
 			if ((curves) || (flags & ACT_TRANS_ROT) == 0) {
-				pPtr= strstr(fcu->rna_path, "rotation");
-				if ((pPtr) && (pPtr >= bPtr)) {
+				pPtr= strstr(bPtr, "rotation");
+				if (pPtr) {
 					flags |= ACT_TRANS_ROT;
 					
 					if (curves) 
+						BLI_addtail(curves, BLI_genericNodeN(fcu));
+					continue;
+				}
+			}
+			
+			if ((curves) || (flags & ACT_TRANS_PROP) == 0) {
+				/* custom properties only */
+				pPtr= strstr(bPtr, "[\""); /* extra '"' comment here to keep my texteditor functionlist working :) */  
+				if (pPtr) {
+					flags |= ACT_TRANS_PROP;
+					
+					if (curves)
 						BLI_addtail(curves, BLI_genericNodeN(fcu));
 					continue;
 				}
@@ -1041,7 +1065,6 @@ void extract_pose_from_pose(bPose *pose, const bPose *src)
 void rest_pose(bPose *pose)
 {
 	bPoseChannel *pchan;
-	int i;
 	
 	if (!pose)
 		return;
@@ -1050,16 +1073,12 @@ void rest_pose(bPose *pose)
 	memset(pose->cyclic_offset, 0, sizeof(pose->cyclic_offset));
 	
 	for (pchan=pose->chanbase.first; pchan; pchan= pchan->next) {
-		for (i=0; i<3; i++) {
-			pchan->loc[i]= 0.0f;
-			pchan->quat[i+1]= 0.0f;
-			pchan->eul[i]= 0.0f;
-			pchan->size[i]= 1.0f;
-			pchan->rotAxis[i]= 0.0f;
-		}
-		pchan->quat[0]= pchan->rotAxis[1]= 1.0f;
-		pchan->rotAngle= 0.0f;
-		
+		zero_v3(pchan->loc);
+		zero_v3(pchan->eul);
+		unit_qt(pchan->quat);
+		unit_axis_angle(pchan->rotAxis, &pchan->rotAngle);
+		pchan->size[0]= pchan->size[1]= pchan->size[2]= 1.0f;
+
 		pchan->flag &= ~(POSE_LOC|POSE_ROT|POSE_SIZE);
 	}
 }
@@ -1070,7 +1089,7 @@ void copy_pose_result(bPose *to, bPose *from)
 	bPoseChannel *pchanto, *pchanfrom;
 	
 	if(to==NULL || from==NULL) {
-		printf("pose result copy error to:%p from:%p\n", to, from); // debug temp
+		printf("pose result copy error to:%p from:%p\n", (void *)to, (void *)from); // debug temp
 		return;
 	}
 
@@ -1148,7 +1167,7 @@ void what_does_obaction (Scene *UNUSED(scene), Object *ob, Object *workob, bPose
 		animsys_evaluate_action_group(&id_ptr, act, agrp, NULL, cframe);
 	}
 	else {
-		AnimData adt= {0};
+		AnimData adt= {NULL};
 		
 		/* init animdata, and attach to workob */
 		workob->adt= &adt;

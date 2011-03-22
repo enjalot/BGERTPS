@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -24,6 +24,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/editors/space_sequencer/sequencer_edit.c
+ *  \ingroup spseq
+ */
+
 
 #include <stdlib.h>
 #include <math.h>
@@ -106,7 +111,7 @@ EnumPropertyItem prop_side_types[] = {
 	{0, NULL, 0, NULL, NULL}
 };
 
-EnumPropertyItem prop_side_lr_types[] = {
+static EnumPropertyItem prop_side_lr_types[] = {
 	{SEQ_SIDE_LEFT, "LEFT", 0, "Left", ""},
 	{SEQ_SIDE_RIGHT, "RIGHT", 0, "Right", ""},
 	{0, NULL, 0, NULL, NULL}
@@ -120,28 +125,6 @@ typedef struct TransSeq {
 	int final_left, final_right;
 	int len;
 } TransSeq;
-
-Sequence *get_foreground_frame_seq(Scene *scene, int frame)
-{
-	Editing *ed= seq_give_editing(scene, FALSE);
-	Sequence *seq, *best_seq=NULL;
-	int best_machine = -1;
-	
-	if(!ed) return NULL;
-	
-	for (seq=ed->seqbasep->first; seq; seq= seq->next) {
-		if(seq->flag & SEQ_MUTE || seq->startdisp > frame || seq->enddisp <= frame)
-			continue;
-		/* only use elements you can see - not */
-		if (ELEM5(seq->type, SEQ_IMAGE, SEQ_META, SEQ_SCENE, SEQ_MOVIE, SEQ_COLOR)) {
-			if (seq->machine > best_machine) {
-				best_seq = seq;
-				best_machine = seq->machine;
-			}
-		}
-	}
-	return best_seq;
-}
 
 void seq_rectf(Sequence *seq, rctf *rectf)
 {
@@ -205,7 +188,7 @@ void boundbox_seq(Scene *scene, rctf *rect)
 
 }
 
-int mouse_frame_side(View2D *v2d, short mouse_x, int frame ) 
+static int mouse_frame_side(View2D *v2d, short mouse_x, int frame ) 
 {
 	short mval[2];
 	float mouseloc[2];
@@ -252,7 +235,7 @@ Sequence *find_neighboring_sequence(Scene *scene, Sequence *test, int lr, int se
 	return NULL;
 }
 
-Sequence *find_next_prev_sequence(Scene *scene, Sequence *test, int lr, int sel) 
+static Sequence *find_next_prev_sequence(Scene *scene, Sequence *test, int lr, int sel) 
 {
 	/* sel - 0==unselected, 1==selected, -1==done care*/
 	Sequence *seq,*best_seq = NULL;
@@ -506,7 +489,7 @@ static void reload_image_strip(Scene *scene, char *UNUSED(name))
 }
 
 
-void change_sequence(Scene *scene)
+static void change_sequence(Scene *scene)
 {
 	Editing *ed= seq_give_editing(scene, FALSE);
 	Sequence *last_seq= seq_active_get(scene);
@@ -952,7 +935,7 @@ static int cut_seq_list(Scene *scene, ListBase *old, ListBase *new, int cutframe
 	return did_something;
 }
 
-int insert_gap(Scene *scene, int gap, int cfra)
+static int insert_gap(Scene *scene, int gap, int cfra)
 {
 	Sequence *seq;
 	Editing *ed= seq_give_editing(scene, FALSE);
@@ -974,7 +957,7 @@ int insert_gap(Scene *scene, int gap, int cfra)
 	return done;
 }
 
-void touch_seq_files(Scene *scene)
+static void touch_seq_files(Scene *scene)
 {
 	Sequence *seq;
 	Editing *ed= seq_give_editing(scene, FALSE);
@@ -1029,7 +1012,7 @@ static void set_filter_seq(Scene *scene)
 }
 */
 
-void seq_remap_paths(Scene *scene)
+static void seq_remap_paths(Scene *scene)
 {
 	Sequence *seq, *last_seq = seq_active_get(scene);
 	Editing *ed= seq_give_editing(scene, FALSE);
@@ -1060,8 +1043,7 @@ void seq_remap_paths(Scene *scene)
 				BLI_strncpy(stripped, seq->strip->dir + strlen(from), FILE_MAX);
 				
 				/* new path */
-				BLI_strncpy(seq->strip->dir, to, FILE_MAX);
-				strcat(seq->strip->dir, stripped);
+				BLI_snprintf(seq->strip->dir, sizeof(seq->strip->dir), "%s%s", to, stripped);
 				printf("new %s\n", seq->strip->dir);
 			}
 		}
@@ -1071,7 +1053,7 @@ void seq_remap_paths(Scene *scene)
 }
 
 
-void no_gaps(Scene *scene)
+static void no_gaps(Scene *scene)
 {
 	Editing *ed= seq_give_editing(scene, FALSE);
 	int cfra, first= 0, done;
@@ -1467,7 +1449,7 @@ static int sequencer_reassign_inputs_exec(bContext *C, wmOperator *op)
 	return OPERATOR_FINISHED;
 }
 
-int sequencer_effect_poll(bContext *C)
+static int sequencer_effect_poll(bContext *C)
 {
 	Scene *scene= CTX_data_scene(C);
 	Editing *ed= seq_give_editing(scene, FALSE);
@@ -2698,6 +2680,13 @@ static int sequencer_paste_exec(bContext *C, wmOperator *UNUSED(op))
 	if(ofs) {
 		for(iseq= nseqbase.first; iseq; iseq= iseq->next) {
 			seq_offset(scene, iseq, ofs);
+			/* XXX, ffmpeg too? */
+			if(iseq->sound) {
+				iseq->scene_sound = sound_add_scene_sound(scene, iseq, iseq->startdisp, iseq->enddisp, iseq->startofs + iseq->anim_startofs);
+			}
+			if(iseq->scene) {
+				sound_scene_add_scene_sound(scene, iseq, iseq->startdisp, iseq->enddisp, iseq->startofs + iseq->anim_startofs);
+			}
 		}
 	}
 

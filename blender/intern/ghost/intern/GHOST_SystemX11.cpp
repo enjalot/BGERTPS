@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  * ***** BEGIN GPL LICENSE BLOCK *****
  *
@@ -29,6 +29,11 @@
  * ***** END GPL LICENSE BLOCK *****
  */
 
+/** \file ghost/intern/GHOST_SystemX11.cpp
+ *  \ingroup GHOST
+ */
+
+
 #include "GHOST_SystemX11.h"
 #include "GHOST_WindowX11.h"
 #include "GHOST_WindowManager.h"
@@ -46,6 +51,10 @@
 #include <X11/Xatom.h>
 #include <X11/keysym.h>
 #include <X11/XKBlib.h> /* allow detectable autorepeate */
+
+#ifdef WITH_XF86KEYSYM
+#include <X11/XF86keysym.h>
+#endif
 
 #ifdef __sgi
 
@@ -1156,6 +1165,16 @@ convertXKey(
 			GXMAP(type,XK_KP_Subtract,	GHOST_kKeyNumpadMinus);
 			GXMAP(type,XK_KP_Multiply,	GHOST_kKeyNumpadAsterisk);
 			GXMAP(type,XK_KP_Divide,	GHOST_kKeyNumpadSlash);
+
+			/* Media keys in some keyboards and laptops with XFree86/Xorg */
+#ifdef WITH_XF86KEYSYM
+			GXMAP(type,XF86XK_AudioPlay,    GHOST_kKeyMediaPlay);
+			GXMAP(type,XF86XK_AudioStop,    GHOST_kKeyMediaStop);
+			GXMAP(type,XF86XK_AudioPrev,    GHOST_kKeyMediaFirst);
+			GXMAP(type,XF86XK_AudioRewind,  GHOST_kKeyMediaFirst);
+			GXMAP(type,XF86XK_AudioNext,    GHOST_kKeyMediaLast);
+			GXMAP(type,XF86XK_AudioForward, GHOST_kKeyMediaLast);
+#endif
 
 				/* some extra sun cruft (NICE KEYBOARD!) */
 #ifdef __sun__

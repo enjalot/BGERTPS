@@ -1,6 +1,4 @@
-/**
- * blenkernel/DNA_userdef_types.h (mar-2001 nzc)
- *
+/*
  *	$Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -31,6 +29,12 @@
 
 #ifndef DNA_USERDEF_TYPES_H
 #define DNA_USERDEF_TYPES_H
+/** \file DNA_userdef_types.h
+ *  \ingroup DNA
+ *  \since mar-2001
+ *  \author nzc
+ *
+ */
 
 #include "DNA_listBase.h"
 #include "DNA_texture_types.h" /* ColorBand */
@@ -215,8 +219,8 @@ typedef struct ThemeSpace {
 	char console_output[4], console_input[4], console_info[4], console_error[4];
 	char console_cursor[4];
 	
-	char vertex_size, facedot_size;
-	char bpad[2];
+	char vertex_size, outline_width, facedot_size;
+	char bpad;
 
 	char syntaxl[4], syntaxn[4], syntaxb[4]; // syntax for textwindow and nodes
 	char syntaxv[4], syntaxc[4];
@@ -492,9 +496,9 @@ extern UserDef U; /* from blenkernel blender.c */
 #define		AUTOKEY_FLAG_INSERTNEEDED	(1<<1)
 #define		AUTOKEY_FLAG_AUTOMATKEY		(1<<2)
 #define		AUTOKEY_FLAG_XYZ2RGB		(1<<3)
-	/* U.autokey_flag (strictly autokeying only) */
+
+/* toolsettings->autokey_flag */
 #define 	AUTOKEY_FLAG_ONLYKEYINGSET	(1<<6)
-	/* toolsettings->autokey_flag */
 #define 	ANIMRECORD_FLAG_WITHNLA		(1<<10)
 
 /* transopts */

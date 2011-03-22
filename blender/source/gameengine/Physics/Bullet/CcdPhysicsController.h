@@ -13,6 +13,10 @@ subject to the following restrictions:
 3. This notice may not be removed or altered from any source distribution.
 */
 
+/** \file CcdPhysicsController.h
+ *  \ingroup physbullet
+ */
+
 
 #ifndef BULLET2_PHYSICSCONTROLLER_H
 #define BULLET2_PHYSICSCONTROLLER_H
@@ -573,6 +577,10 @@ protected:
 			return m_parentCtrl;
 		}
 
+		virtual const char* getName()
+		{
+			return 0;
+		}
 
 #ifdef WITH_CXX_GUARDEDALLOC
 public:
