@@ -42,13 +42,13 @@ class VIEW3D_HT_header(bpy.types.Header):
             sub.menu("VIEW3D_MT_view")
 
             # Select Menu
-            if mode_string not in ('EDIT_TEXT', 'SCULPT', 'PAINT_WEIGHT', 'PAINT_VERTEX', 'PAINT_TEXTURE'):
+            if mode_string not in {'EDIT_TEXT', 'SCULPT', 'PAINT_WEIGHT', 'PAINT_VERTEX', 'PAINT_TEXTURE'}:
                 sub.menu("VIEW3D_MT_select_%s" % mode_string.lower())
 
             if edit_object:
                 sub.menu("VIEW3D_MT_edit_%s" % edit_object.type.lower())
             elif obj:
-                if mode_string not in ('PAINT_TEXTURE'):
+                if mode_string not in {'PAINT_TEXTURE'}:
                     sub.menu("VIEW3D_MT_%s" % mode_string.lower())
             else:
                 sub.menu("VIEW3D_MT_object")
@@ -71,11 +71,11 @@ class VIEW3D_HT_header(bpy.types.Header):
                 row.prop(toolsettings.particle_edit, "select_mode", text="", expand=True, toggle=True)
 
             # Occlude geometry
-            if view.viewport_shade in ('SOLID', 'SHADED', 'TEXTURED') and (obj.mode == 'PARTICLE_EDIT' or (obj.mode == 'EDIT' and obj.type == 'MESH')):
+            if view.viewport_shade in {'SOLID', 'SHADED', 'TEXTURED'} and (obj.mode == 'PARTICLE_EDIT' or (obj.mode == 'EDIT' and obj.type == 'MESH')):
                 row.prop(view, "use_occlude_geometry", text="")
 
             # Proportional editing
-            if obj.mode in ('EDIT', 'PARTICLE_EDIT'):
+            if obj.mode in {'EDIT', 'PARTICLE_EDIT'}:
                 row = layout.row(align=True)
                 row.prop(toolsettings, "proportional_edit", text="", icon_only=True)
                 if toolsettings.proportional_edit != 'DISABLED':
@@ -160,7 +160,7 @@ class VIEW3D_MT_transform(bpy.types.Menu):
         layout.separator()
 
         obj = context.object
-        if obj.type == 'ARMATURE' and obj.mode in ('EDIT', 'POSE') and obj.data.draw_type in ('BBONE', 'ENVELOPE'):
+        if obj.type == 'ARMATURE' and obj.mode in {'EDIT', 'POSE'} and obj.data.draw_type in {'BBONE', 'ENVELOPE'}:
             layout.operator("transform.transform", text="Scale Envelope/BBone").mode = 'BONE_SIZE'
 
         if context.edit_object and context.edit_object.type == 'ARMATURE':
@@ -317,16 +317,17 @@ class VIEW3D_MT_view_navigation(bpy.types.Menu):
     def draw(self, context):
         layout = self.layout
 
-        layout.operator_enums("view3d.view_orbit", "type")
+        layout.operator_enum("view3d.view_orbit", "type")
 
         layout.separator()
 
-        layout.operator_enums("view3d.view_pan", "type")
+        layout.operator_enum("view3d.view_pan", "type")
 
         layout.separator()
 
         layout.operator("view3d.zoom", text="Zoom In").delta = 1
         layout.operator("view3d.zoom", text="Zoom Out").delta = -1
+        layout.operator("view3d.zoom_camera_1_to_1", text="Zoom Camera 1:1")
 
         layout.separator()
 
@@ -425,6 +426,7 @@ class VIEW3D_MT_select_pose(bpy.types.Menu):
 
         layout.operator("pose.select_all", text="Select/Deselect All")
         layout.operator("pose.select_inverse", text="Inverse")
+        layout.operator("pose.select_flip_active", text="Flip Active")
         layout.operator("pose.select_constraint_target", text="Constraint Target")
         layout.operator("pose.select_linked", text="Linked")
 
@@ -647,10 +649,11 @@ class VIEW3D_MT_select_face(bpy.types.Menu):  # XXX no matching enum
     bl_label = "Select"
 
     def draw(self, context):
-        layout = self.layout
+        # layout = self.layout
 
         # TODO
         # see view3d_select_faceselmenu
+        pass
 
 # ********** Object menu **********
 
@@ -763,7 +766,7 @@ class VIEW3D_MT_object_specials(bpy.types.Menu):
                 props.data_path_item = "data.dof_distance"
                 props.input_scale = 0.02
 
-        if obj.type in ('CURVE', 'FONT'):
+        if obj.type in {'CURVE', 'FONT'}:
             layout.operator_context = 'INVOKE_REGION_WIN'
 
             props = layout.operator("wm.context_modal_mouse", text="Extrude Size")
@@ -791,7 +794,7 @@ class VIEW3D_MT_object_specials(bpy.types.Menu):
             props.data_path_iter = "selected_editable_objects"
             props.data_path_item = "data.energy"
 
-            if obj.data.type in ('SPOT', 'AREA', 'POINT'):
+            if obj.data.type in {'SPOT', 'AREA', 'POINT'}:
                 props = layout.operator("wm.context_modal_mouse", text="Falloff Distance")
                 props.data_path_iter = "selected_editable_objects"
                 props.data_path_item = "data.distance"
@@ -932,7 +935,7 @@ class VIEW3D_MT_make_links(bpy.types.Menu):
             layout.operator_menu_enum("object.make_links_scene", "scene", text="Objects to Scene...")
             layout.operator_menu_enum("marker.make_links_scene", "scene", text="Markers to Scene...")
 
-        layout.operator_enums("object.make_links_data", "type")  # inline
+        layout.operator_enum("object.make_links_data", "type")  # inline
 
 
 class VIEW3D_MT_object_game(bpy.types.Menu):
@@ -1070,12 +1073,9 @@ class VIEW3D_MT_sculpt(bpy.types.Menu):
         sculpt_tool = brush.sculpt_tool
 
         if sculpt_tool != 'GRAB':
-            layout.prop(brush, "use_airbrush")
+            layout.prop_menu_enum(brush, "stroke_method")
 
-            if sculpt_tool != 'LAYER':
-                layout.prop(brush, "use_anchor")
-
-            if sculpt_tool in ('DRAW', 'PINCH', 'INFLATE', 'LAYER', 'CLAY'):
+            if sculpt_tool in {'DRAW', 'PINCH', 'INFLATE', 'LAYER', 'CLAY'}:
                 layout.prop_menu_enum(brush, "direction")
 
             if sculpt_tool == 'LAYER':
@@ -1153,8 +1153,6 @@ class VIEW3D_MT_pose(bpy.types.Menu):
 
     def draw(self, context):
         layout = self.layout
-
-        arm = context.active_object.data
 
         layout.operator("ed.undo")
         layout.operator("ed.redo")
@@ -1450,7 +1448,7 @@ class VIEW3D_OT_edit_mesh_extrude_individual_move(bpy.types.Operator):
 
         totface = mesh.total_face_sel
         totedge = mesh.total_edge_sel
-        totvert = mesh.total_vert_sel
+        # totvert = mesh.total_vert_sel
 
         if select_mode[2] and totface == 1:
             bpy.ops.mesh.extrude_region_move('INVOKE_REGION_WIN', TRANSFORM_OT_translate={"constraint_orientation": 'NORMAL', "constraint_axis": (False, False, True)})
@@ -1478,7 +1476,7 @@ class VIEW3D_OT_edit_mesh_extrude_move(bpy.types.Operator):
 
         totface = mesh.total_face_sel
         totedge = mesh.total_edge_sel
-        totvert = mesh.total_vert_sel
+        # totvert = mesh.total_vert_sel
 
         if totface >= 1:
             bpy.ops.mesh.extrude_region_move('INVOKE_REGION_WIN', TRANSFORM_OT_translate={"constraint_orientation": 'NORMAL', "constraint_axis": (False, False, True)})
@@ -1510,6 +1508,8 @@ class VIEW3D_MT_edit_mesh_vertices(bpy.types.Menu):
 
         layout.operator("mesh.vertices_smooth")
         layout.operator("mesh.remove_doubles")
+        layout.operator("mesh.vertices_sort")
+        layout.operator("mesh.vertices_randomize")
 
         layout.operator("mesh.select_vertex_path")
 
@@ -1938,8 +1938,7 @@ class VIEW3D_MT_edit_armature_roll(bpy.types.Menu):
     def draw(self, context):
         layout = self.layout
 
-        layout.operator("armature.calculate_roll", text="Recalculate with Z-Axis Up").type = 'GLOBALUP'
-        layout.operator("armature.calculate_roll", text="Recalculate with Z-Axis to Cursor").type = 'CURSOR'
+        layout.operator_menu_enum("armature.calculate_roll", "type")
 
         layout.separator()
 
@@ -1962,7 +1961,6 @@ class VIEW3D_PT_view3d_properties(bpy.types.Panel):
         layout = self.layout
 
         view = context.space_data
-        scene = context.scene
 
         col = layout.column()
         col.active = view.region_3d.view_perspective != 'CAMERA'
@@ -2004,7 +2002,7 @@ class VIEW3D_PT_view3d_name(bpy.types.Panel):
         row.label(text="", icon='OBJECT_DATA')
         row.prop(ob, "name", text="")
 
-        if ob.type == 'ARMATURE' and ob.mode in ('EDIT', 'POSE'):
+        if ob.type == 'ARMATURE' and ob.mode in {'EDIT', 'POSE'}:
             bone = context.active_bone
             if bone:
                 row = layout.row()
@@ -2306,11 +2304,11 @@ class VIEW3D_PT_context_properties(bpy.types.Panel):
 
 
 def register():
-    pass
+    bpy.utils.register_module(__name__)
 
 
 def unregister():
-    pass
+    bpy.utils.unregister_module(__name__)
 
 if __name__ == "__main__":
     register()

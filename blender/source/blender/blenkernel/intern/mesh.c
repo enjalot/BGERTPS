@@ -29,6 +29,11 @@
  * ***** END GPL LICENSE BLOCK *****
  */
 
+/** \file blender/blenkernel/intern/mesh.c
+ *  \ingroup bke
+ */
+
+
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -98,11 +103,11 @@ void unlink_mesh(Mesh *me)
 {
 	int a;
 	
-	if(me==0) return;
+	if(me==NULL) return;
 	
 	for(a=0; a<me->totcol; a++) {
 		if(me->mat[a]) me->mat[a]->id.us--;
-		me->mat[a]= 0;
+		me->mat[a]= NULL;
 	}
 
 	if(me->key) {
@@ -110,9 +115,9 @@ void unlink_mesh(Mesh *me)
 		if (me->key->id.us == 0 && me->key->ipo )
 			me->key->ipo->id.us--;
 	}
-	me->key= 0;
+	me->key= NULL;
 	
-	if(me->texcomesh) me->texcomesh= 0;
+	if(me->texcomesh) me->texcomesh= NULL;
 }
 
 
@@ -255,9 +260,9 @@ void make_local_tface(Mesh *me)
 				if(tface->tpage) {
 					ima= tface->tpage;
 					if(ima->id.lib) {
-						ima->id.lib= 0;
+						ima->id.lib= NULL;
 						ima->id.flag= LIB_LOCAL;
-						new_id(0, (ID *)ima, 0);
+						new_id(NULL, (ID *)ima, NULL);
 					}
 				}
 			}
@@ -277,11 +282,11 @@ void make_local_mesh(Mesh *me)
 		* - mixed: make copy
 		*/
 	
-	if(me->id.lib==0) return;
+	if(me->id.lib==NULL) return;
 	if(me->id.us==1) {
-		me->id.lib= 0;
+		me->id.lib= NULL;
 		me->id.flag= LIB_LOCAL;
-		new_id(0, (ID *)me, 0);
+		new_id(NULL, (ID *)me, NULL);
 		
 		if(me->mtface) make_local_tface(me);
 		
@@ -298,9 +303,9 @@ void make_local_mesh(Mesh *me)
 	}
 	
 	if(local && lib==0) {
-		me->id.lib= 0;
+		me->id.lib= NULL;
 		me->id.flag= LIB_LOCAL;
-		new_id(0, (ID *)me, 0);
+		new_id(NULL, (ID *)me, NULL);
 		
 		if(me->mtface) make_local_tface(me);
 		
@@ -312,7 +317,7 @@ void make_local_mesh(Mesh *me)
 		ob= bmain->object.first;
 		while(ob) {
 			if( me==get_mesh(ob) ) {				
-				if(ob->id.lib==0) {
+				if(ob->id.lib==NULL) {
 					set_mesh(ob, men);
 				}
 			}
@@ -327,7 +332,7 @@ void boundbox_mesh(Mesh *me, float *loc, float *size)
 	float min[3], max[3];
 	float mloc[3], msize[3];
 	
-	if(me->bb==0) me->bb= MEM_callocN(sizeof(BoundBox), "boundbox");
+	if(me->bb==NULL) me->bb= MEM_callocN(sizeof(BoundBox), "boundbox");
 	bb= me->bb;
 
 	if (!loc) loc= mloc;
@@ -444,7 +449,7 @@ int test_index_face(MFace *mface, CustomData *fdata, int mfindex, int nr)
 		mface->v4= 0;
 		nr--;
 	}
-	if(mface->v2 && mface->v2==mface->v3) {
+	if((mface->v2 || mface->v4) && mface->v2==mface->v3) {
 		mface->v3= mface->v4;
 		mface->v4= 0;
 		nr--;
@@ -454,6 +459,32 @@ int test_index_face(MFace *mface, CustomData *fdata, int mfindex, int nr)
 		mface->v3= mface->v4;
 		mface->v4= 0;
 		nr--;
+	}
+
+	/* check corrupt cases, bowtie geometry, cant handle these because edge data wont exist so just return 0 */
+	if(nr==3) {
+		if(
+		/* real edges */
+			mface->v1==mface->v2 ||
+			mface->v2==mface->v3 ||
+			mface->v3==mface->v1
+		) {
+			return 0;
+		}
+	}
+	else if(nr==4) {
+		if(
+		/* real edges */
+			mface->v1==mface->v2 ||
+			mface->v2==mface->v3 ||
+			mface->v3==mface->v4 ||
+			mface->v4==mface->v1 ||
+		/* across the face */
+			mface->v1==mface->v3 ||
+			mface->v2==mface->v4
+		) {
+			return 0;
+		}
 	}
 
 	/* prevent a zero at wrong index location */
@@ -486,18 +517,18 @@ int test_index_face(MFace *mface, CustomData *fdata, int mfindex, int nr)
 Mesh *get_mesh(Object *ob)
 {
 	
-	if(ob==0) return 0;
+	if(ob==NULL) return NULL;
 	if(ob->type==OB_MESH) return ob->data;
-	else return 0;
+	else return NULL;
 }
 
 void set_mesh(Object *ob, Mesh *me)
 {
-	Mesh *old=0;
+	Mesh *old=NULL;
 
 	multires_force_update(ob);
 	
-	if(ob==0) return;
+	if(ob==NULL) return;
 	
 	if(ob->type==OB_MESH) {
 		old= ob->data;
@@ -678,6 +709,23 @@ void mesh_strip_loose_faces(Mesh *me)
 	me->totface = b;
 }
 
+void mesh_strip_loose_edges(Mesh *me)
+{
+	int a,b;
+
+	for (a=b=0; a<me->totedge; a++) {
+		if (me->medge[a].v1!=me->medge[a].v2) {
+			if (a!=b) {
+				memcpy(&me->medge[b],&me->medge[a],sizeof(me->medge[b]));
+				CustomData_copy_data(&me->edata, &me->edata, a, b, 1);
+				CustomData_free_elem(&me->edata, a, 1);
+			}
+			b++;
+		}
+	}
+	me->totedge = b;
+}
+
 void mball_to_mesh(ListBase *lb, Mesh *me)
 {
 	DispList *dl;
@@ -687,7 +735,7 @@ void mball_to_mesh(ListBase *lb, Mesh *me)
 	int a, *index;
 	
 	dl= lb->first;
-	if(dl==0) return;
+	if(dl==NULL) return;
 
 	if(dl->type==DL_INDEX4) {
 		me->totvert= dl->nr;
@@ -789,7 +837,7 @@ int nurbs_to_mdata_customdb(Object *ob, ListBase *dispbase, MVert **allvert, int
 	}
 
 	*allvert= mvert= MEM_callocN(sizeof (MVert) * totvert, "nurbs_init mvert");
-	*allface= mface= MEM_callocN(sizeof (MVert) * totvert, "nurbs_init mface");
+	*allface= mface= MEM_callocN(sizeof (MVert) * totvlak, "nurbs_init mface");
 
 	/* verts and faces */
 	vertcount= 0;
@@ -980,7 +1028,7 @@ void nurbs_to_mesh(Object *ob)
 
 	tex_space_mesh(me);
 
-	cu->mat= 0;
+	cu->mat= NULL;
 	cu->totcol= 0;
 
 	if(ob->data) {
@@ -1230,26 +1278,42 @@ void mesh_calc_normals(MVert *mverts, int numVerts, MFace *mfaces, int numFaces,
 	float *fnors= MEM_callocN(sizeof(*fnors)*3*numFaces, "meshnormals");
 	int i;
 
-	for (i=0; i<numFaces; i++) {
+	for(i=0; i<numFaces; i++) {
 		MFace *mf= &mfaces[i];
 		float *f_no= &fnors[i*3];
 
-		if (mf->v4)
-			normal_quad_v3( f_no,mverts[mf->v1].co, mverts[mf->v2].co, mverts[mf->v3].co, mverts[mf->v4].co);
+		if(mf->v4)
+			normal_quad_v3(f_no, mverts[mf->v1].co, mverts[mf->v2].co, mverts[mf->v3].co, mverts[mf->v4].co);
 		else
-			normal_tri_v3( f_no,mverts[mf->v1].co, mverts[mf->v2].co, mverts[mf->v3].co);
-		
-		add_v3_v3(tnorms[mf->v1], f_no);
-		add_v3_v3(tnorms[mf->v2], f_no);
-		add_v3_v3(tnorms[mf->v3], f_no);
-		if (mf->v4)
-			add_v3_v3(tnorms[mf->v4], f_no);
+			normal_tri_v3(f_no, mverts[mf->v1].co, mverts[mf->v2].co, mverts[mf->v3].co);
+
+		if((mf->flag&ME_SMOOTH)!=0) {
+			float *n4 = (mf->v4)? tnorms[mf->v4]: NULL;
+			float *c4 = (mf->v4)? mverts[mf->v4].co: NULL;
+
+			accumulate_vertex_normals(tnorms[mf->v1], tnorms[mf->v2], tnorms[mf->v3], n4,
+				f_no, mverts[mf->v1].co, mverts[mf->v2].co, mverts[mf->v3].co, c4);
+		}
 	}
-	for (i=0; i<numVerts; i++) {
+
+	for(i=0; i<numFaces; i++) {
+		MFace *mf= &mfaces[i];
+
+		if((mf->flag&ME_SMOOTH)==0) {
+			float *f_no= &fnors[i*3];
+			if(is_zero_v3(tnorms[mf->v1])) copy_v3_v3(tnorms[mf->v1], f_no);
+			if(is_zero_v3(tnorms[mf->v2])) copy_v3_v3(tnorms[mf->v2], f_no);
+			if(is_zero_v3(tnorms[mf->v3])) copy_v3_v3(tnorms[mf->v3], f_no);
+			if(mf->v4 && is_zero_v3(tnorms[mf->v4])) copy_v3_v3(tnorms[mf->v4], f_no);
+		}
+	}
+
+	/* following Mesh convention; we use vertex coordinate itself for normal in this case */
+	for(i=0; i<numVerts; i++) {
 		MVert *mv= &mverts[i];
 		float *no= tnorms[i];
 		
-		if (normalize_v3(no)==0.0)
+		if(normalize_v3(no) == 0.0f)
 			normalize_v3_v3(no, mv->co);
 
 		normal_float_to_short_v3(mv->no, no);
@@ -1257,11 +1321,10 @@ void mesh_calc_normals(MVert *mverts, int numVerts, MFace *mfaces, int numFaces,
 	
 	MEM_freeN(tnorms);
 
-	if (faceNors_r) {
+	if(faceNors_r)
 		*faceNors_r = fnors;
-	} else {
+	else
 		MEM_freeN(fnors);
-	}
 }
 
 float (*mesh_getVertexCos(Mesh *me, int *numVerts_r))[3]
@@ -1513,7 +1576,10 @@ int mesh_center_median(Mesh *me, float cent[3])
 	for(mvert= me->mvert; i--; mvert++) {
 		add_v3_v3(cent, mvert->co);
 	}
-	mul_v3_fl(cent, 1.0f/(float)me->totvert);
+	/* otherwise we get NAN for 0 verts */
+	if(me->totvert) {
+		mul_v3_fl(cent, 1.0f/(float)me->totvert);
+	}
 
 	return (me->totvert != 0);
 }

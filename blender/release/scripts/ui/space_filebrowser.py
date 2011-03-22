@@ -43,7 +43,7 @@ class FILEBROWSER_HT_header(bpy.types.Header):
         row.separator()
 
         row = layout.row(align=True)
-        row.operator("file.directory_new", text="", icon='NEWFOLDER')
+        row.operator("file.directory_new", icon='NEWFOLDER')
 
         params = st.params
 
@@ -75,11 +75,11 @@ class FILEBROWSER_HT_header(bpy.types.Header):
 
 
 def register():
-    pass
+    bpy.utils.register_module(__name__)
 
 
 def unregister():
-    pass
+    bpy.utils.unregister_module(__name__)
 
 if __name__ == "__main__":
     register()

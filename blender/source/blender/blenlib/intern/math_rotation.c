@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -25,6 +25,11 @@
  * ***** END GPL LICENSE BLOCK *****
  * */
 
+/** \file blender/blenlib/intern/math_rotation.c
+ *  \ingroup bli
+ */
+
+
 
 #include <assert.h>
 #include "BLI_math.h"
@@ -34,7 +39,17 @@
 /* used to test is a quat is not normalized */
 #define QUAT_EPSILON 0.0001
 
-void unit_qt(float *q)
+/* convenience, avoids setting Y axis everywhere */
+void unit_axis_angle(float axis[3], float *angle)
+{
+	axis[0]= 0.0f;
+	axis[1]= 1.0f;
+	axis[2]= 0.0f;
+	*angle= 0.0f;
+}
+
+
+void unit_qt(float q[4])
 {
 	q[0]= 1.0f;
 	q[1]= q[2]= q[3]= 0.0f;
@@ -620,7 +635,7 @@ void tri_to_quat(float quat[4], const float v1[3], const float v2[3], const floa
 	mul_qt_qtqt(quat, q1, q2);
 }
 
-void print_qt(char *str,  float q[4])
+void print_qt(const char *str,  const float q[4])
 {
 	printf("%s: %.3f %.3f %.3f %.3f\n", str, q[0], q[1], q[2], q[3]);
 }
@@ -1248,7 +1263,7 @@ void eulO_to_mat4(float M[4][4], const float e[3], const short order)
 
 
 /* Convert 3x3 matrix to Euler angles (in radians). */
-void mat3_to_eulO(float eul[3], short order,float M[3][3])
+void mat3_to_eulO(float eul[3], const short order,float M[3][3])
 {
 	float eul1[3], eul2[3];
 	
@@ -1421,7 +1436,7 @@ void mat4_to_dquat(DualQuat *dq,float basemat[][4], float mat[][4])
 		mul_m4_m4m4(S, baseRS, baseRinv);
 
 		/* set scaling part */
-		mul_serie_m4(dq->scale, basemat, S, baseinv, 0, 0, 0, 0, 0);
+		mul_serie_m4(dq->scale, basemat, S, baseinv, NULL, NULL, NULL, NULL, NULL);
 		dq->scale_weight= 1.0f;
 	}
 	else {

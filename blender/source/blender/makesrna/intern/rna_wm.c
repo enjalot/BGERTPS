@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -21,6 +21,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/makesrna/intern/rna_wm.c
+ *  \ingroup RNA
+ */
+
 
 #include <stdlib.h>
 
@@ -240,6 +245,11 @@ EnumPropertyItem event_type_items[] = {
 	{PAGEUPKEY, "PAGE_UP", 0, "Page Up", ""},
 	{PAGEDOWNKEY, "PAGE_DOWN", 0, "Page Down", ""},
 	{ENDKEY, "END", 0, "End", ""},
+	{0, "", 0, NULL, NULL},
+	{MEDIAPLAY, "MEDIA_PLAY", 0, "Media Play/Pause", ""},
+	{MEDIASTOP, "MEDIA_STOP", 0, "Media Stop", ""},
+	{MEDIAFIRST, "MEDIA_FIRST", 0, "Media First", ""},
+	{MEDIALAST, "MEDIA_LAST", 0, "Media Last", ""},
 	{0, "", 0, NULL, NULL},
 	{WINDEACTIVATE, "WINDOW_DEACTIVATE", 0, "Window Deactivate", ""},
 	{TIMER, "TIMER", 0, "Timer", ""},
@@ -818,6 +828,30 @@ static void operator_draw(bContext *C, wmOperator *op)
 	RNA_parameter_list_free(&list);
 }
 
+/* same as exec(), but call cancel */
+static int operator_cancel(bContext *C, wmOperator *op)
+{
+	PointerRNA opr;
+	ParameterList list;
+	FunctionRNA *func;
+	void *ret;
+	int result;
+
+	RNA_pointer_create(&CTX_wm_screen(C)->id, op->type->ext.srna, op, &opr);
+	func= RNA_struct_find_function(&opr, "cancel");
+
+	RNA_parameter_list_create(&list, &opr, func);
+	RNA_parameter_set_lookup(&list, "context", &C);
+	op->type->ext.call(C, &opr, func, &list);
+
+	RNA_parameter_get_lookup(&list, "result", &ret);
+	result= *(int*)ret;
+
+	RNA_parameter_list_free(&list);
+
+	return result;
+}
+
 void operator_wrapper(wmOperatorType *ot, void *userdata);
 void macro_wrapper(wmOperatorType *ot, void *userdata);
 
@@ -826,10 +860,10 @@ static char _operator_name[OP_MAX_TYPENAME];
 static char _operator_descr[1024];
 static StructRNA *rna_Operator_register(bContext *C, ReportList *reports, void *data, const char *identifier, StructValidateFunc validate, StructCallbackFunc call, StructFreeFunc free)
 {
-	wmOperatorType dummyot = {0};
-	wmOperator dummyop= {0};
+	wmOperatorType dummyot = {NULL};
+	wmOperator dummyop= {NULL};
 	PointerRNA dummyotr;
-	int have_function[6];
+	int have_function[7];
 
 	/* setup dummy operator & operator type to store static properties in */
 	dummyop.type= &dummyot;
@@ -917,6 +951,7 @@ static StructRNA *rna_Operator_register(bContext *C, ReportList *reports, void *
 	dummyot.invoke=		(have_function[3])? operator_invoke: NULL;
 	dummyot.modal=		(have_function[4])? operator_modal: NULL;
 	dummyot.ui=			(have_function[5])? operator_draw: NULL;
+	dummyot.cancel=		(have_function[6])? operator_cancel: NULL;
 	WM_operatortype_append_ptr(operator_wrapper, (void *)&dummyot);
 
 	/* update while blender is running */
@@ -929,8 +964,8 @@ static StructRNA *rna_Operator_register(bContext *C, ReportList *reports, void *
 
 static StructRNA *rna_MacroOperator_register(bContext *C, ReportList *reports, void *data, const char *identifier, StructValidateFunc validate, StructCallbackFunc call, StructFreeFunc free)
 {
-	wmOperatorType dummyot = {0};
-	wmOperator dummyop= {0};
+	wmOperatorType dummyot = {NULL};
+	wmOperator dummyop= {NULL};
 	PointerRNA dummyotr;
 	int have_function[4];
 
@@ -1268,7 +1303,7 @@ static void rna_def_operator_utils(BlenderRNA *brna)
 	StructRNA *srna;
 	PropertyRNA *prop;
 
-	srna= RNA_def_struct(brna, "OperatorMousePath", "IDPropertyGroup");
+	srna= RNA_def_struct(brna, "OperatorMousePath", "PropertyGroup");
 	RNA_def_struct_ui_text(srna, "Operator Mouse Path", "Mouse path values for operators that record such paths");
 
 	prop= RNA_def_property(srna, "loc", PROP_FLOAT, PROP_XYZ);
@@ -1286,7 +1321,7 @@ static void rna_def_operator_filelist_element(BlenderRNA *brna)
 	StructRNA *srna;
 	PropertyRNA *prop;
 
-	srna= RNA_def_struct(brna, "OperatorFileListElement", "IDPropertyGroup");
+	srna= RNA_def_struct(brna, "OperatorFileListElement", "PropertyGroup");
 	RNA_def_struct_ui_text(srna, "Operator File List Element", "");
 	
 	

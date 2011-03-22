@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -24,6 +24,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/render/intern/include/render_types.h
+ *  \ingroup render
+ */
+
 
 #ifndef RENDER_TYPES_H
 #define RENDER_TYPES_H
@@ -607,6 +612,7 @@ typedef struct LampRen {
 #define R_DIVIDE_24		32	
 /* vertex normals are tangent or view-corrected vector, for hair strands */
 #define R_TANGENT		64		
+#define R_TRACEBLE		128
 
 /* strandbuffer->flag */
 #define R_STRAND_BSPLINE	1

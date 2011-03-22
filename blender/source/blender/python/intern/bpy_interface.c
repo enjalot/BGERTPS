@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -22,6 +22,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/python/intern/bpy_interface.c
+ *  \ingroup pythonintern
+ */
+
  
 /* grr, python redefines */
 #ifdef _POSIX_C_SOURCE
@@ -32,9 +37,12 @@
 
 #include "MEM_guardedalloc.h"
 
+#include "RNA_types.h"
+
 #include "bpy.h"
 #include "bpy_rna.h"
 #include "bpy_util.h"
+#include "bpy_traceback.h"
 
 #include "DNA_space_types.h"
 #include "DNA_text_types.h"
@@ -56,6 +64,12 @@
 #include "../generic/bpy_internal_import.h" // our own imports
 #include "../generic/py_capi_utils.h"
 
+/* inittab initialization functions */
+#include "../generic/noise_py_api.h"
+#include "../generic/mathutils.h"
+#include "../generic/bgl.h"
+#include "../generic/blf_py_api.h"
+
 /* for internal use, when starting and ending python scripts */
 
 /* incase a python script triggers another python call, stop bpy_context_clear from invalidating */
@@ -66,7 +80,7 @@ BPy_StructRNA *bpy_context_module= NULL; /* for fast access */
 
 #ifdef TIME_PY_RUN
 #include "PIL_time.h"
-static int		bpy_timer_count = 0;
+static int		bpy_timer_count= 0;
 static double	bpy_timer; /* time since python starts */
 static double	bpy_timer_run; /* time for each python script run */
 static double	bpy_timer_run_tot; /* accumulate python runs */
@@ -77,7 +91,7 @@ void bpy_context_set(bContext *C, PyGILState_STATE *gilstate)
 	py_call_level++;
 
 	if(gilstate)
-		*gilstate = PyGILState_Ensure();
+		*gilstate= PyGILState_Ensure();
 
 	if(py_call_level==1) {
 
@@ -95,7 +109,7 @@ void bpy_context_set(bContext *C, PyGILState_STATE *gilstate)
 		if(bpy_timer_count==0) {
 			/* record time from the beginning */
 			bpy_timer= PIL_check_seconds_timer();
-			bpy_timer_run = bpy_timer_run_tot = 0.0;
+			bpy_timer_run= bpy_timer_run_tot= 0.0;
 		}
 		bpy_timer_run= PIL_check_seconds_timer();
 
@@ -131,9 +145,9 @@ void bpy_context_clear(bContext *UNUSED(C), PyGILState_STATE *gilstate)
 
 void BPY_text_free_code(Text *text)
 {
-	if( text->compiled ) {
-		Py_DECREF( ( PyObject * ) text->compiled );
-		text->compiled = NULL;
+	if(text->compiled) {
+		Py_DECREF((PyObject *)text->compiled);
+		text->compiled= NULL;
 	}
 }
 
@@ -141,8 +155,8 @@ void BPY_modules_update(bContext *C)
 {
 #if 0 // slow, this runs all the time poll, draw etc 100's of time a sec.
 	PyObject *mod= PyImport_ImportModuleLevel("bpy", NULL, NULL, NULL, 0);
-	PyModule_AddObject( mod, "data", BPY_rna_module() );
-	PyModule_AddObject( mod, "types", BPY_rna_types() ); // atm this does not need updating
+	PyModule_AddObject(mod, "data", BPY_rna_module());
+	PyModule_AddObject(mod, "types", BPY_rna_types()); // atm this does not need updating
 #endif
 
 	/* refreshes the main struct */
@@ -151,7 +165,8 @@ void BPY_modules_update(bContext *C)
 }
 
 /* must be called before Py_Initialize */
-void BPY_python_start_path(void)
+#ifndef WITH_PYTHON_MODULE
+static void bpy_python_start_path(void)
 {
 	char *py_path_bundle= BLI_get_folder(BLENDER_PYTHON, NULL);
 
@@ -189,20 +204,14 @@ void BPY_python_start_path(void)
 		// printf("found python (wchar_t) '%ls'\n", py_path_bundle_wchar);
 	}
 }
-
-
+#endif
 
 void BPY_context_set(bContext *C)
 {
 	BPy_SetContext(C);
 }
 
-/* init-tab */
-extern PyObject *BPyInit_noise(void);
-extern PyObject *BPyInit_mathutils(void);
-// extern PyObject *BPyInit_mathutils_geometry(void); // BPyInit_mathutils calls, py doesnt work with thos :S
-extern PyObject *BPyInit_bgl(void);
-extern PyObject *BPyInit_blf(void);
+/* defined in AUD_C-API.cpp */
 extern PyObject *AUD_initPython(void);
 
 static struct _inittab bpy_internal_modules[]= {
@@ -216,10 +225,11 @@ static struct _inittab bpy_internal_modules[]= {
 };
 
 /* call BPY_context_set first */
-void BPY_python_start( int argc, char **argv )
+void BPY_python_start(int argc, const char **argv)
 {
-	PyThreadState *py_tstate = NULL;
-	
+#ifndef WITH_PYTHON_MODULE
+	PyThreadState *py_tstate= NULL;
+
 	/* not essential but nice to set our name */
 	static wchar_t bprogname_wchar[FILE_MAXDIR+FILE_MAXFILE]; /* python holds a reference */
 	utf8towchar(bprogname_wchar, bprogname);
@@ -228,11 +238,16 @@ void BPY_python_start( int argc, char **argv )
 	/* builtin modules */
 	PyImport_ExtendInittab(bpy_internal_modules);
 
-	BPY_python_start_path(); /* allow to use our own included python */
+	bpy_python_start_path(); /* allow to use our own included python */
 
-	Py_Initialize(  );
+	/* Python 3.2 now looks for '2.56/python/include/python3.2d/pyconfig.h' to parse
+	 * from the 'sysconfig' module which is used by 'site', so for now disable site.
+	 * alternatively we could copy the file. */
+	Py_NoSiteFlag= 1;
+
+	Py_Initialize();
 	
-	// PySys_SetArgv( argc, argv); // broken in py3, not a huge deal
+	// PySys_SetArgv(argc, argv); // broken in py3, not a huge deal
 	/* sigh, why do python guys not have a char** version anymore? :( */
 	{
 		int i;
@@ -246,17 +261,22 @@ void BPY_python_start( int argc, char **argv )
 	
 	/* Initialize thread support (also acquires lock) */
 	PyEval_InitThreads();
+#else
+	(void)argc;
+	(void)argv;
 	
-	
+	PyImport_ExtendInittab(bpy_internal_modules);
+#endif
+
 	/* bpy.* and lets us import it */
 	BPy_init_modules();
 
 	{ /* our own import and reload functions */
 		PyObject *item;
 		PyObject *mod;
-		//PyObject *m = PyImport_AddModule("__builtin__");
-		//PyObject *d = PyModule_GetDict(m);
-		PyObject *d = PyEval_GetBuiltins(  );
+		//PyObject *m= PyImport_AddModule("__builtin__");
+		//PyObject *d= PyModule_GetDict(m);
+		PyObject *d= PyEval_GetBuiltins();
 //		PyDict_SetItemString(d, "reload",		item=PyCFunction_New(&bpy_reload_meth, NULL));	Py_DECREF(item);
 		PyDict_SetItemString(d, "__import__",	item=PyCFunction_New(&bpy_import_meth, NULL));	Py_DECREF(item);
 
@@ -275,8 +295,10 @@ void BPY_python_start( int argc, char **argv )
 	
 	pyrna_alloc_types();
 
-	py_tstate = PyGILState_GetThisThreadState();
+#ifndef WITH_PYTHON_MODULE
+	py_tstate= PyGILState_GetThisThreadState();
 	PyEval_ReleaseThread(py_tstate);
+#endif
 }
 
 void BPY_python_end(void)
@@ -290,11 +312,11 @@ void BPY_python_end(void)
 
 	/* clear all python data from structs */
 	
-	Py_Finalize(  );
+	Py_Finalize();
 	
 #ifdef TIME_PY_RUN
 	// measure time since py started
-	bpy_timer = PIL_check_seconds_timer() - bpy_timer;
+	bpy_timer= PIL_check_seconds_timer() - bpy_timer;
 
 	printf("*bpy stats* - ");
 	printf("tot exec: %d,  ", bpy_timer_count);
@@ -313,8 +335,34 @@ void BPY_python_end(void)
 
 }
 
-static int python_script_exec(bContext *C, const char *fn, struct Text *text, struct ReportList *reports)
+static void python_script_error_jump_text(struct Text *text)
 {
+	int lineno;
+	int offset;
+	python_script_error_jump(text->id.name+2, &lineno, &offset);
+	if(lineno != -1) {
+		/* select the line with the error */
+		txt_move_to(text, lineno - 1, INT_MAX, FALSE);
+		txt_move_to(text, lineno - 1, offset, TRUE);
+	}
+}
+
+/* super annoying, undo _PyModule_Clear(), bug [#23871] */
+#define PYMODULE_CLEAR_WORKAROUND
+
+#ifdef PYMODULE_CLEAR_WORKAROUND
+/* bad!, we should never do this, but currently only safe way I could find to keep namespace.
+ * from being cleared. - campbell */
+typedef struct {
+	PyObject_HEAD
+	PyObject *md_dict;
+	/* ommit other values, we only want the dict. */
+} PyModuleObject;
+#endif
+
+static int python_script_exec(bContext *C, const char *fn, struct Text *text, struct ReportList *reports, const short do_jump)
+{
+	PyObject *main_mod= NULL;
 	PyObject *py_dict= NULL, *py_result= NULL;
 	PyGILState_STATE gilstate;
 
@@ -326,26 +374,30 @@ static int python_script_exec(bContext *C, const char *fn, struct Text *text, st
 
 	bpy_context_set(C, &gilstate);
 
+	PyC_MainModule_Backup(&main_mod);
+
 	if (text) {
 		char fn_dummy[FILE_MAXDIR];
-		bpy_text_filename_get(fn_dummy, text);
+		bpy_text_filename_get(fn_dummy, sizeof(fn_dummy), text);
 
-		if( !text->compiled ) {	/* if it wasn't already compiled, do it now */
-			char *buf = txt_to_buf( text );
+		if(text->compiled == NULL) {	/* if it wasn't already compiled, do it now */
+			char *buf= txt_to_buf(text);
 
-			text->compiled =
-				Py_CompileString( buf, fn_dummy, Py_file_input );
+			text->compiled= Py_CompileString(buf, fn_dummy, Py_file_input);
 
-			MEM_freeN( buf );
+			MEM_freeN(buf);
 
 			if(PyErr_Occurred()) {
+				if(do_jump) {
+					python_script_error_jump_text(text);
+				}
 				BPY_text_free_code(text);
 			}
 		}
 
 		if(text->compiled) {
-			py_dict = PyC_DefaultNameSpace(fn_dummy);
-			py_result =  PyEval_EvalCode(text->compiled, py_dict, py_dict);
+			py_dict= PyC_DefaultNameSpace(fn_dummy);
+			py_result=  PyEval_EvalCode(text->compiled, py_dict, py_dict);
 		}
 
 	}
@@ -353,7 +405,7 @@ static int python_script_exec(bContext *C, const char *fn, struct Text *text, st
 		FILE *fp= fopen(fn, "r");
 
 		if(fp) {
-			py_dict = PyC_DefaultNameSpace(fn);
+			py_dict= PyC_DefaultNameSpace(fn);
 
 #ifdef _WIN32
 			/* Previously we used PyRun_File to run directly the code on a FILE
@@ -369,44 +421,46 @@ static int python_script_exec(bContext *C, const char *fn, struct Text *text, st
 				pystring= MEM_mallocN(strlen(fn) + 32, "pystring");
 				pystring[0]= '\0';
 				sprintf(pystring, "exec(open(r'%s').read())", fn);
-				py_result = PyRun_String( pystring, Py_file_input, py_dict, py_dict );
+				py_result= PyRun_String(pystring, Py_file_input, py_dict, py_dict);
 				MEM_freeN(pystring);
 			}
 #else
-			py_result = PyRun_File(fp, fn, Py_file_input, py_dict, py_dict);
+			py_result= PyRun_File(fp, fn, Py_file_input, py_dict, py_dict);
 			fclose(fp);
 #endif
 		}
 		else {
-			PyErr_Format(PyExc_SystemError, "Python file \"%s\" could not be opened: %s", fn, strerror(errno));
+			PyErr_Format(PyExc_IOError, "Python file \"%s\" could not be opened: %s", fn, strerror(errno));
 			py_result= NULL;
 		}
 	}
 
 	if (!py_result) {
+		if(text) {
+			if(do_jump) {
+				python_script_error_jump_text(text);
+			}
+		}
 		BPy_errors_to_report(reports);
-	} else {
-		Py_DECREF( py_result );
 	}
-
-/* super annoying, undo _PyModule_Clear() */
-#define PYMODULE_CLEAR_WORKAROUND
+	else {
+		Py_DECREF(py_result);
+	}
 
 	if(py_dict) {
 #ifdef PYMODULE_CLEAR_WORKAROUND
-		PyObject *py_dict_back= PyDict_Copy(py_dict);
-		Py_INCREF(py_dict);
+		PyModuleObject *mmod= (PyModuleObject *)PyDict_GetItemString(PyThreadState_GET()->interp->modules, "__main__");
+		PyObject *dict_back= mmod->md_dict;
+		/* freeing the module will clear the namespace,
+		 * gives problems running classes defined in this namespace being used later. */
+		mmod->md_dict= NULL;
+		Py_DECREF(dict_back);
 #endif
-		/* normal */
-		PyDict_SetItemString(PyThreadState_GET()->interp->modules, "__main__", Py_None);
-#ifdef PYMODULE_CLEAR_WORKAROUND
-		PyDict_Clear(py_dict);
-		PyDict_Update(py_dict, py_dict_back);
-		Py_DECREF(py_dict);
-		Py_DECREF(py_dict_back);
-#endif
+
 #undef PYMODULE_CLEAR_WORKAROUND
 	}
+
+	PyC_MainModule_Restore(main_mod);
 
 	bpy_context_clear(C, &gilstate);
 
@@ -416,18 +470,18 @@ static int python_script_exec(bContext *C, const char *fn, struct Text *text, st
 /* Can run a file or text block */
 int BPY_filepath_exec(bContext *C, const char *filepath, struct ReportList *reports)
 {
-	return python_script_exec(C, filepath, NULL, reports);
+	return python_script_exec(C, filepath, NULL, reports, FALSE);
 }
 
 
-int BPY_text_exec(bContext *C, struct Text *text, struct ReportList *reports)
+int BPY_text_exec(bContext *C, struct Text *text, struct ReportList *reports, const short do_jump)
 {
-	return python_script_exec(C, NULL, text, reports);
+	return python_script_exec(C, NULL, text, reports, do_jump);
 }
 
 void BPY_DECREF(void *pyob_ptr)
 {
-	PyGILState_STATE gilstate = PyGILState_Ensure();
+	PyGILState_STATE gilstate= PyGILState_Ensure();
 	Py_DECREF((PyObject *)pyob_ptr);
 	PyGILState_Release(gilstate);
 }
@@ -436,7 +490,8 @@ int BPY_button_exec(bContext *C, const char *expr, double *value)
 {
 	PyGILState_STATE gilstate;
 	PyObject *py_dict, *mod, *retval;
-	int error_ret = 0;
+	int error_ret= 0;
+	PyObject *main_mod= NULL;
 	
 	if (!value || !expr) return -1;
 
@@ -446,10 +501,12 @@ int BPY_button_exec(bContext *C, const char *expr, double *value)
 	}
 
 	bpy_context_set(C, &gilstate);
-	
+
+	PyC_MainModule_Backup(&main_mod);
+
 	py_dict= PyC_DefaultNameSpace("<blender button>");
 
-	mod = PyImport_ImportModule("math");
+	mod= PyImport_ImportModule("math");
 	if (mod) {
 		PyDict_Merge(py_dict, PyModule_GetDict(mod), 0); /* 0 - dont overwrite existing values */
 		Py_DECREF(mod);
@@ -459,7 +516,7 @@ int BPY_button_exec(bContext *C, const char *expr, double *value)
 		PyErr_Clear();
 	}
 	
-	retval = PyRun_String(expr, Py_eval_input, py_dict, py_dict);
+	retval= PyRun_String(expr, Py_eval_input, py_dict, py_dict);
 	
 	if (retval == NULL) {
 		error_ret= -1;
@@ -478,7 +535,7 @@ int BPY_button_exec(bContext *C, const char *expr, double *value)
 			}
 		}
 		else {
-			val = PyFloat_AsDouble(retval);
+			val= PyFloat_AsDouble(retval);
 		}
 		Py_DECREF(retval);
 		
@@ -497,7 +554,7 @@ int BPY_button_exec(bContext *C, const char *expr, double *value)
 		BPy_errors_to_report(CTX_wm_reports(C));
 	}
 
-	PyDict_SetItemString(PyThreadState_GET()->interp->modules, "__main__", Py_None);
+	PyC_MainModule_Backup(&main_mod);
 	
 	bpy_context_clear(C, &gilstate);
 	
@@ -507,8 +564,9 @@ int BPY_button_exec(bContext *C, const char *expr, double *value)
 int BPY_string_exec(bContext *C, const char *expr)
 {
 	PyGILState_STATE gilstate;
+	PyObject *main_mod= NULL;
 	PyObject *py_dict, *retval;
-	int error_ret = 0;
+	int error_ret= 0;
 
 	if (!expr) return -1;
 
@@ -518,9 +576,11 @@ int BPY_string_exec(bContext *C, const char *expr)
 
 	bpy_context_set(C, &gilstate);
 
+	PyC_MainModule_Backup(&main_mod);
+
 	py_dict= PyC_DefaultNameSpace("<blender string>");
 
-	retval = PyRun_String(expr, Py_eval_input, py_dict, py_dict);
+	retval= PyRun_String(expr, Py_eval_input, py_dict, py_dict);
 
 	if (retval == NULL) {
 		error_ret= -1;
@@ -531,8 +591,8 @@ int BPY_string_exec(bContext *C, const char *expr)
 		Py_DECREF(retval);
 	}
 
-	PyDict_SetItemString(PyThreadState_GET()->interp->modules, "__main__", Py_None);
-	
+	PyC_MainModule_Restore(main_mod);
+
 	bpy_context_clear(C, &gilstate);
 	
 	return error_ret;
@@ -601,7 +661,7 @@ int BPY_context_member_get(bContext *C, const char *member, bContextDataResult *
 		else {
 			int len= PySequence_Fast_GET_SIZE(seq_fast);
 			int i;
-			for(i = 0; i < len; i++) {
+			for(i= 0; i < len; i++) {
 				PyObject *list_item= PySequence_Fast_GET_ITEM(seq_fast, i);
 
 				if(BPy_StructRNA_Check(list_item)) {
@@ -635,3 +695,102 @@ int BPY_context_member_get(bContext *C, const char *member, bContextDataResult *
 	return done;
 }
 
+
+#ifdef WITH_PYTHON_MODULE
+#include "BLI_storage.h"
+/* TODO, reloading the module isnt functional at the moment. */
+
+extern int main_python(int argc, const char **argv);
+static struct PyModuleDef bpy_proxy_def= {
+	PyModuleDef_HEAD_INIT,
+	"bpy",  /* m_name */
+	NULL,  /* m_doc */
+	0,  /* m_size */
+	NULL,  /* m_methods */
+	NULL,  /* m_reload */
+	NULL,  /* m_traverse */
+	NULL,  /* m_clear */
+	NULL,  /* m_free */
+};	
+
+typedef struct {
+    PyObject_HEAD
+    /* Type-specific fields go here. */
+	PyObject *mod;
+} dealloc_obj;
+
+/* call once __file__ is set */
+void bpy_module_delay_init(PyObject *bpy_proxy)
+{
+	const int argc= 1;
+	const char *argv[2];
+	PyObject *filename_obj= PyModule_GetFilenameObject(bpy_proxy); /* updating the module dict below will loose the reference to __file__ */
+	const char *filename_rel= _PyUnicode_AsString(filename_obj); /* can be relative */
+	char filename_abs[1024];
+
+	BLI_strncpy(filename_abs, filename_rel, sizeof(filename_abs));
+	BLI_path_cwd(filename_abs);
+
+	argv[0]= filename_abs;
+	argv[1]= NULL;
+	
+	// printf("module found %s\n", argv[0]);
+
+	main_python(argc, argv);
+
+	/* initialized in BPy_init_modules() */
+	PyDict_Update(PyModule_GetDict(bpy_proxy), PyModule_GetDict(bpy_package_py));
+}
+
+static void dealloc_obj_dealloc(PyObject *self);
+
+static PyTypeObject dealloc_obj_Type= {{{0}}};
+
+/* use our own dealloc so we can free a property if we use one */
+static void dealloc_obj_dealloc(PyObject *self)
+{
+	bpy_module_delay_init(((dealloc_obj *)self)->mod);
+
+	/* Note, for subclassed PyObjects we cant just call PyObject_DEL() directly or it will crash */
+	dealloc_obj_Type.tp_free(self);
+}
+
+PyMODINIT_FUNC
+PyInit_bpy(void)
+{
+	PyObject *bpy_proxy= PyModule_Create(&bpy_proxy_def);
+	
+	/* Problem:
+	 * 1) this init function is expected to have a private member defined - 'md_def'
+	 *    but this is only set for C defined modules (not py packages)
+	 *    so we cant return 'bpy_package_py' as is.
+	 *
+	 * 2) there is a 'bpy' C module for python to load which is basically all of blender,
+	 *    and there is scripts/bpy/__init__.py, 
+	 *    we may end up having to rename this module so there is no naming conflict here eg:
+	 *    'from blender import bpy'
+	 *
+	 * 3) we dont know the filename at this point, workaround by assigning a dummy value
+	 *    which calls back when its freed so the real loading can take place.
+	 */
+
+	/* assign an object which is freed after __file__ is assigned */
+	dealloc_obj *dob;
+	
+	/* assign dummy type */
+	dealloc_obj_Type.tp_name= "dealloc_obj";
+	dealloc_obj_Type.tp_basicsize= sizeof(dealloc_obj);
+	dealloc_obj_Type.tp_dealloc= dealloc_obj_dealloc;
+	dealloc_obj_Type.tp_flags= Py_TPFLAGS_DEFAULT;
+	
+	if(PyType_Ready(&dealloc_obj_Type) < 0)
+		return NULL;
+
+	dob= (dealloc_obj *) dealloc_obj_Type.tp_alloc(&dealloc_obj_Type, 0);
+	dob->mod= bpy_proxy; /* borrow */
+	PyModule_AddObject(bpy_proxy, "__file__", (PyObject *)dob); /* borrow */
+
+	return bpy_proxy;
+}
+
+#endif

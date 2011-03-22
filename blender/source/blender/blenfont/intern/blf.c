@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -25,6 +25,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/blenfont/intern/blf.c
+ *  \ingroup blf
+ */
+
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -56,15 +61,15 @@
 #define BLF_MAX_FONT 16
 
 /* Font array. */
-FontBLF *global_font[BLF_MAX_FONT];
+static FontBLF *global_font[BLF_MAX_FONT];
 
 /* Number of font. */
-int global_font_num= 0;
+static int global_font_num= 0;
 
 /* Default size and dpi, for BLF_draw_default. */
-int global_font_default= -1;
-int global_font_points= 11;
-int global_font_dpi= 72;
+static int global_font_default= -1;
+static int global_font_points= 11;
+static int global_font_dpi= 72;
 
 // XXX, should these be made into global_font_'s too?
 int blf_mono_font= -1;

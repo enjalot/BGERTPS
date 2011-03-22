@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -24,6 +24,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  * */
+
+/** \file blender/blenlib/intern/math_vector.c
+ *  \ingroup bli
+ */
+
 
 
 #include "BLI_math.h"
@@ -373,6 +378,21 @@ void range_vni(int *array_tar, const int size, const int start)
 	int j= start + (size-1);
 	int i= size;
 	while(i--) { *(array_pt--) = j--; }
+}
+
+void negate_vn(float *array_tar, const int size)
+{
+	float *array_pt= array_tar + (size-1);
+	int i= size;
+	while(i--) { *(array_pt--) *= -1.0f; }
+}
+
+void negate_vn_vn(float *array_tar, const float *array_src, const int size)
+{
+	float *tar= array_tar + (size-1);
+	const float *src= array_src + (size-1);
+	int i= size;
+	while(i--) { *(tar--) = - *(src--); }
 }
 
 void mul_vn_fl(float *array_tar, const int size, const float f)

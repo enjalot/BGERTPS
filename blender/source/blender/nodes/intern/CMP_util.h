@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -26,6 +26,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/nodes/intern/CMP_util.h
+ *  \ingroup nodes
+ */
+
 
 #ifndef CMP_NODE_UTILS_H_
 #define CMP_NODE_UTILS_H_
@@ -59,6 +64,7 @@
 #include "BKE_image.h"
 #include "BKE_main.h"
 #include "BKE_material.h"
+#include "BKE_node.h"
 #include "BKE_texture.h"
 
 #include "BKE_library.h"

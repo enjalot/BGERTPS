@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -26,6 +26,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/editors/mesh/meshtools.c
+ *  \ingroup edmesh
+ */
+
 
 /*
 	meshtools.c: no editmode (violated already :), tools operating on meshes
@@ -1055,7 +1060,7 @@ long mesh_mirrtopo_table(Object *ob, char mode)
 	return 0;
 }
 
-int mesh_get_x_mirror_vert_spacial(Object *ob, int index)
+static int mesh_get_x_mirror_vert_spacial(Object *ob, int index)
 {
 	Mesh *me= ob->data;
 	MVert *mvert;

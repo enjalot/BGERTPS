@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$ 
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -28,6 +28,10 @@
  */
 #ifndef DNA_SCENE_TYPES_H
 #define DNA_SCENE_TYPES_H
+
+/** \file DNA_scene_types.h
+ *  \ingroup DNA
+ */
 
 // XXX, temp feature
 #define DURIAN_CAMERA_SWITCH
@@ -722,9 +726,11 @@ typedef struct ToolSettings {
 	
 	/* Alt+RMB option */
 	char edge_mode;
+	char edge_mode_live_unwrap;
 
 	/* Transform */
-	short snap_mode, snap_flag, snap_target;
+	char snap_mode;
+	short snap_flag, snap_target;
 	short proportional, prop_mode;
 	char proportional_objects; /* proportional edit, object mode */
 	char pad[3];
@@ -778,6 +784,8 @@ typedef struct Scene {
 	unsigned int lay;			/* bitflags for layer visibility */
 	int layact;		/* active layer */
 	unsigned int customdata_mask;	/* XXX. runtime flag for drawing, actually belongs in the window, only used by object_handle_update() */
+	unsigned int customdata_mask_modal; /* XXX. same as above but for temp operator use (gl renders) */
+	unsigned int pad4;
 	
 	short flag;								/* various settings */
 	
@@ -879,7 +887,8 @@ typedef struct Scene {
 #define R_OUTPUT_SCREEN	0
 #define R_OUTPUT_AREA	1
 #define R_OUTPUT_WINDOW	2
-/*#define R_OUTPUT_FORKED	3*/
+#define R_OUTPUT_NONE	3
+/*#define R_OUTPUT_FORKED	4*/
 
 /* filtertype */
 #define R_FILTER_BOX	0
@@ -923,7 +932,7 @@ typedef struct Scene {
 #define R_COMP_FREE			0x0800
 #define R_NO_IMAGE_LOAD		0x1000
 #define R_NO_TEX			0x2000
-/*#define R_STAMP_INFO		0x4000	deprecated */
+#define R_NO_FRAME_UPDATE	0x4000
 #define R_FULL_SAMPLE		0x8000
 /* #define R_DEPRECATED		0x10000 */
 /* #define R_RECURS_PROTECTION	0x20000 */
@@ -1034,15 +1043,15 @@ typedef struct Scene {
 
 /* depricate this! */
 #define TESTBASE(v3d, base)	( ((base)->flag & SELECT) && ((base)->lay & v3d->lay) && (((base)->object->restrictflag & OB_RESTRICT_VIEW)==0) )
-#define TESTBASELIB(v3d, base)	( ((base)->flag & SELECT) && ((base)->lay & v3d->lay) && ((base)->object->id.lib==0) && (((base)->object->restrictflag & OB_RESTRICT_VIEW)==0))
-#define TESTBASELIB_BGMODE(v3d, scene, base)   ( ((base)->flag & SELECT) && ((base)->lay & (v3d ? v3d->lay : scene->lay)) && ((base)->object->id.lib==0) && (((base)->object->restrictflag & OB_RESTRICT_VIEW)==0))
-#define BASE_EDITABLE_BGMODE(v3d, scene, base)   (((base)->lay & (v3d ? v3d->lay : scene->lay)) && ((base)->object->id.lib==0) && (((base)->object->restrictflag & OB_RESTRICT_VIEW)==0))
+#define TESTBASELIB(v3d, base)	( ((base)->flag & SELECT) && ((base)->lay & v3d->lay) && ((base)->object->id.lib==NULL) && (((base)->object->restrictflag & OB_RESTRICT_VIEW)==0))
+#define TESTBASELIB_BGMODE(v3d, scene, base)   ( ((base)->flag & SELECT) && ((base)->lay & (v3d ? v3d->lay : scene->lay)) && ((base)->object->id.lib==NULL) && (((base)->object->restrictflag & OB_RESTRICT_VIEW)==0))
+#define BASE_EDITABLE_BGMODE(v3d, scene, base)   (((base)->lay & (v3d ? v3d->lay : scene->lay)) && ((base)->object->id.lib==NULL) && (((base)->object->restrictflag & OB_RESTRICT_VIEW)==0))
 #define BASE_SELECTABLE(v3d, base)	 ((base->lay & v3d->lay) && (base->object->restrictflag & (OB_RESTRICT_SELECT|OB_RESTRICT_VIEW))==0)
 #define BASE_VISIBLE(v3d, base)	 ((base->lay & v3d->lay) && (base->object->restrictflag & OB_RESTRICT_VIEW)==0)
 #define FIRSTBASE		scene->base.first
 #define LASTBASE		scene->base.last
 #define BASACT			(scene->basact)
-#define OBACT			(BASACT? BASACT->object: 0)
+#define OBACT			(BASACT? BASACT->object: NULL)
 
 #define ID_NEW(a)		if( (a) && (a)->id.newid ) (a)= (void *)(a)->id.newid
 #define ID_NEW_US(a)	if( (a)->id.newid) {(a)= (void *)(a)->id.newid; (a)->id.us++;}
@@ -1171,7 +1180,7 @@ typedef enum SculptFlags {
 
 /* toolsettings->uvcalc_flag */
 #define UVCALC_FILLHOLES			1
-/*#define UVCALC_NO_ASPECT_CORRECT	2*/	/* would call this UVCALC_ASPECT_CORRECT, except it should be default with old file */
+#define UVCALC_NO_ASPECT_CORRECT	2	/* would call this UVCALC_ASPECT_CORRECT, except it should be default with old file */
 #define UVCALC_TRANSFORM_CORRECT	4	/* adjust UV's while transforming to avoid distortion */
 
 /* toolsettings->uv_flag */

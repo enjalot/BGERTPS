@@ -26,9 +26,7 @@ class INFO_HT_header(bpy.types.Header):
     def draw(self, context):
         layout = self.layout
 
-        wm = context.window_manager
         window = context.window
-        sinfo = context.space_data
         scene = context.scene
         rd = scene.render
 
@@ -50,8 +48,7 @@ class INFO_HT_header(bpy.types.Header):
             layout.separator()
         else:
             layout.template_ID(context.window, "screen", new="screen.new", unlink="screen.delete")
-
-        layout.template_ID(context.screen, "scene", new="scene.new", unlink="scene.delete")
+            layout.template_ID(context.screen, "scene", new="scene.new", unlink="scene.delete")
 
         layout.separator()
 
@@ -71,6 +68,7 @@ class INFO_HT_header(bpy.types.Header):
 
         # XXX: BEFORE RELEASE, MOVE FILE MENU OUT OF INFO!!!
         """
+        sinfo = context.space_data
         row = layout.row(align=True)
         row.prop(sinfo, "show_report_debug", text="Debug")
         row.prop(sinfo, "show_report_info", text="Info")
@@ -328,8 +326,6 @@ class INFO_MT_render(bpy.types.Menu):
     def draw(self, context):
         layout = self.layout
 
-        # rd = context.scene.render
-
         layout.operator("render.render", text="Render Image", icon='RENDER_STILL')
         layout.operator("render.render", text="Render Animation", icon='RENDER_ANIMATION').animation = True
 
@@ -368,12 +364,12 @@ class INFO_MT_help(bpy.types.Menu):
         layout.operator("help.operator_cheat_sheet", icon='TEXT')
         layout.operator("wm.sysinfo", icon='TEXT')
         layout.separator()
-        if sys.platform == "win32":
+        if sys.platform[:3] == "win":
             layout.operator("wm.toggle_console", icon='CONSOLE')
             layout.separator()
         layout.operator("anim.update_data_paths", text="FCurve/Driver 2.54 fix", icon='HELP')
         layout.separator()
-        layout.operator("wm.splash")
+        layout.operator("wm.splash", icon='BLENDER')
 
 
 # Help operators
@@ -405,11 +401,11 @@ class HELP_OT_operator_cheat_sheet(bpy.types.Operator):
 
 
 def register():
-    pass
+    bpy.utils.register_module(__name__)
 
 
 def unregister():
-    pass
+    bpy.utils.unregister_module(__name__)
 
 if __name__ == "__main__":
     register()

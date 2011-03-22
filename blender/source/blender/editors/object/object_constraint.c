@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -26,6 +26,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/editors/object/object_constraint.c
+ *  \ingroup edobj
+ */
+
 
 #include <stdio.h>
 #include <string.h>
@@ -70,6 +75,7 @@
 #include "ED_screen.h"
 
 #include "UI_interface.h"
+#include "UI_resources.h"
 
 #include "object_intern.h"
 
@@ -140,7 +146,7 @@ bConstraint *get_active_constraint (Object *ob)
 /* ------------- PyConstraints ------------------ */
 
 /* this callback sets the text-file to be used for selected menu item */
-void validate_pyconstraint_cb (void *arg1, void *arg2)
+static void validate_pyconstraint_cb (void *arg1, void *arg2)
 {
 	bPythonConstraint *data = arg1;
 	Text *text= NULL;
@@ -157,7 +163,7 @@ void validate_pyconstraint_cb (void *arg1, void *arg2)
 
 #ifdef WITH_PYTHON
 /* this returns a string for the list of usable pyconstraint script names */
-char *buildmenu_pyconstraints (Text *con_text, int *pyconindex)
+static char *buildmenu_pyconstraints (Text *con_text, int *pyconindex)
 {
 	DynStr *pupds= BLI_dynstr_new();
 	Text *text;
@@ -198,8 +204,9 @@ char *buildmenu_pyconstraints (Text *con_text, int *pyconindex)
 }
 #endif /* WITH_PYTHON */
 
+#if 0 // UNUSED, until pyconstraints are added back.
 /* this callback gets called when the 'refresh' button of a pyconstraint gets pressed */
-void update_pyconstraint_cb (void *arg1, void *arg2)
+static void update_pyconstraint_cb (void *arg1, void *arg2)
 {
 #ifndef WITH_PYTHON
 	(void)arg1; /* unused */
@@ -211,6 +218,7 @@ void update_pyconstraint_cb (void *arg1, void *arg2)
 		BPY_pyconstraint_update(owner, con);
 #endif
 }
+#endif // UNUSED
 
 /* helper function for add_constriant - sets the last target for the active constraint */
 static void set_constraint_nth_target (bConstraint *con, Object *target, const char subtarget[], int index)
@@ -405,11 +413,26 @@ static void test_constraints (Object *owner, bPoseChannel *pchan)
 				for (ct= targets.first; ct; ct= ct->next) {
 					/* general validity checks (for those constraints that need this) */
 					if (exist_object(ct->tar) == 0) {
+						/* object doesn't exist, but constraint requires target */
 						ct->tar = NULL;
 						curcon->flag |= CONSTRAINT_DISABLE;
 					}
 					else if (ct->tar == owner) {
-						if (!get_named_bone(get_armature(owner), ct->subtarget)) {
+						if (type == CONSTRAINT_OBTYPE_BONE) {
+							if (!get_named_bone(get_armature(owner), ct->subtarget)) {
+								/* bone must exist in armature... */
+								// TODO: clear subtarget?
+								curcon->flag |= CONSTRAINT_DISABLE;
+							}
+							else if (strcmp(pchan->name, ct->subtarget) == 0) {
+								/* cannot target self */
+								ct->subtarget[0] = '\0';
+								curcon->flag |= CONSTRAINT_DISABLE;
+							}
+						}
+						else {
+							/* cannot use self as target */
+							ct->tar = NULL;
 							curcon->flag |= CONSTRAINT_DISABLE;
 						}
 					}
@@ -531,12 +554,21 @@ static bConstraint *edit_constraint_property_get(wmOperator *op, Object *ob, int
 		bPoseChannel *pchan= get_active_posechannel(ob);
 		if (pchan)
 			list = &pchan->constraints;
-		else
+		else {
+			//if (G.f & G_DEBUG)
+			//printf("edit_constraint_property_get: No active bone for object '%s'\n", (ob)? ob->id.name+2 : "<None>");
 			return NULL;
+		}
+	}
+	else {
+		//if (G.f & G_DEBUG)
+		//printf("edit_constraint_property_get: defaulting to getting list in the standard way\n");
+		list = get_active_constraints(ob);
 	}
 	
 	con = constraints_findByName(list, constraint_name);
-	
+	printf("constraint found = %p, %s\n", (void *)con, (con)?con->name:"<Not found>");
+
 	if (con && (type != 0) && (con->type != type))
 		con = NULL;
 	
@@ -645,8 +677,11 @@ static int childof_set_inverse_exec (bContext *C, wmOperator *op)
 	bPoseChannel *pchan= NULL;
 	
 	/* despite 3 layers of checks, we may still not be able to find a constraint */
-	if (data == NULL)
+	if (data == NULL) {
+		printf("DEBUG: Child-Of Set Inverse - object = '%s'\n", (ob)? ob->id.name+2 : "<None>");
+		BKE_report(op->reports, RPT_ERROR, "Couldn't find constraint data for Child-Of Set Inverse");
 		return OPERATOR_CANCELLED;
+	}
 	
 	/* try to find a pose channel */
 	// TODO: get from context instead?
@@ -1245,12 +1280,12 @@ static int constraint_add_exec(bContext *C, wmOperator *op, Object *ob, ListBase
 	bPoseChannel *pchan;
 	bConstraint *con;
 	
-	if(list == &ob->constraints) {
+	if (list == &ob->constraints) {
 		pchan= NULL;
 	}
 	else {
 		pchan= get_active_posechannel(ob);
-
+		
 		/* ensure not to confuse object/pose adding */
 		if (pchan == NULL) {
 			BKE_report(op->reports, RPT_ERROR, "No active pose bone to add a constraint to.");
@@ -1300,19 +1335,7 @@ static int constraint_add_exec(bContext *C, wmOperator *op, Object *ob, ListBase
 	}
 	
 	/* do type-specific tweaking to the constraint settings  */
-	// TODO: does action constraint need anything here - i.e. spaceonce?
 	switch (type) {
-		case CONSTRAINT_TYPE_CHILDOF:
-		{
-			/* if this constraint is being added to a posechannel, make sure
-			 * the constraint gets evaluated in pose-space */
-			if (pchan) {
-				con->ownspace = CONSTRAINT_SPACE_POSE;
-				con->flag |= CONSTRAINT_SPACEONCE;
-			}
-		}
-			break;
-			
 		case CONSTRAINT_TYPE_PYTHON: // FIXME: this code is not really valid anymore
 		{
 #ifdef WITH_PYTHON
@@ -1514,7 +1537,7 @@ static int pose_ik_add_invoke(bContext *C, wmOperator *op, wmEvent *UNUSED(evt))
 	}
 	
 	/* prepare popup menu to choose targetting options */
-	pup= uiPupMenuBegin(C, "Add IK", ICON_NULL);
+	pup= uiPupMenuBegin(C, "Add IK", ICON_NONE);
 	layout= uiPupMenuLayout(pup);
 	
 	/* the type of targets we'll set determines the menu entries to show... */
@@ -1523,14 +1546,14 @@ static int pose_ik_add_invoke(bContext *C, wmOperator *op, wmEvent *UNUSED(evt))
 		 *	- the only thing that matters is that we want a target...
 		 */
 		if (tar_pchan)
-			uiItemBooleanO(layout, "To Active Bone", ICON_NULL, "POSE_OT_ik_add", "with_targets", 1);
+			uiItemBooleanO(layout, "To Active Bone", ICON_NONE, "POSE_OT_ik_add", "with_targets", 1);
 		else
-			uiItemBooleanO(layout, "To Active Object", ICON_NULL, "POSE_OT_ik_add", "with_targets", 1);
+			uiItemBooleanO(layout, "To Active Object", ICON_NONE, "POSE_OT_ik_add", "with_targets", 1);
 	}
 	else {
 		/* we have a choice of adding to a new empty, or not setting any target (targetless IK) */
-		uiItemBooleanO(layout, "To New Empty Object", ICON_NULL, "POSE_OT_ik_add", "with_targets", 1);
-		uiItemBooleanO(layout, "Without Targets", ICON_NULL, "POSE_OT_ik_add", "with_targets", 0);
+		uiItemBooleanO(layout, "To New Empty Object", ICON_NONE, "POSE_OT_ik_add", "with_targets", 1);
+		uiItemBooleanO(layout, "Without Targets", ICON_NONE, "POSE_OT_ik_add", "with_targets", 0);
 	}
 	
 	/* finish building the menu, and process it (should result in calling self again) */

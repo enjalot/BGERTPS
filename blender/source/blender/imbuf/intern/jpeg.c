@@ -1,4 +1,4 @@
-/**
+/*
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
  *
@@ -28,6 +28,11 @@
  *
  * $Id$
  */
+
+/** \file blender/imbuf/intern/jpeg.c
+ *  \ingroup imbuf
+ */
+
 
 
 /* This little block needed for linking to Blender... */
@@ -266,10 +271,10 @@ handle_app1 (j_decompress_ptr cinfo)
 static ImBuf * ibJpegImageFromCinfo(struct jpeg_decompress_struct * cinfo, int flags)
 {
 	JSAMPARRAY row_pointer;
-	JSAMPLE * buffer = 0;
+	JSAMPLE * buffer = NULL;
 	int row_stride;
 	int x, y, depth, r, g, b, k;
-	struct ImBuf * ibuf = 0;
+	struct ImBuf * ibuf = NULL;
 	uchar * rect;
 	jpeg_saved_marker_ptr marker;
 	char *str, *key, *value;
@@ -434,37 +439,6 @@ next_stamp_marker:
 	return(ibuf);
 }
 
-ImBuf * imb_ibJpegImageFromFilename (const char * filename, int flags)
-{
-	struct jpeg_decompress_struct _cinfo, *cinfo = &_cinfo;
-	struct my_error_mgr jerr;
-	FILE * infile;
-	ImBuf * ibuf;
-	
-	if ((infile = fopen(filename, "rb")) == NULL) return 0;
-
-	cinfo->err = jpeg_std_error(&jerr.pub);
-	jerr.pub.error_exit = jpeg_error;
-
-	/* Establish the setjmp return context for my_error_exit to use. */
-	if (setjmp(jerr.setjmp_buffer)) {
-		/* If we get here, the JPEG code has signaled an error.
-		 * We need to clean up the JPEG object, close the input file, and return.
-		 */
-		jpeg_destroy_decompress(cinfo);
-		fclose(infile);
-		return NULL;
-	}
-
-	jpeg_create_decompress(cinfo);
-	jpeg_stdio_src(cinfo, infile);
-
-	ibuf = ibJpegImageFromCinfo(cinfo, flags);
-	
-	fclose(infile);
-	return(ibuf);
-}
-
 ImBuf * imb_load_jpeg (unsigned char * buffer, size_t size, int flags)
 {
 	struct jpeg_decompress_struct _cinfo, *cinfo = &_cinfo;
@@ -496,7 +470,7 @@ ImBuf * imb_load_jpeg (unsigned char * buffer, size_t size, int flags)
 
 static void write_jpeg(struct jpeg_compress_struct * cinfo, struct ImBuf * ibuf)
 {
-	JSAMPLE * buffer = 0;
+	JSAMPLE * buffer = NULL;
 	JSAMPROW row_pointer[1];
 	uchar * rect;
 	int x, y;

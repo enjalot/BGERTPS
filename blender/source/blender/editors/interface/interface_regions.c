@@ -1,4 +1,4 @@
-/**
+/*
  * ***** BEGIN GPL LICENSE BLOCK *****
  *
  * This program is free software; you can redistribute it and/or
@@ -22,6 +22,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/editors/interface/interface_regions.c
+ *  \ingroup edinterface
+ */
+
 
 
 #include <stdarg.h>
@@ -130,7 +135,7 @@ static void menudata_add_item(MenuData *md, const char *str, int retval, int ico
 	md->nitems++;
 }
 
-void menudata_free(MenuData *md)
+static void menudata_free(MenuData *md)
 {
 	MEM_freeN(md->instr);
 	if (md->items)
@@ -151,7 +156,7 @@ void menudata_free(MenuData *md)
 	 * @param str String to be parsed.
 	 * @retval new menudata structure, free with menudata_free()
 	 */
-MenuData *decompose_menu_string(char *str) 
+static MenuData *decompose_menu_string(char *str) 
 {
 	char *instr= BLI_strdup(str);
 	MenuData *md= menudata_new(instr);
@@ -272,7 +277,7 @@ int ui_step_name_menu(uiBut *but, int step)
 
 /******************** Creating Temporary regions ******************/
 
-ARegion *ui_add_temporary_region(bScreen *sc)
+static ARegion *ui_add_temporary_region(bScreen *sc)
 {
 	ARegion *ar;
 
@@ -285,7 +290,7 @@ ARegion *ui_add_temporary_region(bScreen *sc)
 	return ar;
 }
 
-void ui_remove_temporary_region(bContext *C, bScreen *sc, ARegion *ar)
+static void ui_remove_temporary_region(bContext *C, bScreen *sc, ARegion *ar)
 {
 	if(CTX_wm_window(C))
 		wm_draw_region_clear(CTX_wm_window(C), ar);
@@ -678,7 +683,7 @@ static void ui_searchbox_butrect(rcti *rect, uiSearchboxData *data, int itemnr)
 		rect->xmin += col * butw;
 		rect->xmax = rect->xmin + butw;
 		
-		rect->ymax = data->bbox.ymax - (row * buth);
+		rect->ymax = data->bbox.ymax - MENU_TOP - (row * buth);
 		rect->ymin = rect->ymax - buth;
 	}
 	/* list view */
@@ -980,7 +985,7 @@ ARegion *ui_searchbox_create(bContext *C, ARegion *butregion, uiBut *but)
 		data->bbox.ymax= (ar->winrct.ymax-ar->winrct.ymin) - MENU_SHADOW_BOTTOM;
 		
 		/* check if button is lower half */
-		if( but->y2 < (but->block->minx+but->block->maxx)/2 ) {
+		if( but->y2 < (but->block->miny+but->block->maxy)/2 ) {
 			data->bbox.ymin += (but->y2-but->y1);
 		}
 		else {
@@ -1034,7 +1039,7 @@ ARegion *ui_searchbox_create(bContext *C, ARegion *butregion, uiBut *but)
 		}
 		if(y1 < 0) { /* XXX butregion NULL check?, there is one above */
 			int newy1;
-			UI_view2d_to_region_no_clip(&butregion->v2d, 0, but->y2 + ofsy, 0, &newy1);
+			UI_view2d_to_region_no_clip(&butregion->v2d, 0, but->y2 + ofsy, NULL, &newy1);
 			newy1 += butregion->winrct.ymin;
 
 			y2= y2-y1 + newy1;
@@ -1495,7 +1500,7 @@ static void ui_block_func_MENUSTR(bContext *UNUSED(C), uiLayout *layout, void *a
 			uiItemL(layout, md->title, md->titleicon);
 		}
 		else {
-			uiItemL(layout, md->title, ICON_NULL);
+			uiItemL(layout, md->title, ICON_NONE);
 			bt= block->buttons.last;
 			bt->flag= UI_TEXT_LEFT;
 		}
@@ -1620,7 +1625,7 @@ void ui_set_but_hsv(uiBut *but)
 }
 
 /* also used by small picker, be careful with name checks below... */
-void ui_update_block_buts_rgb(uiBlock *block, float *rgb)
+static void ui_update_block_buts_rgb(uiBlock *block, float *rgb)
 {
 	uiBut *bt;
 	float *hsv= ui_block_hsv_get(block);
@@ -1895,7 +1900,7 @@ static void uiBlockPicker(uiBlock *block, float *rgb, PointerRNA *ptr, PropertyR
 	bt= uiDefButR(block, NUMSLI, 0, "B ",	0, -100, butwidth, UI_UNIT_Y, ptr, propname, 2, 0.0, 0.0, 0, 3, "Blue");
 	uiButSetFunc(bt, do_picker_rna_cb, bt, NULL);
 
-	// could use uiItemFullR(col, ptr, prop, -1, 0, UI_ITEM_R_EXPAND|UI_ITEM_R_SLIDER, "", ICON_NULL);
+	// could use uiItemFullR(col, ptr, prop, -1, 0, UI_ITEM_R_EXPAND|UI_ITEM_R_SLIDER, "", ICON_NONE);
 	// but need to use uiButSetFunc for updating other fake buttons
 	
 	/* HSV values */
@@ -2295,7 +2300,8 @@ static void vconfirm_opname(bContext *C, const char *opname, const char *title, 
 
 	s= buf;
 	if (title) s+= sprintf(s, "%s%%t|", title);
-	vsprintf(s, itemfmt, ap);
+	vsnprintf(s, sizeof(buf) - (s - buf), itemfmt, ap);
+	buf[sizeof(buf) - 1]= '\0';
 
 	handle= ui_popup_menu_create(C, NULL, NULL, NULL, NULL, buf);
 
@@ -2419,7 +2425,7 @@ void uiPupMenuInvoke(bContext *C, const char *idname)
 	if(mt->poll && mt->poll(C, mt)==0)
 		return;
 
-	pup= uiPupMenuBegin(C, mt->label, ICON_NULL);
+	pup= uiPupMenuBegin(C, mt->label, ICON_NONE);
 	layout= uiPupMenuLayout(pup);
 
 	menu.layout= layout;

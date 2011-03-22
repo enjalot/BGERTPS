@@ -1,6 +1,4 @@
-/**
- * blenlib/DNA_space_types.h (mar-2001 nzc)
- *	
+/*
  * $Id$ 
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -30,6 +28,11 @@
  */
 #ifndef DNA_SPACE_TYPES_H
 #define DNA_SPACE_TYPES_H
+/** \file DNA_space_types.h
+ *  \ingroup DNA
+ *  \since mar-2001
+ *  \author nzc
+ */
 
 #include "DNA_listBase.h"
 #include "DNA_color_types.h"		/* for Histogram */
@@ -135,7 +138,8 @@ typedef struct SpaceButs {
 	short mainb, mainbo, mainbuser;	/* context tabs */
 	short re_align, align;			/* align for panels */
 	short preview;					/* preview is signal to refresh */
-	char flag, pad[3];
+	short texture_context;			/* texture context selector (material, world, brush)*/
+	char flag, pad;
 	
 	void *path;						/* runtime */
 	int pathflag, dataicon;			/* runtime */
@@ -174,22 +178,19 @@ typedef struct FileSelectParams {
 
 	char filter_glob[64]; /* list of filetypes to filter */
 
+	int	active_file;
+	int sel_first;
+	int sel_last;
+
+	/* short */
 	short type; /* XXXXX for now store type here, should be moved to the operator */
 	short flag; /* settings for filter, hiding dots files,...  */
 	short sort; /* sort order */
 	short display; /* display mode flag */
 	short filter; /* filter when (flags & FILE_FILTER) is true */
 
-	/* XXX - temporary, better move to filelist */
-	short active_bookmark;
-
-	int	active_file;
-	int selstate;
-
-	/* short */
 	/* XXX --- still unused -- */
 	short f_fp; /* show font preview */
-	short pad;
 	char fp_str[8]; /* string to use for font preview */
 
 	/* XXX --- end unused -- */
@@ -323,6 +324,9 @@ typedef struct SpaceText {
 	char findstr[256];		/* ST_MAX_FIND_STR */
 	char replacestr[256];	/* ST_MAX_FIND_STR */
 
+	short margin_column; /* column number to show right margin at */
+	char pad[6];
+
 	void *drawcache; /* cache for faster drawing */
 } SpaceText;
 
@@ -372,7 +376,7 @@ typedef struct SpaceTime {
 	ListBase caches;
 	int cache_display, pad;
 	
-	int flag, redraws;
+	int flag, redraws; /* redraws is deprecated... moved to screen */
 	
 } SpaceTime;
 
@@ -396,8 +400,10 @@ typedef struct SpaceNode {
 	float mx, my;		/* mousepos for drawing socketless link */
 	
 	struct bNodeTree *nodetree, *edittree;
-	int treetype;			/* treetype: as same nodetree->type */
-	short texfrom, pad;		/* texfrom object, world or brush */
+	int treetype;		/* treetype: as same nodetree->type */
+	short texfrom;		/* texfrom object, world or brush */
+	short recalc;		/* currently on 0/1, for auto compo */
+	ListBase linkdrag;	/* temporary data for modal linking operator */
 	
 	struct bGPdata *gpd;		/* grease-pencil data */
 } SpaceNode;
@@ -405,6 +411,9 @@ typedef struct SpaceNode {
 /* snode->flag */
 #define SNODE_BACKDRAW		2
 #define SNODE_DISPGP		4
+#define SNODE_USE_ALPHA		8
+#define SNODE_SHOW_ALPHA	16
+#define SNODE_AUTO_RENDER	32
 
 /* snode->texfrom */
 #define SNODE_TEX_OBJECT	0
@@ -623,9 +632,15 @@ typedef struct SpaceSound {
 /* sbuts->flag */
 #define SB_PRV_OSA			1
 #define SB_PIN_CONTEXT		2
-#define SB_WORLD_TEX		4
-#define SB_BRUSH_TEX		8
+//#define SB_WORLD_TEX		4	//not used anymore
+//#define SB_BRUSH_TEX		8	//not used anymore	
 #define SB_SHADING_CONTEXT	16
+
+/* sbuts->texture_context */
+#define SB_TEXC_MAT_OR_LAMP	0
+#define SB_TEXC_WORLD		1
+#define SB_TEXC_BRUSH		2
+#define SB_TEXC_PARTICLES	3
 
 /* sbuts->align */
 #define BUT_FREE  		0
@@ -694,11 +709,9 @@ enum FileSortTypeE {
 #define FILE_BOOKMARKS		512
 #define FILE_GROUP_INSTANCE	1024
 
-/* files in filesel list: 2=ACTIVE  */
-#define EDITING				(1<<0)
-#define ACTIVEFILE			(1<<1)
+/* files in filesel list: file types */
 #define BLENDERFILE			(1<<2)
-#define PSXFILE				(1<<3)
+#define BLENDERFILE_BACKUP	(1<<3)
 #define IMAGEFILE			(1<<4)
 #define MOVIEFILE			(1<<5)
 #define PYSCRIPTFILE		(1<<6)
@@ -710,6 +723,13 @@ enum FileSortTypeE {
 #define BTXFILE				(1<<12)
 #define COLLADAFILE			(1<<13)
 #define OPERATORFILE		(1<<14) /* from filter_glob operator property */
+
+
+/* Selection Flags in filesel: struct direntry, unsigned char selflag */
+#define ACTIVE_FILE 		(1<<1)
+#define HILITED_FILE		(1<<2)
+#define SELECTED_FILE		(1<<3)
+#define EDITING_FILE		(1<<4)
 
 /* SpaceImage->dt_uv */
 #define SI_UVDT_OUTLINE	0
@@ -785,6 +805,8 @@ enum FileSortTypeE {
 #define SIPO_TEMP_NEEDCHANSYNC	(1<<10)
 	/* don't perform realtime updates */
 #define SIPO_NOREALTIMEUPDATES	(1<<11)
+	/* don't draw curves with AA ("beauty-draw") for performance */
+#define SIPO_BEAUTYDRAW_OFF		(1<<12)
 
 /* SpaceIpo->mode (Graph Editor Mode) */
 enum {
@@ -801,6 +823,7 @@ enum {
 									   // execution (see BPY_main.c)
 #define	ST_FIND_WRAP			0x0020
 #define	ST_FIND_ALL				0x0040
+#define	ST_SHOW_MARGIN			0x0080
 
 
 /* stext->findstr/replacestr */
@@ -861,7 +884,7 @@ enum {
 	/* only keyframes from active/selected channels get shown */
 #define TIME_ONLYACTSEL		4
 
-/* time->redraws */
+/* time->redraws (now screen->redraws_flag) */
 #define TIME_REGION				1
 #define TIME_ALL_3D_WIN			2
 #define TIME_ALL_ANIM_WIN		4

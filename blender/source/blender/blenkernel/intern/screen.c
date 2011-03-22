@@ -27,6 +27,11 @@
  * ***** END GPL LICENSE BLOCK *****
  */
 
+/** \file blender/blenkernel/intern/screen.c
+ *  \ingroup bke
+ */
+
+
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
@@ -109,7 +114,7 @@ ARegionType *BKE_regiontype_from_id(SpaceType *st, int regionid)
 }
 
 
-const ListBase *BKE_spacetypes_list()
+const ListBase *BKE_spacetypes_list(void)
 {
 	return &spacetypes;
 }

@@ -30,16 +30,10 @@
 #               but results are far more accurate
 #
 
-import bpy
-import math
-import time
-
-from mathutils import Vector
-from bpy.props import *
-
 
 def applyVertexDirt(me, blur_iterations, blur_strength, clamp_dirt, clamp_clean, dirt_only):
-##    Window.WaitCursor(1)
+    from mathutils import Vector
+    from math import acos
 
     #BPyMesh.meshCalcNormals(me)
 
@@ -65,7 +59,7 @@ def applyVertexDirt(me, blur_iterations, blur_strength, clamp_dirt, clamp_clean,
 
         # get the direction of the vectors between the vertex and it's connected vertices
         for c in con[i]:
-            vec += (me.vertices[c].co - co).normalize()
+            vec += (me.vertices[c].co - co).normalized()
 
         # normalize the vector by dividing by the number of connected verts
         tot_con = len(con[i])
@@ -76,7 +70,7 @@ def applyVertexDirt(me, blur_iterations, blur_strength, clamp_dirt, clamp_clean,
         vec /= tot_con
 
         # angle is the acos of the dot product between vert and connected verts normals
-        ang = math.acos(no.dot(vec))
+        ang = acos(no.dot(vec))
 
         # enforce min/max
         ang = max(clamp_dirt, ang)
@@ -146,7 +140,9 @@ def applyVertexDirt(me, blur_iterations, blur_strength, clamp_dirt, clamp_clean,
                 col[1] = tone * col[1]
                 col[2] = tone * col[2]
 
-##    Window.WaitCursor(0)
+
+import bpy
+from bpy.props import FloatProperty, IntProperty, BoolProperty
 
 
 class VertexPaintDirt(bpy.types.Operator):
@@ -162,6 +158,8 @@ class VertexPaintDirt(bpy.types.Operator):
     dirt_only = BoolProperty(name="Dirt Only", description="Dont calculate cleans for convex areas", default=False)
 
     def execute(self, context):
+        import time
+        from math import radians
         obj = context.object
 
         if not obj or obj.type != 'MESH':
@@ -172,7 +170,7 @@ class VertexPaintDirt(bpy.types.Operator):
 
         t = time.time()
 
-        applyVertexDirt(mesh, self.blur_iterations, self.blur_strength, math.radians(self.dirt_angle), math.radians(self.clean_angle), self.dirt_only)
+        applyVertexDirt(mesh, self.blur_iterations, self.blur_strength, radians(self.dirt_angle), radians(self.clean_angle), self.dirt_only)
 
         print('Dirt calculated in %.6f' % (time.time() - t))
 
@@ -180,11 +178,11 @@ class VertexPaintDirt(bpy.types.Operator):
 
 
 def register():
-    pass
+    bpy.utils.register_module(__name__)
 
 
 def unregister():
-    pass
+    bpy.utils.unregister_module(__name__)
 
 if __name__ == "__main__":
     register()

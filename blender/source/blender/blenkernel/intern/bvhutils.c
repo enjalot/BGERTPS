@@ -1,4 +1,4 @@
-/**
+/*
  *
  * $Id$
  *
@@ -27,6 +27,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/blenkernel/intern/bvhutils.c
+ *  \ingroup bke
+ */
+
 #include <stdio.h>
 #include <string.h>
 #include <math.h>

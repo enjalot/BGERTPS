@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -27,6 +27,11 @@
  * ***** END GPL LICENSE BLOCK *****
  */
 
+/** \file blender/nodes/intern/SHD_nodes/SHD_output.c
+ *  \ingroup shdnodes
+ */
+
+
 #include "../SHD_util.h"
 
 /* **************** OUTPUT ******************** */
@@ -47,7 +52,7 @@ static void node_shader_exec_output(void *data, bNode *node, bNodeStack **in, bN
 		nodestack_get_vec(col+3, SOCK_VALUE, in[1]);
 		
 		if(shi->do_preview) {
-			nodeAddToPreview(node, col, shi->xs, shi->ys);
+			nodeAddToPreview(node, col, shi->xs, shi->ys, shi->do_manage);
 			node->lasty= shi->ys;
 		}
 		
@@ -75,22 +80,17 @@ static int gpu_shader_output(GPUMaterial *mat, bNode *UNUSED(node), GPUNodeStack
 	return 1;
 }
 
-bNodeType sh_node_output= {
-	/* *next,*prev */	NULL, NULL,
-	/* type code   */	SH_NODE_OUTPUT,
-	/* name        */	"Output",
-	/* width+range */	80, 60, 200,
-	/* class+opts  */	NODE_CLASS_OUTPUT, NODE_PREVIEW,
-	/* input sock  */	sh_node_output_in,
-	/* output sock */	NULL,
-	/* storage     */	"",
-	/* execfunc    */	node_shader_exec_output,
-	/* butfunc     */	NULL,
-	/* initfunc    */	NULL,
-	/* freestoragefunc    */	NULL,
-	/* copystoragefunc    */	NULL,
-	/* id          */	NULL, NULL, NULL,
-	/* gpufunc     */	gpu_shader_output
-	
-};
+void register_node_type_sh_output(ListBase *lb)
+{
+	static bNodeType ntype;
+
+	node_type_base(&ntype, SH_NODE_OUTPUT, "Output", NODE_CLASS_OUTPUT, NODE_PREVIEW,
+		sh_node_output_in, NULL);
+	node_type_size(&ntype, 80, 60, 200);
+	node_type_exec(&ntype, node_shader_exec_output);
+	node_type_gpu(&ntype, gpu_shader_output);
+
+	nodeRegisterType(lb, &ntype);
+}
+
 

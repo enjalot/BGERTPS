@@ -39,16 +39,15 @@ class DATA_PT_empty(DataButtonsPanel, bpy.types.Panel):
         ob = context.object
 
         layout.prop(ob, "empty_draw_type", text="Display")
-
         layout.prop(ob, "empty_draw_size", text="Size")
 
 
 def register():
-    pass
+    bpy.utils.register_module(__name__)
 
 
 def unregister():
-    pass
+    bpy.utils.unregister_module(__name__)
 
 if __name__ == "__main__":
     register()

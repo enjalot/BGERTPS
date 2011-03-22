@@ -1,31 +1,25 @@
-# --------------------------------------------------------------------------
-# Smart Projection UV Projection Unwrapper v1.2 by Campbell Barton (AKA Ideasman)
-# --------------------------------------------------------------------------
-# ***** BEGIN GPL LICENSE BLOCK *****
+# ##### BEGIN GPL LICENSE BLOCK #####
 #
-# This program is free software; you can redistribute it and/or
-# modify it under the terms of the GNU General Public License
-# as published by the Free Software Foundation; either version 2
-# of the License, or (at your option) any later version.
+#  This program is free software; you can redistribute it and/or
+#  modify it under the terms of the GNU General Public License
+#  as published by the Free Software Foundation; either version 2
+#  of the License, or (at your option) any later version.
 #
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
 #
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software Foundation,
-# Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software Foundation,
+#  Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 #
-# ***** END GPL LICENCE BLOCK *****
-# --------------------------------------------------------------------------
+# ##### END GPL LICENSE BLOCK #####
 
 # <pep8 compliant>
 
 from mathutils import Matrix, Vector, geometry
-import time
 import bpy
-from math import cos, radians
 
 DEG_TO_RAD = 0.017453292519943295 # pi/180.0
 SMALL_NUM = 0.000000001
@@ -36,14 +30,10 @@ global USER_FILL_HOLES_QUALITY
 USER_FILL_HOLES = None
 USER_FILL_HOLES_QUALITY = None
 
-dict_matrix = {}
-
 def pointInTri2D(v, v1, v2, v3):
-    global dict_matrix
-
     key = v1.x, v1.y, v2.x, v2.y, v3.x, v3.y
 
-    # Commented because its slower to do teh bounds check, we should realy cache the bounds info for each face.
+    # Commented because its slower to do the bounds check, we should realy cache the bounds info for each face.
     '''
     # BOUNDS CHECK
     xmin= 1000000
@@ -168,7 +158,7 @@ def island2Edge(island):
     #	e.pop(2)
 
     # return edges and unique points
-    return length_sorted_edges, [v.__copy__().resize3D() for v in unique_points.values()]
+    return length_sorted_edges, [v.to_3d() for v in unique_points.values()]
 
 # ========================= NOT WORKING????
 # Find if a points inside an edge loop, un-orderd.
@@ -227,7 +217,7 @@ def islandIntersectUvIsland(source, target, SourceOffset):
                 return 1 # LINE INTERSECTION
 
     # 1 test for source being totally inside target
-    SourceOffset.resize3D()
+    SourceOffset.resize_3d()
     for pv in source[7]:
         if pointInIsland(pv+SourceOffset, target[0]):
             return 2 # SOURCE INSIDE TARGET
@@ -267,21 +257,6 @@ def testNewVecLs2DRotIsBetter(vecs, mat=-1, bestAreaSoFar = -1):
     w = maxx-minx
     h = maxy-miny
     return (w*h, w,h), vecs # Area, vecs
-
-# Takes a list of faces that make up a UV island and rotate
-# until they optimally fit inside a square.
-ROTMAT_2D_POS_90D = Matrix.Rotation( radians(90.0), 2)
-ROTMAT_2D_POS_45D = Matrix.Rotation( radians(45.0), 2)
-
-RotMatStepRotation = []
-rot_angle = 22.5 #45.0/2
-while rot_angle > 0.1:
-    RotMatStepRotation.append([\
-     Matrix.Rotation( radians(rot_angle), 2),\
-     Matrix.Rotation( radians(-rot_angle), 2)])
-
-    rot_angle = rot_angle/2.0
-
 
 def optiRotateUvIsland(faces):
     global currentArea
@@ -464,7 +439,7 @@ def mergeUvIslands(islandList):
 
 
                     # if targetIsland[3] > (sourceIsland[2]) and\ #
-                    # print USER_FREE_SPACE_TO_TEST_QUALITY, 'ass'
+                    # print USER_FREE_SPACE_TO_TEST_QUALITY
                     if targetIsland[2] > (sourceIsland[1] * USER_FREE_SPACE_TO_TEST_QUALITY) and\
                     targetIsland[4] > sourceIsland[4] and\
                     targetIsland[5] > sourceIsland[5]:
@@ -734,7 +709,7 @@ def packIslands(islandList):
     #print '\tPacking UV Islands...'
 #XXX	Window.DrawProgressBar(0.7, 'Packing %i UV Islands...' % len(packBoxes) )
 
-    time1 = time.time()
+    # time1 = time.time()
     packWidth, packHeight = geometry.box_pack_2d(packBoxes)
 
     # print 'Box Packing Time:', time.time() - time1
@@ -773,7 +748,7 @@ def packIslands(islandList):
 
 
 def VectoQuat(vec):
-    vec = vec.copy().normalize()
+    vec = vec.normalized()
     if abs(vec.x) > 0.5:
         return vec.to_track_quat('Z', 'X')
     else:
@@ -793,6 +768,27 @@ class thickface(object):
         self.area = face.area
         self.edge_keys = face.edge_keys
 
+
+def main_consts():
+    from math import radians
+
+    global ROTMAT_2D_POS_90D
+    global ROTMAT_2D_POS_45D
+    global RotMatStepRotation
+
+    ROTMAT_2D_POS_90D = Matrix.Rotation( radians(90.0), 2)
+    ROTMAT_2D_POS_45D = Matrix.Rotation( radians(45.0), 2)
+
+    RotMatStepRotation = []
+    rot_angle = 22.5 #45.0/2
+    while rot_angle > 0.1:
+        RotMatStepRotation.append([\
+         Matrix.Rotation( radians(rot_angle), 2),\
+         Matrix.Rotation( radians(-rot_angle), 2)])
+
+        rot_angle = rot_angle/2.0
+
+
 global ob
 ob = None
 def main(context, island_margin, projection_limit):
@@ -800,6 +796,21 @@ def main(context, island_margin, projection_limit):
     global USER_FILL_HOLES_QUALITY
     global USER_STRETCH_ASPECT
     global USER_ISLAND_MARGIN
+    
+    from math import cos
+    import time
+
+    global dict_matrix
+    dict_matrix = {}
+
+
+    # Constants:
+    # Takes a list of faces that make up a UV island and rotate
+    # until they optimally fit inside a square.
+    global ROTMAT_2D_POS_90D
+    global ROTMAT_2D_POS_45D
+    global RotMatStepRotation
+    main_consts()
 
 #XXX objects= bpy.data.scenes.active.objects
     objects = context.selected_editable_objects
@@ -868,7 +879,7 @@ def main(context, island_margin, projection_limit):
 
     time1 = time.time()
 
-    # Tag as False se we dont operate on teh same mesh twice.
+    # Tag as False se we dont operate on the same mesh twice.
 #XXX	bpy.data.meshes.tag = False
     for me in bpy.data.meshes:
         me.tag = False
@@ -926,7 +937,7 @@ def main(context, island_margin, projection_limit):
         # Initialize projectVecs
         if USER_VIEW_INIT:
             # Generate Projection
-            projectVecs = [Vector(Window.GetViewVector()) * ob.matrix_world.copy().invert().rotation_part()] # We add to this allong the way
+            projectVecs = [Vector(Window.GetViewVector()) * ob.matrix_world.inverted().to_3x3()] # We add to this allong the way
         else:
             projectVecs = []
 
@@ -963,7 +974,7 @@ def main(context, island_margin, projection_limit):
                     averageVec += fprop.no
 
             if averageVec.x != 0 or averageVec.y != 0 or averageVec.z != 0: # Avoid NAN
-                projectVecs.append(averageVec.normalize())
+                projectVecs.append(averageVec.normalized())
 
 
             # Get the next vec!
@@ -1074,6 +1085,8 @@ def main(context, island_margin, projection_limit):
     if is_editmode:
         bpy.ops.object.mode_set(mode='EDIT')
 
+    dict_matrix.clear()
+
 #XXX	Window.DrawProgressBar(1.0, "")
 #XXX	Window.WaitCursor(0)
 #XXX	Window.RedrawAll()
@@ -1098,7 +1111,7 @@ def main(context, island_margin, projection_limit):
     ]
 """
 
-from bpy.props import *
+from bpy.props import FloatProperty
 
 
 class SmartProject(bpy.types.Operator):
@@ -1123,17 +1136,23 @@ class SmartProject(bpy.types.Operator):
         main(context, self.island_margin, self.angle_limit)
         return {'FINISHED'}
 
+    def invoke(self, context, event):
+        wm = context.window_manager
+        return wm.invoke_props_dialog(self)
 
-# Add to a menu
-menu_func = (lambda self, context: self.layout.operator(SmartProject.bl_idname,
-                                        text="Smart Project"))
+
+def menu_func(self, context):
+    self.layout.operator_context = 'INVOKE_REGION_WIN'
+    self.layout.operator(SmartProject.bl_idname, text="Smart Project")
 
 
 def register():
+    bpy.utils.register_module(__name__)
     bpy.types.VIEW3D_MT_uv_map.append(menu_func)
 
 
 def unregister():
+    bpy.utils.unregister_module(__name__)
     bpy.types.VIEW3D_MT_uv_map.remove(menu_func)
 
 if __name__ == "__main__":

@@ -100,9 +100,6 @@ class PHYSICS_PT_smoke(PhysicButtonsPanel, bpy.types.Panel):
                 sub.prop(flow, "density")
                 sub.prop(flow, "temperature")
 
-            #elif md.smoke_type == 'COLLISION':
-            #	layout.separator()
-
 
 class PHYSICS_PT_smoke_groups(PhysicButtonsPanel, bpy.types.Panel):
     bl_label = "Smoke Groups"
@@ -205,11 +202,11 @@ class PHYSICS_PT_smoke_field_weights(PhysicButtonsPanel, bpy.types.Panel):
 
 
 def register():
-    pass
+    bpy.utils.register_module(__name__)
 
 
 def unregister():
-    pass
+    bpy.utils.unregister_module(__name__)
 
 if __name__ == "__main__":
     register()

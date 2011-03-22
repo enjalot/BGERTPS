@@ -26,6 +26,11 @@
  * ***** END GPL LICENSE BLOCK *****
  */
 
+/** \file blender/editors/mesh/editmesh_tools.c
+ *  \ingroup edmesh
+ */
+
+
 /*
 
 editmesh_tool.c: UI called tools for editmesh, geometry changes here, otherwise in mods.c
@@ -525,7 +530,7 @@ static void xsortvert_flag__doSetX(void *userData, EditVert *UNUSED(eve), int x,
 }
 
 /* all verts with (flag & 'flag') are sorted */
-void xsortvert_flag(bContext *C, int flag)
+static void xsortvert_flag(bContext *C, int flag)
 {
 	ViewContext vc;
 	EditVert *eve;
@@ -563,8 +568,31 @@ void xsortvert_flag(bContext *C, int flag)
 
 }
 
+static int mesh_vertices_sort_exec(bContext *C, wmOperator *UNUSED(op))
+{
+	xsortvert_flag(C, SELECT);
+	return OPERATOR_FINISHED;
+}
+
+void MESH_OT_vertices_sort(wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name= "Vertex Sort";
+	ot->description= "Sort vertex order";
+	ot->idname= "MESH_OT_vertices_sort";
+
+	/* api callbacks */
+	ot->exec= mesh_vertices_sort_exec;
+
+	ot->poll= EM_view3d_poll; /* uses view relative X axis to sort verts */
+
+	/* flags */
+	ot->flag= OPTYPE_REGISTER|OPTYPE_UNDO;
+}
+
+
 /* called from buttons */
-void hashvert_flag(EditMesh *em, int flag)
+static void hashvert_flag(EditMesh *em, int flag)
 {
 	/* switch vertex order using hash table */
 	EditVert *eve;
@@ -620,6 +648,31 @@ void hashvert_flag(EditMesh *em, int flag)
 	MEM_freeN(sortblock);
 
 }
+
+static int mesh_vertices_randomize_exec(bContext *C, wmOperator *UNUSED(op))
+{
+	Object *obedit= CTX_data_edit_object(C);
+	EditMesh *em= BKE_mesh_get_editmesh((Mesh *)obedit->data);
+	hashvert_flag(em, SELECT);
+	return OPERATOR_FINISHED;
+}
+
+void MESH_OT_vertices_randomize(wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name= "Vertex Randomize";
+	ot->description= "Randomize vertex order";
+	ot->idname= "MESH_OT_vertices_randomize";
+
+	/* api callbacks */
+	ot->exec= mesh_vertices_randomize_exec;
+
+	ot->poll= ED_operator_editmesh;
+
+	/* flags */
+	ot->flag= OPTYPE_REGISTER|OPTYPE_UNDO;
+}
+
 
 /* generic extern called extruder */
 static void extrude_mesh(Object *obedit, EditMesh *em, wmOperator *op, short type)
@@ -700,7 +753,7 @@ static int mesh_extrude_exec(bContext *C, wmOperator *op)
 	return OPERATOR_FINISHED;
 }
 
-EnumPropertyItem extrude_items[] = {
+static EnumPropertyItem extrude_items[] = {
 		{1, "REGION", 0, "Region", ""},
 		{2, "FACES", 0, "Individual Faces", ""},
 		{3, "EDGES", 0, "Only Edges", ""},
@@ -3459,7 +3512,7 @@ void join_triangles(EditMesh *em)
 #define FACE_MARKCLEAR(f) (f->f1 = 1)
 
 /* quick hack, basically a copy of beautify_fill */
-void edge_flip(EditMesh *em)
+static void edge_flip(EditMesh *em)
 {
 	EditVert *v1, *v2, *v3, *v4;
 	EditEdge *eed, *nexted;
@@ -3834,7 +3887,7 @@ void MESH_OT_edge_rotate(wmOperatorType *ot)
 
   /* XXX old bevel not ported yet */
 
-void bevel_menu(EditMesh *em)
+static void bevel_menu(EditMesh *em)
 {
 	BME_Mesh *bm;
 	BME_TransData_Head *td;
@@ -5151,27 +5204,38 @@ static int blend_from_shape_exec(bContext *C, wmOperator *op)
 	Key *key= me->key;
 	EditMesh *em= BKE_mesh_get_editmesh(me);
 	EditVert *eve;
-	KeyBlock *kb;
-	float *data, co[3];
+	KeyBlock *kb, *refkb= NULL;
+	float *data, *refdata= NULL, co[3];
 	float blend= RNA_float_get(op->ptr, "blend");
 	int shape= RNA_enum_get(op->ptr, "shape");
-	int add= RNA_int_get(op->ptr, "add");
+	int add= RNA_boolean_get(op->ptr, "add");
 	int blended= 0;
 
 	if(key && (kb= BLI_findlink(&key->block, shape))) {
 		data= kb->data;
 
+		if(add) {
+			refkb= BLI_findlink(&key->block, kb->relative);
+			if(refkb)
+				refdata = refkb->data;
+		}
+
 		for(eve=em->verts.first; eve; eve=eve->next){
 			if(eve->f & SELECT) {
 				if(eve->keyindex >= 0 && eve->keyindex < kb->totelem) {
-					VECCOPY(co, data + eve->keyindex*3);
+					copy_v3_v3(co, data + eve->keyindex*3);
 
 					if(add) {
-						mul_v3_fl(co, blend);
-						add_v3_v3(eve->co, co);
+						/* in add mode, we add relative shape key offset */
+						if(refdata && eve->keyindex < refkb->totelem)
+							sub_v3_v3v3(co, co, refdata + eve->keyindex*3);
+
+						madd_v3_v3fl(eve->co, co, blend);
 					}
-					else
+					else {
+						/* in blend mode, we interpolate to the shape key */
 						interp_v3_v3v3(eve->co, eve->co, co, blend);
+					}
 
 					blended= 1;
 				}
@@ -5243,7 +5307,7 @@ void MESH_OT_blend_from_shape(wmOperatorType *ot)
 	prop= RNA_def_enum(ot->srna, "shape", shape_items, 0, "Shape", "Shape key to use for blending.");
 	RNA_def_enum_funcs(prop, shape_itemf);
 	RNA_def_float(ot->srna, "blend", 1.0f, -FLT_MAX, FLT_MAX, "Blend", "Blending factor.", -2.0f, 2.0f);
-	RNA_def_boolean(ot->srna, "add", 1, "Add", "Add rather then blend between shapes.");
+	RNA_def_boolean(ot->srna, "add", 0, "Add", "Add rather then blend between shapes.");
 }
 
 /************************ Merge Operator *************************/
@@ -5984,7 +6048,6 @@ static int select_vertex_path_exec(bContext *C, wmOperator *op)
 	EditMesh *em= BKE_mesh_get_editmesh((Mesh *)obedit->data);
 	EditVert *eve, *s, *t;
 	EditEdge *eed;
-	EditSelection *ese;
 	PathEdge *newpe, *currpe;
 	PathNode *currpn;
 	PathNode *Q;
@@ -5995,17 +6058,24 @@ static int select_vertex_path_exec(bContext *C, wmOperator *op)
 	Heap *heap; /*binary heap for sorting pointers to PathNodes based upon a 'cost'*/
 
 	s = t = NULL;
+	for(eve=em->verts.first; eve; eve=eve->next) {
+		if(eve->f&SELECT) {
+			if(s == NULL) s= eve;
+			else if(t == NULL) t= eve;
+			else {
+				/* more than two vertices are selected,
+				   show warning message and cancel operator */
+				s = t = NULL;
+				break;
+			}
 
-	ese = ((EditSelection*)em->selected.last);
-	if(ese && ese->type == EDITVERT && ese->prev && ese->prev->type == EDITVERT) {
-		t = (EditVert*)ese->data;
-		s = (EditVert*)ese->prev->data;
-
-		/*need to find out if t is actually reachable by s....*/
-		for(eve=em->verts.first; eve; eve=eve->next){
-			eve->f1 = 0;
 		}
 
+		/*need to find out if t is actually reachable by s....*/
+		eve->f1 = 0;
+	}
+
+	if(s != NULL && t != NULL) {
 		s->f1 = 1;
 
 		unbalanced = 1;
@@ -7150,7 +7220,7 @@ static int sort_faces_exec(bContext *C, wmOperator *op)
 	if (!v3d) return OPERATOR_CANCELLED;
 
 	/* This operator work in Object Mode, not in edit mode.
-	 * After talk with Cambell we agree that there is no point to port this to EditMesh right now.
+	 * After talk with Campbell we agree that there is no point to port this to EditMesh right now.
 	 * so for now, we just exit_editmode and enter_editmode at the end of this function.
 	 */
 	ED_object_exit_editmode(C, EM_FREEDATA);

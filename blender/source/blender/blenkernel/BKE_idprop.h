@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -27,6 +27,11 @@
  
 #ifndef _BKE_IDPROP_H
 #define _BKE_IDPROP_H
+
+/** \file BKE_idprop.h
+ *  \ingroup bke
+ *  \author Joseph Eagar
+ */
 
 #include "DNA_ID.h"
 
@@ -127,6 +132,8 @@ int IDP_InsertToGroup(struct IDProperty *group, struct IDProperty *previous,
 void IDP_RemFromGroup(struct IDProperty *group, struct IDProperty *prop);
 
 IDProperty *IDP_GetPropertyFromGroup(struct IDProperty *prop, const char *name);
+/* same as above but ensure type match */
+IDProperty *IDP_GetPropertyTypeFromGroup(struct IDProperty *prop, const char *name, const char type);
 
 /*Get an iterator to iterate over the members of an id property group.
  Note that this will automatically free the iterator once iteration is complete;

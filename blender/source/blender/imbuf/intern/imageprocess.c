@@ -1,4 +1,4 @@
-/**
+/*
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
  *
@@ -29,6 +29,11 @@
  * other functions were only used during rendering. This single
  * function remained. It should probably move to imbuf/intern/util.c,
  * but we'll keep it here for the time being. (nzc)*/
+
+/** \file blender/imbuf/intern/imageprocess.c
+ *  \ingroup imbuf
+ */
+
 
 /*  imageprocess.c        MIXED MODEL
  * 

@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -26,6 +26,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/editors/space_file/fsmenu.c
+ *  \ingroup spfile
+ */
+
 
 #include <stdlib.h>
 #include <string.h>
@@ -312,7 +317,7 @@ void fsmenu_read_system(struct FSMenu* fsmenu)
 #if (MAC_OS_X_VERSION_MIN_REQUIRED <= MAC_OS_X_VERSION_10_4)
 		OSErr err=noErr;
 		int i;
-		char *home;
+		const char *home;
 		
 		/* loop through all the OS X Volumes, and add them to the SYSTEM section */
 		for (i=1; err!=nsvErr; i++)
@@ -454,7 +459,7 @@ void fsmenu_read_system(struct FSMenu* fsmenu)
 #else
 	/* unix */
 	{
-		char *home= getenv("HOME");
+		const char *home= getenv("HOME");
 
 		if(home) {
 			BLI_snprintf(line, FILE_MAXDIR, "%s/", home);

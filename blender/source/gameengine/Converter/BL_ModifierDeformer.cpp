@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -26,6 +26,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file gameengine/Converter/BL_ModifierDeformer.cpp
+ *  \ingroup bgeconv
+ */
+
 
 #if defined(WIN32) && !defined(FREE_WINDOWS)
 #pragma warning (disable : 4786)
@@ -415,7 +420,7 @@ bool BL_ModifierDeformer::Apply(RAS_IPolyMaterial *mat)
                         rtps::RTPSettings settings(sys, rtmd->num, rtmd->dt, grid, rtmd->collision);
 						//GE should automate with python
 						settings.setRadiusScale(rtmd->render_radius_scale);
-						settings.setRenderType(rtmd->render_type);
+						settings.setRenderType((rtps::RTPSettings::RenderType)rtmd->render_type);
 						settings.setBlurScale(rtmd->render_blur_scale);
 						settings.setUseGLSL(rtmd->glsl);
 						settings.setUseAlphaBlending(rtmd->blending);

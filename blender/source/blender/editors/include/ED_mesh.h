@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -25,6 +25,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file ED_mesh.h
+ *  \ingroup editors
+ */
+
 #ifndef ED_MESH_H
 #define ED_MESH_H
 
@@ -51,6 +56,9 @@ struct MDeformWeight;
 struct MDeformVert;
 struct Scene;
 struct Mesh;
+struct MFace;
+struct MEdge;
+struct MVert;
 struct MCol;
 struct UvVertMap;
 struct UvMapVert;
@@ -185,6 +193,9 @@ void paintface_deselect_all_visible(struct Object *ob, int action, short flush_f
 void paintface_select_linked(struct bContext *C, struct Object *ob, short mval[2], int mode);
 int paintface_minmax(struct Object *ob, float *min, float *max);
 
+void paintface_hide(struct Object *ob, const int unselected);
+void paintface_reveal(struct Object *ob);
+
 /* object_vgroup.c */
 
 #define WEIGHT_REPLACE 1
@@ -194,7 +205,7 @@ int paintface_minmax(struct Object *ob, float *min, float *max);
 struct bDeformGroup		*ED_vgroup_add(struct Object *ob);
 struct bDeformGroup		*ED_vgroup_add_name(struct Object *ob, const char *name);
 void 					ED_vgroup_delete(struct Object *ob, struct bDeformGroup *defgroup);
-void					ED_vgroup_select_by_name(struct Object *ob, char *name);
+void					ED_vgroup_select_by_name(struct Object *ob, const char *name);
 void					ED_vgroup_data_create(struct ID *id);
 int						ED_vgroup_give_array(struct ID *id, struct MDeformVert **dvert_arr, int *dvert_tot);
 int						ED_vgroup_copy_array(struct Object *ob, struct Object *ob_from);

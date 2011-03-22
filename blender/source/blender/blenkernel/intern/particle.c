@@ -29,6 +29,11 @@
  * ***** END GPL LICENSE BLOCK *****
  */
 
+/** \file blender/blenkernel/intern/particle.c
+ *  \ingroup bke
+ */
+
+
 #include <stdlib.h>
 #include <math.h>
 #include <string.h>
@@ -77,8 +82,6 @@
 
 #include "RE_render_ext.h"
 
-static void get_cpa_texture(DerivedMesh *dm, Material *ma, int face_index,
-				float *fuv, float *orco, ParticleTexture *ptex,	int event);
 static void get_child_modifier_parameters(ParticleSettings *part, ParticleThreadContext *ctx,
 				ChildParticle *cpa, short cpa_from, int cpa_num, float *cpa_fuv, float *orco, ParticleTexture *ptex);
 static void do_child_modifiers(ParticleSimulationData *sim,
@@ -159,21 +162,21 @@ static void psys_free_path_cache_buffers(ParticleCacheKey **cache, ListBase *buf
 ParticleSystem *psys_get_current(Object *ob)
 {
 	ParticleSystem *psys;
-	if(ob==0) return 0;
+	if(ob==NULL) return NULL;
 
 	for(psys=ob->particlesystem.first; psys; psys=psys->next){
 		if(psys->flag & PSYS_CURRENT)
 			return psys;
 	}
 	
-	return 0;
+	return NULL;
 }
 short psys_get_current_num(Object *ob)
 {
 	ParticleSystem *psys;
 	short i;
 
-	if(ob==0) return 0;
+	if(ob==NULL) return 0;
 
 	for(psys=ob->particlesystem.first, i=0; psys; psys=psys->next, i++)
 		if(psys->flag & PSYS_CURRENT)
@@ -186,7 +189,7 @@ void psys_set_current_num(Object *ob, int index)
 	ParticleSystem *psys;
 	short i;
 
-	if(ob==0) return;
+	if(ob==NULL) return;
 
 	for(psys=ob->particlesystem.first, i=0; psys; psys=psys->next, i++) {
 		if(i == index)
@@ -211,7 +214,7 @@ Object *psys_find_object(Scene *scene, ParticleSystem *psys)
 }
 Object *psys_get_lattice(ParticleSimulationData *sim)
 {
-	Object *lattice=0;
+	Object *lattice=NULL;
 	
 	if(psys_in_edit_mode(sim->scene, sim->psys)==0){
 
@@ -225,7 +228,7 @@ Object *psys_get_lattice(ParticleSimulationData *sim)
 			}
 		}
 		if(lattice)
-			init_latt_deform(lattice,0);
+			init_latt_deform(lattice, NULL);
 	}
 
 	return lattice;
@@ -360,7 +363,7 @@ int psys_uses_gravity(ParticleSimulationData *sim)
 /************************************************/
 /*			Freeing stuff						*/
 /************************************************/
-void fluid_free_settings(SPHFluidSettings *fluid)
+static void fluid_free_settings(SPHFluidSettings *fluid)
 {
 	if(fluid)
 		MEM_freeN(fluid); 
@@ -368,6 +371,8 @@ void fluid_free_settings(SPHFluidSettings *fluid)
 
 void psys_free_settings(ParticleSettings *part)
 {
+	MTex *mtex;
+	int a;
 	BKE_free_animdata(&part->id);
 	free_partdeflect(part->pd);
 	free_partdeflect(part->pd2);
@@ -379,6 +384,12 @@ void psys_free_settings(ParticleSettings *part)
 
 	boid_free_settings(part->boids);
 	fluid_free_settings(part->fluid);
+
+	for(a=0; a<MAX_MTEX; a++) {
+		mtex= part->mtex[a];
+		if(mtex && mtex->tex) mtex->tex->id.us--;
+		if(mtex) MEM_freeN(mtex);
+	}
 }
 
 void free_hair(Object *UNUSED(ob), ParticleSystem *psys, int dynamics)
@@ -461,7 +472,7 @@ void psys_free_children(ParticleSystem *psys)
 {
 	if(psys->child) {
 		MEM_freeN(psys->child);
-		psys->child=0;
+		psys->child= NULL;
 		psys->totchild=0;
 	}
 
@@ -531,7 +542,7 @@ void psys_free(Object *ob, ParticleSystem * psys)
 
 		if(psys->child){
 			MEM_freeN(psys->child);
-			psys->child = 0;
+			psys->child = NULL;
 			psys->totchild = 0;
 		}
 		
@@ -552,7 +563,7 @@ void psys_free(Object *ob, ParticleSystem * psys)
 
 		if(psys->part){
 			psys->part->id.us--;		
-			psys->part=0;
+			psys->part=NULL;
 		}
 
 		BKE_ptcache_free_list(&psys->ptcaches);
@@ -560,6 +571,7 @@ void psys_free(Object *ob, ParticleSystem * psys)
 		
 		BLI_freelistN(&psys->targets);
 
+		BLI_bvhtree_free(psys->bvhtree);
 		BLI_kdtree_free(psys->tree);
  
 		if(psys->fluid_springs)
@@ -1194,12 +1206,12 @@ static void mvert_to_particle(ParticleKey *key, MVert *mvert, HairKey *hkey)
 	key->time = hkey->time;
 }
 
-static void do_particle_interpolation(ParticleSystem *psys, int p, ParticleData *pa, float t, float frs_sec, ParticleInterpolationData *pind, ParticleKey *result)
+static void do_particle_interpolation(ParticleSystem *psys, int p, ParticleData *pa, float t, ParticleInterpolationData *pind, ParticleKey *result)
 {
 	PTCacheEditPoint *point = pind->epoint;
 	ParticleKey keys[4];
 	int point_vel = (point && point->keys->vel);
-	float real_t, dfra, keytime;
+	float real_t, dfra, keytime, invdt = 1.f;
 
 	/* billboards wont fill in all of these, so start cleared */
 	memset(keys, 0, sizeof(keys));
@@ -1341,8 +1353,9 @@ static void do_particle_interpolation(ParticleSystem *psys, int p, ParticleData 
 
 	/* convert velocity to timestep size */
 	if(pind->keyed || pind->cache || point_vel){
-		mul_v3_fl(keys[1].vel, dfra / frs_sec);
-		mul_v3_fl(keys[2].vel, dfra / frs_sec);
+		invdt = dfra * 0.04f * (psys ? psys->part->timetweak : 1.f);
+		mul_v3_fl(keys[1].vel, invdt);
+		mul_v3_fl(keys[2].vel, invdt);
 		interp_qt_qtqt(result->rot,keys[1].rot,keys[2].rot,keytime);
 	}
 
@@ -1353,7 +1366,7 @@ static void do_particle_interpolation(ParticleSystem *psys, int p, ParticleData 
 
 	/* the velocity needs to be converted back from cubic interpolation */
 	if(pind->keyed || pind->cache || point_vel)
-		mul_v3_fl(result->vel, frs_sec / dfra);
+		mul_v3_fl(result->vel, 1.f/invdt);
 }
 /************************************************/
 /*			Particles on a dm					*/
@@ -1469,7 +1482,7 @@ void psys_interpolate_face(MVert *mvert, MFace *mface, MTFace *tface, float (*or
 		}
 		else {
 			VECCOPY(orco, vec);
-			if(ornor)
+			if(ornor && nor)
 				VECCOPY(ornor, nor);
 		}
 	}
@@ -1824,9 +1837,11 @@ static void psys_particle_on_shape(int UNUSED(distr), int UNUSED(index), float *
 void psys_particle_on_emitter(ParticleSystemModifierData *psmd, int from, int index, int index_dmcache, float *fuv, float foffset, float *vec, float *nor, float *utan, float *vtan, float *orco, float *ornor){
 	if(psmd){
 		if(psmd->psys->part->distr==PART_DISTR_GRID && psmd->psys->part->from != PART_FROM_VERT){
-			if(vec){
-				VECCOPY(vec,fuv);
-			}
+			if(vec)
+				copy_v3_v3(vec,fuv);
+
+			if(orco)
+				copy_v3_v3(orco, fuv);
 			return;
 		}
 		/* we cant use the num_dmcache */
@@ -1961,7 +1976,7 @@ static void do_kink(ParticleKey *state, ParticleKey *par, float *par_rot, float 
 	{
 		float y_vec[3]={0.f,1.f,0.f};
 		float z_vec[3]={0.f,0.f,1.f};
-		float vec_one[3], radius, state_co[3];
+		float vec_one[3], state_co[3];
 		float inp_y, inp_z, length;
 
 		if(par_rot) {
@@ -1970,7 +1985,7 @@ static void do_kink(ParticleKey *state, ParticleKey *par, float *par_rot, float 
 		}
 		
 		mul_v3_fl(par_vec, -1.f);
-		radius= normalize_v3_v3(vec_one, par_vec);
+		normalize_v3_v3(vec_one, par_vec);
 
 		inp_y=dot_v3v3(y_vec, vec_one);
 		inp_z=dot_v3v3(z_vec, vec_one);
@@ -2245,12 +2260,13 @@ static void do_path_effectors(ParticleSimulationData *sim, int i, ParticleCacheK
 
 	normalize_v3(force);
 
-	VECADDFAC(ca->co, (ca-1)->co, force, *length);
-
-	if(k < steps) {
+	if(k < steps)
 		sub_v3_v3v3(vec, (ca+1)->co, ca->co);
+
+	madd_v3_v3v3fl(ca->co, (ca-1)->co, force, *length);
+
+	if(k < steps)
 		*length = len_v3(vec);
-	}
 }
 static int check_path_length(int k, ParticleCacheKey *keys, ParticleCacheKey *state, float max_length, float *cur_length, float length, float *dvec)
 {
@@ -2392,7 +2408,7 @@ static int psys_threads_init_path(ParticleThread *threads, Scene *scene, float c
 		steps = (int)pow(2.0, (double)pset->draw_step);
 	}
 
-	if(totchild && part->from!=PART_FROM_PARTICLE && part->childtype==PART_CHILD_FACES){
+	if(totchild && part->childtype==PART_CHILD_FACES){
 		totparent=(int)(totchild*part->parents*0.3);
 		
 		if(G.rendering && part->child_nbr && part->ren_child_nbr)
@@ -2434,16 +2450,14 @@ static int psys_threads_init_path(ParticleThread *threads, Scene *scene, float c
 	psys->lattice = psys_get_lattice(&ctx->sim);
 
 	/* cache all relevant vertex groups if they exist */
-	if(part->from!=PART_FROM_PARTICLE){
-		ctx->vg_length = psys_cache_vgroup(ctx->dm,psys,PSYS_VG_LENGTH);
-		ctx->vg_clump = psys_cache_vgroup(ctx->dm,psys,PSYS_VG_CLUMP);
-		ctx->vg_kink = psys_cache_vgroup(ctx->dm,psys,PSYS_VG_KINK);
-		ctx->vg_rough1 = psys_cache_vgroup(ctx->dm,psys,PSYS_VG_ROUGH1);
-		ctx->vg_rough2 = psys_cache_vgroup(ctx->dm,psys,PSYS_VG_ROUGH2);
-		ctx->vg_roughe = psys_cache_vgroup(ctx->dm,psys,PSYS_VG_ROUGHE);
-		if(psys->part->flag & PART_CHILD_EFFECT)
-			ctx->vg_effector = psys_cache_vgroup(ctx->dm,psys,PSYS_VG_EFFECTOR);
-	}
+	ctx->vg_length = psys_cache_vgroup(ctx->dm,psys,PSYS_VG_LENGTH);
+	ctx->vg_clump = psys_cache_vgroup(ctx->dm,psys,PSYS_VG_CLUMP);
+	ctx->vg_kink = psys_cache_vgroup(ctx->dm,psys,PSYS_VG_KINK);
+	ctx->vg_rough1 = psys_cache_vgroup(ctx->dm,psys,PSYS_VG_ROUGH1);
+	ctx->vg_rough2 = psys_cache_vgroup(ctx->dm,psys,PSYS_VG_ROUGH2);
+	ctx->vg_roughe = psys_cache_vgroup(ctx->dm,psys,PSYS_VG_ROUGHE);
+	if(psys->part->flag & PART_CHILD_EFFECT)
+		ctx->vg_effector = psys_cache_vgroup(ctx->dm,psys,PSYS_VG_EFFECTOR);
 
 	/* set correct ipo timing */
 #if 0 // XXX old animation system
@@ -2690,7 +2704,7 @@ static void psys_thread_create_path(ParticleThread *thread, struct ChildParticle
 			sub_v3_v3v3((child-1)->vel, child->co, (child-2)->co);
 			mul_v3_fl((child-1)->vel, 0.5);
 
-			if(ctx->ma && (part->draw & PART_DRAW_MAT_COL))
+			if(ctx->ma && (part->draw_col == PART_DRAW_COL_MAT))
 				get_strand_normal(ctx->ma, ornor, cur_length, (child-1)->vel);
 		}
 
@@ -2709,7 +2723,7 @@ static void psys_thread_create_path(ParticleThread *thread, struct ChildParticle
 			cur_length = 0.0f;
 		}
 
-		if(ctx->ma && (part->draw & PART_DRAW_MAT_COL)) {
+		if(ctx->ma && (part->draw_col == PART_DRAW_COL_MAT)) {
 			VECCOPY(child->col, &ctx->ma->r)
 			get_strand_normal(ctx->ma, ornor, cur_length, child->vel);
 		}
@@ -2745,7 +2759,6 @@ void psys_cache_child_paths(ParticleSimulationData *sim, float cfra, int editupd
 {
 	ParticleThread *pthreads;
 	ParticleThreadContext *ctx;
-	/*ParticleCacheKey **cache;*/ /*UNUSED*/
 	ListBase threads;
 	int i, totchild, totparent, totthread;
 
@@ -2764,7 +2777,7 @@ void psys_cache_child_paths(ParticleSimulationData *sim, float cfra, int editupd
 	totparent= ctx->totparent;
 
 	if(editupdate && sim->psys->childcache && totchild == sim->psys->totchildcache) {
-		/*cache = sim->psys->childcache;*/ /*UNUSED*/
+		; /* just overwrite the existing cache */
 	}
 	else {
 		/* clear out old and create new empty path cache */
@@ -2859,11 +2872,12 @@ void psys_cache_paths(ParticleSimulationData *sim, float cfra)
 	
 	Material *ma;
 	ParticleInterpolationData pind;
+	ParticleTexture ptex;
 
 	PARTICLE_P;
 	
 	float birthtime = 0.0, dietime = 0.0;
-	float t, time = 0.0, dfra = 1.0, frs_sec = sim->scene->r.frs_sec;
+	float t, time = 0.0, dfra = 1.0 /* , frs_sec = sim->scene->r.frs_sec*/ /*UNUSED*/;
 	float col[4] = {0.5f, 0.5f, 0.5f, 1.0f};
 	float prev_tangent[3] = {0.0f, 0.0f, 0.0f}, hairmat[4][4];
 	float rotmat[3][3];
@@ -2894,11 +2908,11 @@ void psys_cache_paths(ParticleSimulationData *sim, float cfra)
 
 	psys->lattice = psys_get_lattice(sim);
 	ma= give_current_material(sim->ob, psys->part->omat);
-	if(ma && (psys->part->draw & PART_DRAW_MAT_COL))
+	if(ma && (psys->part->draw_col == PART_DRAW_COL_MAT))
 		VECCOPY(col, &ma->r)
 
-	if(psys->part->from!=PART_FROM_PARTICLE && !(psys->flag & PSYS_GLOBAL_HAIR)) {
-		if(!(psys->part->flag & PART_CHILD_EFFECT))
+	if((psys->flag & PSYS_GLOBAL_HAIR)==0) {
+		if((psys->part->flag & PART_CHILD_EFFECT)==0)
 			vg_effector = psys_cache_vgroup(psmd->dm, psys, PSYS_VG_EFFECTOR);
 		
 		if(!psys->totchild)
@@ -2908,8 +2922,8 @@ void psys_cache_paths(ParticleSimulationData *sim, float cfra)
 	/*---first main loop: create all actual particles' paths---*/
 	LOOP_SHOWN_PARTICLES {
 		if(!psys->totchild) {
-			BLI_srandom(psys->seed + p);
-			pa_length = 1.0f - part->randlength * BLI_frand();
+			psys_get_texture(sim, pa, &ptex, PAMAP_LENGTH, 0.f);
+			pa_length = ptex.length * (1.0f - part->randlength * PSYS_FRAND(psys->seed + p));
 			if(vg_length)
 				pa_length *= psys_particle_value_from_verts(psmd->dm,part->from,pa,vg_length);
 		}
@@ -2955,7 +2969,7 @@ void psys_cache_paths(ParticleSimulationData *sim, float cfra)
 			time = (float)k / (float)steps;
 			t = birthtime + time * (dietime - birthtime);
 			result.time = -t;
-			do_particle_interpolation(psys, p, pa, t, frs_sec, &pind, &result);
+			do_particle_interpolation(psys, p, pa, t, &pind, &result);
 			copy_v3_v3(ca->co, result.co);
 
 			/* dynamic hair is in object space */
@@ -3102,6 +3116,7 @@ void psys_cache_edit_paths(Scene *scene, Object *ob, PTCacheEdit *edit, float cf
 		/* should init_particle_interpolation set this ? */
 		if(pset->brushtype==PE_BRUSH_WEIGHT){
 			pind.hkey[0] = NULL;
+			/* pa != NULL since the weight brush is only available for hair */
 			pind.hkey[1] = pa->hair;
 		}
 
@@ -3133,7 +3148,7 @@ void psys_cache_edit_paths(Scene *scene, Object *ob, PTCacheEdit *edit, float cf
 			time = (float)k / (float)steps;
 			t = birthtime + time * (dietime - birthtime);
 			result.time = -t;
-			do_particle_interpolation(psys, i, pa, t, frs_sec, &pind, &result);
+			do_particle_interpolation(psys, i, pa, t, &pind, &result);
 			copy_v3_v3(ca->co, result.co);
 
 			 /* non-hair points are already in global space */
@@ -3331,7 +3346,8 @@ static void psys_face_mat(Object *ob, DerivedMesh *dm, ParticleData *pa, float m
 
 		/* ugly hack to use non-transformed orcos, since only those
 		 * give symmetric results for mirroring in particle mode */
-		transform_mesh_orco_verts(ob->data, v, 3, 1);
+		if(DM_get_vert_data_layer(dm, CD_ORIGINDEX))
+			transform_mesh_orco_verts(ob->data, v, 3, 1);
 	}
 	else {
 		dm->getVertCo(dm,mface->v1,v[0]);
@@ -3359,7 +3375,8 @@ void psys_mat_hair_to_orco(Object *ob, DerivedMesh *dm, short from, ParticleData
 	psys_particle_on_dm(dm, from, pa->num, pa->num_dmcache, pa->fuv, pa->foffset, vec, 0, 0, 0, orco, 0);
 
 	/* see psys_face_mat for why this function is called */
-	transform_mesh_orco_verts(ob->data, &orco, 1, 1);
+	if(DM_get_vert_data_layer(dm, CD_ORIGINDEX))
+		transform_mesh_orco_verts(ob->data, &orco, 1, 1);
 	VECCOPY(hairmat[3],orco);
 }
 
@@ -3471,7 +3488,7 @@ static void default_particle_settings(ParticleSettings *part)
 	part->bb_uv_split=1;
 	part->bb_align=PART_BB_VIEW;
 	part->bb_split_offset=PART_BB_OFF_LINEAR;
-	part->flag=PART_EDISTR|PART_TRAND;
+	part->flag=PART_EDISTR|PART_TRAND|PART_HIDE_ADVANCED_HAIR;
 
 	part->sta= 1.0;
 	part->end= 200.0;
@@ -3497,8 +3514,6 @@ static void default_particle_settings(ParticleSettings *part)
 
 	part->normfac= 1.0f;
 
-	part->reactshape=1.0f;
-
 	part->mass=1.0;
 	part->size=0.05;
 	part->childsize=1.0;
@@ -3521,16 +3536,15 @@ static void default_particle_settings(ParticleSettings *part)
 	part->clength=1.0f;
 	part->clength_thres=0.0f;
 
-	part->draw= PART_DRAW_EMITTER|PART_DRAW_MAT_COL;
+	part->draw= PART_DRAW_EMITTER;
 	part->draw_line[0]=0.5;
 	part->path_start = 0.0f;
 	part->path_end = 1.0f;
 
 	part->keyed_loops = 1;
 
-#if 0 // XXX old animation system
-	part->ipo = NULL;
-#endif // XXX old animation system
+	part->color_vec_max = 1.f;
+	part->draw_col = PART_DRAW_COL_MAT;
 
 	part->simplify_refsize= 1920;
 	part->simplify_rate= 1.0f;
@@ -3559,13 +3573,23 @@ ParticleSettings *psys_new_settings(const char *name, Main *main)
 ParticleSettings *psys_copy_settings(ParticleSettings *part)
 {
 	ParticleSettings *partn;
-	
+	int a;
+
 	partn= copy_libblock(part);
-	if(partn->pd) partn->pd= MEM_dupallocN(part->pd);
-	if(partn->pd2) partn->pd2= MEM_dupallocN(part->pd2);
-	partn->effector_weights = MEM_dupallocN(part->effector_weights);
+	partn->pd= MEM_dupallocN(part->pd);
+	partn->pd2= MEM_dupallocN(part->pd2);
+	partn->effector_weights= MEM_dupallocN(part->effector_weights);
+	partn->fluid= MEM_dupallocN(part->fluid);
 
 	partn->boids = boid_copy_settings(part->boids);
+
+	for(a=0; a<MAX_MTEX; a++) {
+		if(part->mtex[a]) {
+			partn->mtex[a]= MEM_mallocN(sizeof(MTex), "psys_copy_tex");
+			memcpy(partn->mtex[a], part->mtex[a], sizeof(MTex));
+			id_us_plus((ID *)partn->mtex[a]->tex);
+		}
+	}
 	
 	return partn;
 }
@@ -3672,82 +3696,128 @@ static int get_particle_uv(DerivedMesh *dm, ParticleData *pa, int face_index, fl
 	return 1;
 }
 
-static void get_cpa_texture(DerivedMesh *dm, Material *ma, int face_index, float *fw, float *orco, ParticleTexture *ptex, int event)
-{
-	MTex *mtex;
-	int m,setvars=0;
-	float value, rgba[4], texco[3];
+#define SET_PARTICLE_TEXTURE(type, pvalue, texfac) if((event & mtex->mapto) & type) {pvalue = texture_value_blend(def, pvalue, value, texfac, blend);}
+#define CLAMP_PARTICLE_TEXTURE_POS(type, pvalue) if(event & type) { if(pvalue < 0.f) pvalue = 1.f+pvalue; CLAMP(pvalue, 0.0, 1.0); }
+#define CLAMP_PARTICLE_TEXTURE_POSNEG(type, pvalue) if(event & type) { CLAMP(pvalue, -1.0, 1.0); }
 
-	if(ma) for(m=0; m<MAX_MTEX; m++){
-		mtex=ma->mtex[m];
-		if(mtex && (ma->septex & (1<<m))==0 && mtex->pmapto){
+static void get_cpa_texture(DerivedMesh *dm, ParticleSystem *psys, ParticleSettings *part, ParticleData *par, int child_index, int face_index, float *fw, float *orco, ParticleTexture *ptex, int event, float cfra)
+{
+	MTex *mtex, **mtexp = part->mtex;
+	int m;
+	float value, rgba[4], texvec[3];
+
+	ptex->ivel = ptex->life = ptex->exist = ptex->size = ptex->damp =
+		ptex->gravity = ptex->field = ptex->time = ptex->clump = ptex->kink =
+		ptex->effector = ptex->rough1 = ptex->rough2 = ptex->roughe = 1.f;
+
+	ptex->length= 1.0f - part->randlength * PSYS_FRAND(child_index + 26);
+	ptex->length*= part->clength_thres < PSYS_FRAND(child_index + 27) ? part->clength : 1.0f;
+
+	for(m=0; m<MAX_MTEX; m++, mtexp++){
+		mtex = *mtexp;
+		if(mtex && mtex->mapto){
 			float def=mtex->def_var;
 			short blend=mtex->blendtype;
+			short texco = mtex->texco;
 
-			if((mtex->texco & TEXCO_UV) && fw) {
-				if(!get_particle_uv(dm, NULL, face_index, fw, mtex->uvname, texco))
-					VECCOPY(texco,orco);
-			}
-			else
-				VECCOPY(texco,orco);
+			if(ELEM(texco, TEXCO_UV, TEXCO_ORCO) && (ELEM(part->from, PART_FROM_FACE, PART_FROM_VOLUME) == 0 || part->distr == PART_DISTR_GRID))
+				texco = TEXCO_GLOB;
 
-			externtex(mtex, texco, &value, rgba, rgba+1, rgba+2, rgba+3, 0);
-			if((event & mtex->pmapto) & MAP_PA_TIME){
-				if((setvars&MAP_PA_TIME)==0){
-					ptex->time=0.0;
-					setvars|=MAP_PA_TIME;
-				}
-				ptex->time= texture_value_blend(mtex->def_var,ptex->time,value,mtex->timefac,blend);
+			switch(texco) {
+			case TEXCO_GLOB:
+				copy_v3_v3(texvec, par->state.co);
+				break;
+			case TEXCO_OBJECT:
+				copy_v3_v3(texvec, par->state.co);
+				if(mtex->object)
+					mul_m4_v3(mtex->object->imat, texvec);
+				break;
+			case TEXCO_UV:
+				if(fw && get_particle_uv(dm, NULL, face_index, fw, mtex->uvname, texvec))
+					break;
+				/* no break, failed to get uv's, so let's try orco's */
+			case TEXCO_ORCO:
+				copy_v3_v3(texvec, orco);
+				break;
+			case TEXCO_PARTICLE:
+				/* texture coordinates in range [-1,1] */
+				texvec[0] = 2.f * (cfra - par->time)/(par->dietime-par->time) - 1.f;
+				texvec[1] = 0.f;
+				texvec[2] = 0.f;
+				break;
 			}
-			if((event & mtex->pmapto) & MAP_PA_LENGTH)
-				ptex->length= texture_value_blend(def,ptex->length,value,mtex->lengthfac,blend);
-			if((event & mtex->pmapto) & MAP_PA_CLUMP)
-				ptex->clump= texture_value_blend(def,ptex->clump,value,mtex->clumpfac,blend);
-			if((event & mtex->pmapto) & MAP_PA_KINK)
-				ptex->kink= texture_value_blend(def,ptex->kink,value,mtex->kinkfac,blend);
-			if((event & mtex->pmapto) & MAP_PA_ROUGH)
+
+			externtex(mtex, texvec, &value, rgba, rgba+1, rgba+2, rgba+3, 0);
+
+			if((event & mtex->mapto) & PAMAP_ROUGH)
 				ptex->rough1= ptex->rough2= ptex->roughe= texture_value_blend(def,ptex->rough1,value,mtex->roughfac,blend);
-			if((event & mtex->pmapto) & MAP_PA_DENS)
-				ptex->exist= texture_value_blend(def,ptex->exist,value,mtex->padensfac,blend);
+
+			SET_PARTICLE_TEXTURE(PAMAP_LENGTH, ptex->length, mtex->lengthfac);
+			SET_PARTICLE_TEXTURE(PAMAP_CLUMP, ptex->clump, mtex->clumpfac);
+			SET_PARTICLE_TEXTURE(PAMAP_KINK, ptex->kink, mtex->kinkfac);
+			SET_PARTICLE_TEXTURE(PAMAP_DENS, ptex->exist, mtex->padensfac);
 		}
 	}
-	if(event & MAP_PA_TIME) { CLAMP(ptex->time,0.0,1.0); }
-	if(event & MAP_PA_LENGTH) { CLAMP(ptex->length,0.0,1.0); }
-	if(event & MAP_PA_CLUMP) { CLAMP(ptex->clump,0.0,1.0); }
-	if(event & MAP_PA_KINK) { CLAMP(ptex->kink,0.0,1.0); }
-	if(event & MAP_PA_ROUGH) {
-		CLAMP(ptex->rough1,0.0,1.0);
-		CLAMP(ptex->rough2,0.0,1.0);
-		CLAMP(ptex->roughe,0.0,1.0);
-	}
-	if(event & MAP_PA_DENS) { CLAMP(ptex->exist,0.0,1.0); }
+
+	CLAMP_PARTICLE_TEXTURE_POS(PAMAP_LENGTH, ptex->length);
+	CLAMP_PARTICLE_TEXTURE_POS(PAMAP_CLUMP, ptex->clump);
+	CLAMP_PARTICLE_TEXTURE_POS(PAMAP_KINK, ptex->kink);
+	CLAMP_PARTICLE_TEXTURE_POS(PAMAP_ROUGH, ptex->rough1);
+	CLAMP_PARTICLE_TEXTURE_POS(PAMAP_DENS, ptex->exist);
 }
-void psys_get_texture(ParticleSimulationData *sim, Material *ma, ParticleData *pa, ParticleTexture *ptex, int event)
+void psys_get_texture(ParticleSimulationData *sim, ParticleData *pa, ParticleTexture *ptex, int event, float cfra)
 {
+	ParticleSettings *part = sim->psys->part;
+	MTex **mtexp = part->mtex;
 	MTex *mtex;
 	int m;
-	float value, rgba[4], co[3], texco[3];
+	float value, rgba[4], co[3], texvec[3];
 	int setvars=0;
 
-	if(ma) for(m=0; m<MAX_MTEX; m++){
-		mtex=ma->mtex[m];
-		if(mtex && (ma->septex & (1<<m))==0 && mtex->pmapto){
+	/* initialize ptex */
+	ptex->ivel = ptex->life = ptex->exist = ptex->size = ptex->damp =
+		ptex->gravity = ptex->field = ptex->length = ptex->clump = ptex->kink =
+		ptex->effector = ptex->rough1 = ptex->rough2 = ptex->roughe = 1.f;
+
+	ptex->time = (float)(pa - sim->psys->particles)/(float)sim->psys->totpart;
+
+	for(m=0; m<MAX_MTEX; m++, mtexp++){
+		mtex = *mtexp;
+		if(mtex && mtex->mapto){
 			float def=mtex->def_var;
 			short blend=mtex->blendtype;
+			short texco = mtex->texco;
 
-			if((mtex->texco & TEXCO_UV) && ELEM(sim->psys->part->from, PART_FROM_FACE, PART_FROM_VOLUME)) {
-				if(!get_particle_uv(sim->psmd->dm, pa, 0, pa->fuv, mtex->uvname, texco)) {
-					/* failed to get uv's, let's try orco's */
-					psys_particle_on_emitter(sim->psmd,sim->psys->part->from,pa->num,pa->num_dmcache,pa->fuv,pa->foffset,co,0,0,0,texco, 0);
-				}
+			if(texco == TEXCO_UV && (ELEM(part->from, PART_FROM_FACE, PART_FROM_VOLUME) == 0 || part->distr == PART_DISTR_GRID))
+				texco = TEXCO_GLOB;
+
+			switch(texco) {
+			case TEXCO_GLOB:
+				copy_v3_v3(texvec, pa->state.co);
+				break;
+			case TEXCO_OBJECT:
+				copy_v3_v3(texvec, pa->state.co);
+				if(mtex->object)
+					mul_m4_v3(mtex->object->imat, texvec);
+				break;
+			case TEXCO_UV:
+				if(get_particle_uv(sim->psmd->dm, pa, 0, pa->fuv, mtex->uvname, texvec))
+					break;
+				/* no break, failed to get uv's, so let's try orco's */
+			case TEXCO_ORCO:
+				psys_particle_on_emitter(sim->psmd,sim->psys->part->from,pa->num,pa->num_dmcache,pa->fuv,pa->foffset,co,0,0,0,texvec, 0);
+				break;
+			case TEXCO_PARTICLE:
+				/* texture coordinates in range [-1,1] */
+				texvec[0] = 2.f * (cfra - pa->time)/(pa->dietime-pa->time) - 1.f;
+				texvec[1] = 0.f;
+				texvec[2] = 0.f;
+				break;
 			}
-			else {
-				psys_particle_on_emitter(sim->psmd,sim->psys->part->from,pa->num,pa->num_dmcache,pa->fuv,pa->foffset,co,0,0,0,texco, 0);
-			}
 
-			externtex(mtex, texco, &value, rgba, rgba+1, rgba+2, rgba+3, 0);
+			externtex(mtex, texvec, &value, rgba, rgba+1, rgba+2, rgba+3, 0);
 
-			if((event & mtex->pmapto) & MAP_PA_TIME){
+			if((event & mtex->mapto) & PAMAP_TIME) {
 				/* the first time has to set the base value for time regardless of blend mode */
 				if((setvars&MAP_PA_TIME)==0){
 					int flip= (mtex->timefac < 0.0f);
@@ -3759,32 +3829,26 @@ void psys_get_texture(ParticleSimulationData *sim, Material *ma, ParticleData *p
 				else
 					ptex->time= texture_value_blend(def,ptex->time,value,mtex->timefac,blend);
 			}
-			if((event & mtex->pmapto) & MAP_PA_LIFE)
-				ptex->life= texture_value_blend(def,ptex->life,value,mtex->lifefac,blend);
-			if((event & mtex->pmapto) & MAP_PA_DENS)
-				ptex->exist= texture_value_blend(def,ptex->exist,value,mtex->padensfac,blend);
-			if((event & mtex->pmapto) & MAP_PA_SIZE)
-				ptex->size= texture_value_blend(def,ptex->size,value,mtex->sizefac,blend);
-			if((event & mtex->pmapto) & MAP_PA_IVEL)
-				ptex->ivel= texture_value_blend(def,ptex->ivel,value,mtex->ivelfac,blend);
-			if((event & mtex->pmapto) & MAP_PA_PVEL)
-				texture_rgb_blend(ptex->pvel,rgba,ptex->pvel,value,mtex->pvelfac,blend);
-			if((event & mtex->pmapto) & MAP_PA_LENGTH)
-				ptex->length= texture_value_blend(def,ptex->length,value,mtex->lengthfac,blend);
-			if((event & mtex->pmapto) & MAP_PA_CLUMP)
-				ptex->clump= texture_value_blend(def,ptex->clump,value,mtex->clumpfac,blend);
-			if((event & mtex->pmapto) & MAP_PA_KINK)
-				ptex->kink= texture_value_blend(def,ptex->kink,value,mtex->kinkfac,blend);
+			SET_PARTICLE_TEXTURE(PAMAP_LIFE, ptex->life, mtex->lifefac)
+			SET_PARTICLE_TEXTURE(PAMAP_DENS, ptex->exist, mtex->padensfac)
+			SET_PARTICLE_TEXTURE(PAMAP_SIZE, ptex->size, mtex->sizefac)
+			SET_PARTICLE_TEXTURE(PAMAP_IVEL, ptex->ivel, mtex->ivelfac)
+			SET_PARTICLE_TEXTURE(PAMAP_FIELD, ptex->field, mtex->fieldfac)
+			SET_PARTICLE_TEXTURE(PAMAP_GRAVITY, ptex->gravity, mtex->gravityfac)
+			SET_PARTICLE_TEXTURE(PAMAP_DAMP, ptex->damp, mtex->dampfac)
+			SET_PARTICLE_TEXTURE(PAMAP_LENGTH, ptex->length, mtex->lengthfac)
 		}
 	}
-	if(event & MAP_PA_TIME) { CLAMP(ptex->time,0.0,1.0); }
-	if(event & MAP_PA_LIFE) { CLAMP(ptex->life,0.0,1.0); }
-	if(event & MAP_PA_DENS) { CLAMP(ptex->exist,0.0,1.0); }
-	if(event & MAP_PA_SIZE) { CLAMP(ptex->size,0.0,1.0); }
-	if(event & MAP_PA_IVEL) { CLAMP(ptex->ivel,0.0,1.0); }
-	if(event & MAP_PA_LENGTH) { CLAMP(ptex->length,0.0,1.0); }
-	if(event & MAP_PA_CLUMP) { CLAMP(ptex->clump,0.0,1.0); }
-	if(event & MAP_PA_KINK) { CLAMP(ptex->kink,0.0,1.0); }
+
+	CLAMP_PARTICLE_TEXTURE_POS(PAMAP_TIME, ptex->time)
+	CLAMP_PARTICLE_TEXTURE_POS(PAMAP_LIFE, ptex->life)
+	CLAMP_PARTICLE_TEXTURE_POS(PAMAP_DENS, ptex->exist)
+	CLAMP_PARTICLE_TEXTURE_POS(PAMAP_SIZE, ptex->size)
+	CLAMP_PARTICLE_TEXTURE_POSNEG(PAMAP_IVEL, ptex->ivel)
+	CLAMP_PARTICLE_TEXTURE_POSNEG(PAMAP_FIELD, ptex->field)
+	CLAMP_PARTICLE_TEXTURE_POSNEG(PAMAP_GRAVITY, ptex->gravity)
+	CLAMP_PARTICLE_TEXTURE_POS(PAMAP_DAMP, ptex->damp)
+	CLAMP_PARTICLE_TEXTURE_POS(PAMAP_LENGTH, ptex->length)
 }
 /************************************************/
 /*			Particle State						*/
@@ -3827,28 +3891,8 @@ float psys_get_child_size(ParticleSystem *psys, ChildParticle *cpa, float UNUSED
 	ParticleSettings *part = psys->part;
 	float size; // time XXX
 	
-	if(part->childtype==PART_CHILD_FACES){
+	if(part->childtype==PART_CHILD_FACES)
 		size=part->size;
-
-#if 0 // XXX old animation system
-		if((part->flag&PART_ABS_TIME)==0 && part->ipo){
-			IpoCurve *icu;
-
-			if(pa_time)
-				time=*pa_time;
-			else
-				time=psys_get_child_time(psys,cpa,cfra,NULL,NULL);
-
-			/* correction for lifetime */
-			calc_ipo(part->ipo, 100*time);
-
-			for(icu = part->ipo->curve.first; icu; icu=icu->next) {
-				if(icu->adrcode == PART_SIZE)
-					size = icu->curval;
-			}
-		}
-#endif // XXX old animation system
-	}
 	else
 		size=psys->particles[cpa->parent].size;
 
@@ -3864,19 +3908,7 @@ static void get_child_modifier_parameters(ParticleSettings *part, ParticleThread
 	ParticleSystem *psys = ctx->sim.psys;
 	int i = cpa - psys->child;
 
-	ptex->length= 1.0f - part->randlength * PSYS_FRAND(i + 26);
-	ptex->clump=1.0;
-	ptex->kink=1.0;
-	ptex->rough1= 1.0;
-	ptex->rough2= 1.0;
-	ptex->roughe= 1.0;
-	ptex->exist= 1.0;
-	ptex->effector= 1.0;
-
-	ptex->length*= part->clength_thres < PSYS_FRAND(i + 27) ? part->clength : 1.0f;
-
-	get_cpa_texture(ctx->dm,ctx->ma,cpa_num,cpa_fuv,orco,ptex,
-		MAP_PA_DENS|MAP_PA_LENGTH|MAP_PA_CLUMP|MAP_PA_KINK|MAP_PA_ROUGH);
+	get_cpa_texture(ctx->dm, psys, part, psys->particles + cpa->pa[0], i, cpa_num, cpa_fuv, orco, ptex, PAMAP_DENS|PAMAP_CHILD, psys->cfra);
 
 
 	if(ptex->exist < PSYS_FRAND(i + 24))
@@ -3954,10 +3986,9 @@ void psys_get_particle_on_path(ParticleSimulationData *sim, int p, ParticleKey *
 	ParticleThreadContext ctx; /* fake thread context for child modifiers */
 	ParticleInterpolationData pind;
 
-	float t, frs_sec = sim->scene->r.frs_sec;
+	float t;
 	float co[3], orco[3];
 	float hairmat[4][4];
-	/*int totparent = 0;*/ /*UNUSED*/
 	int totpart = psys->totpart;
 	int totchild = psys->totchild;
 	short between = 0, edit = 0;
@@ -3967,11 +3998,8 @@ void psys_get_particle_on_path(ParticleSimulationData *sim, int p, ParticleKey *
 
 	float *cpa_fuv; int cpa_num; short cpa_from;
 
-	//if(psys_in_edit_mode(scene, psys)){
-	//	if((psys->edit_path->flag & PSYS_EP_SHOW_CHILD)==0)
-	//		totchild=0;
-	//	edit=1;
-	//}
+	/* initialize keys to zero */
+	memset(keys, 0, 4*sizeof(ParticleKey));
 
 	t=state->time;
 	CLAMP(t, 0.0, 1.0);
@@ -3986,7 +4014,7 @@ void psys_get_particle_on_path(ParticleSimulationData *sim, int p, ParticleKey *
 		 * account when subdividing for instance */
 		pind.dm = psys_in_edit_mode(sim->scene, psys) ? NULL : psys->hair_out_dm;
 		init_particle_interpolation(sim->ob, psys, pa, &pind);
-		do_particle_interpolation(psys, p, pa, t, frs_sec, &pind, state);
+		do_particle_interpolation(psys, p, pa, t, &pind, state);
 
 		if(!keyed && !cached) {
 			if((pa->flag & PARS_REKEY)==0) {
@@ -4012,13 +4040,7 @@ void psys_get_particle_on_path(ParticleSimulationData *sim, int p, ParticleKey *
 		if(state->time < 0.0f)
 			t = psys_get_child_time(psys, cpa, -state->time, NULL, NULL);
 		
-		if(totchild && part->from!=PART_FROM_PARTICLE && part->childtype==PART_CHILD_FACES){
-#if 0		/* totparent is UNUSED */
-			totparent=(int)(totchild*part->parents*0.3);
-			
-			if(G.rendering && part->child_nbr && part->ren_child_nbr)
-				totparent*=(float)part->child_nbr/(float)part->ren_child_nbr;
-#endif
+		if(totchild && part->childtype==PART_CHILD_FACES){
 			/* part->parents could still be 0 so we can't test with totparent */
 			between=1;
 		}
@@ -4168,7 +4190,7 @@ int psys_get_particle_state(ParticleSimulationData *sim, int p, ParticleKey *sta
 		if(!psys->totchild)
 			return 0;
 
-		if(part->from != PART_FROM_PARTICLE && part->childtype == PART_CHILD_FACES){
+		if(part->childtype == PART_CHILD_FACES){
 			if(!(psys->flag & PSYS_KEYED))
 				return 0;
 
@@ -4290,12 +4312,14 @@ int psys_get_particle_state(ParticleSimulationData *sim, int p, ParticleKey *sta
 	}
 }
 
-void psys_get_dupli_texture(Object *UNUSED(ob), ParticleSettings *part, ParticleSystemModifierData *psmd, ParticleData *pa, ChildParticle *cpa, float *uv, float *orco)
+void psys_get_dupli_texture(ParticleSystem *psys, ParticleSettings *part, ParticleSystemModifierData *psmd, ParticleData *pa, ChildParticle *cpa, float *uv, float *orco)
 {
 	MFace *mface;
 	MTFace *mtface;
 	float loc[3];
 	int num;
+
+	uv[0] = uv[1] = 0.f;
 
 	if(cpa) {
 		if(part->childtype == PART_CHILD_FACES) {
@@ -4305,43 +4329,36 @@ void psys_get_dupli_texture(Object *UNUSED(ob), ParticleSettings *part, Particle
 				mtface += cpa->num;
 				psys_interpolate_uvs(mtface, mface->v4, cpa->fuv, uv);
 			}
-			else
-				uv[0]= uv[1]= 0.0f;
+		
+			psys_particle_on_emitter(psmd,PART_FROM_FACE,cpa->num,DMCACHE_ISCHILD,cpa->fuv,cpa->foffset,loc,0,0,0,orco,0);
+			return;
 		}
-		else
-			uv[0]= uv[1]= 0.0f;
-
-		psys_particle_on_emitter(psmd,
-			(part->childtype == PART_CHILD_FACES)? PART_FROM_FACE: PART_FROM_PARTICLE,
-			cpa->num,DMCACHE_ISCHILD,cpa->fuv,cpa->foffset,loc,0,0,0,orco,0);
-	}
-	else {
-		if(part->from == PART_FROM_FACE) {
-			mtface= CustomData_get_layer(&psmd->dm->faceData, CD_MTFACE);
-			num= pa->num_dmcache;
-
-			if(num == DMCACHE_NOTFOUND)
-				num= pa->num;
-
-			if (num >= psmd->dm->getNumFaces(psmd->dm)) {
-				/* happens when simplify is enabled
-				 * gives invalid coords but would crash otherwise */
-				num= DMCACHE_NOTFOUND;
-			}
-
-			if(mtface && num != DMCACHE_NOTFOUND) {
-				mface= psmd->dm->getFaceData(psmd->dm, num, CD_MFACE);
-				mtface += num;
-				psys_interpolate_uvs(mtface, mface->v4, pa->fuv, uv);
-			}
-			else
-				uv[0]= uv[1]= 0.0f;
+		else {
+			pa = psys->particles + cpa->pa[0];
 		}
-		else
-			uv[0]= uv[1]= 0.0f;
-
-		psys_particle_on_emitter(psmd,part->from,pa->num,pa->num_dmcache,pa->fuv,pa->foffset,loc,0,0,0,orco,0);
 	}
+
+	if(part->from == PART_FROM_FACE) {
+		mtface= CustomData_get_layer(&psmd->dm->faceData, CD_MTFACE);
+		num= pa->num_dmcache;
+
+		if(num == DMCACHE_NOTFOUND)
+			num= pa->num;
+
+		if (num >= psmd->dm->getNumFaces(psmd->dm)) {
+			/* happens when simplify is enabled
+				* gives invalid coords but would crash otherwise */
+			num= DMCACHE_NOTFOUND;
+		}
+
+		if(mtface && num != DMCACHE_NOTFOUND) {
+			mface= psmd->dm->getFaceData(psmd->dm, num, CD_MFACE);
+			mtface += num;
+			psys_interpolate_uvs(mtface, mface->v4, pa->fuv, uv);
+		}
+	}
+
+	psys_particle_on_emitter(psmd,part->from,pa->num,pa->num_dmcache,pa->fuv,pa->foffset,loc,0,0,0,orco,0);
 }
 
 void psys_get_dupli_path_transform(ParticleSimulationData *sim, ParticleData *pa, ChildParticle *cpa, ParticleCacheKey *cache, float mat[][4], float *scale)
@@ -4356,7 +4373,7 @@ void psys_get_dupli_path_transform(ParticleSimulationData *sim, ParticleData *pa
 	len= normalize_v3(vec);
 
 	if(psys->part->rotmode) {
-		if(!pa)
+		if(pa == NULL)
 			pa= psys->particles+cpa->pa[0];
 
 		vec_to_quat( q,xvec, ob->trackflag, ob->upflag);
@@ -4367,12 +4384,13 @@ void psys_get_dupli_path_transform(ParticleSimulationData *sim, ParticleData *pa
 		mul_m4_m4m4(mat, obrotmat, qmat);
 	}
 	else {
+		if(pa == NULL && psys->part->childflat != PART_CHILD_FACES)
+			pa = psys->particles + cpa->pa[0];
+
 		if(pa)
 			psys_particle_on_emitter(psmd,sim->psys->part->from,pa->num,pa->num_dmcache,pa->fuv,pa->foffset,loc,nor,0,0,0,0);
 		else
-			psys_particle_on_emitter(psmd,
-				(psys->part->childtype == PART_CHILD_FACES)? PART_FROM_FACE: PART_FROM_PARTICLE,
-				cpa->num,DMCACHE_ISCHILD,cpa->fuv,cpa->foffset,loc,nor,0,0,0,0);
+			psys_particle_on_emitter(psmd,PART_FROM_FACE,cpa->num,DMCACHE_ISCHILD,cpa->fuv,cpa->foffset,loc,nor,0,0,0,0);
 		
 		copy_m3_m4(nmat, ob->imat);
 		transpose_m3(nmat);

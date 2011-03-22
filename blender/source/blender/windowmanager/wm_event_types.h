@@ -25,6 +25,11 @@
  * ***** END GPL LICENSE BLOCK *****
  */
 
+/** \file blender/windowmanager/wm_event_types.h
+ *  \ingroup wm
+ */
+
+
 /*
  *  These define have its origin at sgi, where all device defines were written down in device.h.
  *  Blender copied the conventions quite some, and expanded it with internal new defines (ton)
@@ -206,6 +211,12 @@
 #define UNKNOWNKEY	171
 #define OSKEY		172
 #define GRLESSKEY	173
+
+// XXX: are these codes ok?
+#define MEDIAPLAY	174
+#define MEDIASTOP	175
+#define MEDIAFIRST	176
+#define MEDIALAST	177
 
 /* for event checks */
 	/* only used for KM_TEXTINPUT, so assume that we want all user-inputtable ascii codes included */

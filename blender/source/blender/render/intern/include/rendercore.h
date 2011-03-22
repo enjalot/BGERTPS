@@ -29,6 +29,11 @@
  * ***** END GPL LICENSE BLOCK *****
  */
 
+/** \file blender/render/intern/include/rendercore.h
+ *  \ingroup render
+ */
+
+
 #ifndef RENDERCORE_H
 #define RENDERCORE_H 
 
@@ -48,6 +53,7 @@ struct RenderPart;
 struct RenderLayer;
 struct ObjectRen;
 struct ListBase;
+struct RayObject;
 
 /* ------------------------------------------------------------------------- */
 
@@ -95,7 +101,7 @@ int get_sample_layers(struct RenderPart *pa, struct RenderLayer *rl, struct Rend
 
 extern void freeraytree(Render *re);
 extern void makeraytree(Render *re);
-RayObject* makeraytree_object(Render *re, ObjectInstanceRen *obi);
+struct RayObject* makeraytree_object(Render *re, ObjectInstanceRen *obi);
 
 extern void ray_shadow(ShadeInput *, LampRen *, float *);
 extern void ray_trace(ShadeInput *, ShadeResult *);

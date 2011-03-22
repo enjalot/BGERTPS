@@ -216,7 +216,7 @@ def extend(obj, operator, EXTEND_MODE):
     if is_editmode:
         bpy.ops.object.mode_set(mode='EDIT')
     else:
-        me.update()
+        me.update_tag()
 
 
 def main(context, operator):
@@ -245,17 +245,25 @@ class FollowActiveQuads(bpy.types.Operator):
         main(context, self)
         return {'FINISHED'}
 
+    def invoke(self, context, event):
+        wm = context.window_manager
+        return wm.invoke_props_dialog(self)
 
-# Add to a menu
-menu_func = (lambda self, context: self.layout.operator(FollowActiveQuads.bl_idname))
+
+def menu_func(self, context):
+    self.layout.operator_context = 'INVOKE_REGION_WIN'
+    self.layout.operator(FollowActiveQuads.bl_idname)
 
 
 def register():
+    bpy.utils.register_module(__name__)
     bpy.types.VIEW3D_MT_uv_map.append(menu_func)
 
 
 def unregister():
+    bpy.utils.unregister_module(__name__)
     bpy.types.VIEW3D_MT_uv_map.remove(menu_func)
+
 
 if __name__ == "__main__":
     register()

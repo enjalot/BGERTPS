@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -28,6 +28,10 @@
 #ifndef BLI_MATH_ROTATION_H
 #define BLI_MATH_ROTATION_H
 
+/** \file BLI_math_rotation.h
+ *  \ingroup bli
+ */
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -39,6 +43,7 @@ extern "C" {
 /* stored in (w, x, y, z) order                                              */
 
 /* init */
+void unit_axis_angle(float axis[3], float *angle);
 void unit_qt(float q[4]);
 void copy_qt_qt(float q[4], const float a[4]);
 
@@ -80,7 +85,7 @@ void rotation_between_quats_to_quat(float q[4], const float q1[4], const float q
 void mat3_to_quat_is_ok(float q[4], float mat[3][3]);
 
 /* other */
-void print_qt(char *str, float q[4]);
+void print_qt(const char *str, const float q[4]);
 
 /******************************** Axis Angle *********************************/
 

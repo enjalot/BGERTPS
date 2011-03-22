@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  * imagepaint.c
  *
@@ -29,6 +29,11 @@
  * ***** END GPL LICENSE BLOCK *****
  */
 
+/** \file blender/editors/sculpt_paint/paint_image.c
+ *  \ingroup edsculpt
+ */
+
+
 #include <float.h>
 #include <string.h>
 #include <stdio.h>
@@ -52,24 +57,26 @@
 #include "IMB_imbuf.h"
 #include "IMB_imbuf_types.h"
 
+#include "DNA_brush_types.h"
 #include "DNA_mesh_types.h"
 #include "DNA_meshdata_types.h"
 #include "DNA_object_types.h"
 #include "DNA_scene_types.h"
-#include "DNA_brush_types.h"
+#include "DNA_texture_types.h"
 
 #include "BKE_context.h"
+#include "BKE_depsgraph.h"
+#include "BKE_DerivedMesh.h"
 #include "BKE_idprop.h"
-#include "BKE_object.h"
 #include "BKE_brush.h"
 #include "BKE_image.h"
+#include "BKE_library.h"
 #include "BKE_main.h"
 #include "BKE_mesh.h"
+#include "BKE_node.h"
+#include "BKE_object.h"
 #include "BKE_paint.h"
-#include "BKE_DerivedMesh.h"
 #include "BKE_report.h"
-#include "BKE_depsgraph.h"
-#include "BKE_library.h"
 
 #include "BIF_gl.h"
 #include "BIF_glutil.h"
@@ -505,8 +512,34 @@ static float VecZDepthOrtho(float pt[2], float v1[3], float v2[3], float v3[3], 
 
 static float VecZDepthPersp(float pt[2], float v1[3], float v2[3], float v3[3], float w[3])
 {
+	float wtot_inv, wtot;
+	float w_tmp[3];
+
 	barycentric_weights_v2_persp(v1, v2, v3, pt, w);
-	return (v1[2]*w[0]) + (v2[2]*w[1]) + (v3[2]*w[2]);
+	/* for the depth we need the weights to match what
+	 * barycentric_weights_v2 would return, in this case its easiest just to
+	 * undo the 4th axis division and make it unit-sum
+	 *
+	 * don't call barycentric_weights_v2() becaue our callers expect 'w'
+	 * to be weighted from the perspective */
+	w_tmp[0]= w[0] * v1[3];
+	w_tmp[1]= w[1] * v2[3];
+	w_tmp[2]= w[2] * v3[3];
+
+	wtot = w_tmp[0]+w_tmp[1]+w_tmp[2];
+
+	if (wtot != 0.0f) {
+		wtot_inv = 1.0f/wtot;
+
+		w_tmp[0] = w_tmp[0]*wtot_inv;
+		w_tmp[1] = w_tmp[1]*wtot_inv;
+		w_tmp[2] = w_tmp[2]*wtot_inv;
+	}
+	else /* dummy values for zero area face */
+		w_tmp[0] = w_tmp[1] = w_tmp[2] = 1.0f/3.0f;
+	/* done mimicing barycentric_weights_v2() */
+
+	return (v1[2]*w_tmp[0]) + (v2[2]*w_tmp[1]) + (v3[2]*w_tmp[2]);
 }
 
 
@@ -780,7 +813,7 @@ static int project_bucket_point_occluded(const ProjPaintState *ps, LinkNode *buc
 	return 0;
 }
 
-/* basic line intersection, could move to arithb.c, 2 points with a horiz line
+/* basic line intersection, could move to math_geom.c, 2 points with a horiz line
  * 1 for an intersection, 2 if the first point is aligned, 3 if the second point is aligned */
 #define ISECT_TRUE 1
 #define ISECT_TRUE_P1 2
@@ -942,7 +975,7 @@ static int check_seam(const ProjPaintState *ps, const int orig_face, const int o
 {
 	LinkNode *node;
 	int face_index;
-	int i1, i2;
+	unsigned int i1, i2;
 	int i1_fidx = -1, i2_fidx = -1; /* index in face */
 	MFace *mf;
 	MTFace *tf;
@@ -1139,7 +1172,7 @@ static void project_face_seams_init(const ProjPaintState *ps, const int face_ind
 #endif // PROJ_DEBUG_NOSEAMBLEED
 
 
-/* TODO - move to arithb.c */
+/* TODO - move to math_geom.c */
 
 /* little sister we only need to know lambda */
 #ifndef PROJ_DEBUG_NOSEAMBLEED
@@ -1238,7 +1271,7 @@ static void project_face_pixel(const MTFace *tf_other, ImBuf *ibuf_other, const 
 }
 
 /* run this outside project_paint_uvpixel_init since pixels with mask 0 dont need init */
-float project_paint_uvpixel_mask(
+static float project_paint_uvpixel_mask(
 		const ProjPaintState *ps,
 		const int face_index,
 		const int side,
@@ -2141,7 +2174,7 @@ if __name__ == '__main__':
 	
 /* checks if pt is inside a convex 2D polyline, the polyline must be ordered rotating clockwise
  * otherwise it would have to test for mixed (line_point_side_v2 > 0.0f) cases */
-int IsectPoly2Df(const float pt[2], float uv[][2], const int tot)
+static int IsectPoly2Df(const float pt[2], float uv[][2], const int tot)
 {
 	int i;
 	if (line_point_side_v2(uv[tot-1], uv[0], pt) < 0.0f)
@@ -2202,7 +2235,7 @@ static void project_paint_face_init(const ProjPaintState *ps, const int thread_i
 	
 	float tf_uv_pxoffset[4][2]; /* bucket bounds in UV space so we can init pixels only for this face,  */
 	float xhalfpx, yhalfpx;
-	const float ibuf_xf = ibuf->x, ibuf_yf = ibuf->y;
+	const float ibuf_xf = (float)ibuf->x, ibuf_yf = (float)ibuf->y;
 	
 	int has_x_isect = 0, has_isect = 0; /* for early loop exit */
 	
@@ -4615,6 +4648,17 @@ static void project_state_init(bContext *C, Object *ob, ProjPaintState *ps)
 		ps->do_mask_normal = 0; /* no need to do blending */
 }
 
+static void paint_brush_init_tex(Brush *brush)
+{
+	/* init mtex nodes */ 
+	if(brush) {
+		MTex *mtex= &brush->mtex;
+		if(mtex->tex && mtex->tex->nodetree)
+			ntreeBeginExecTree(mtex->tex->nodetree); /* has internal flag to detect it only does it once */
+	}
+	
+}
+
 static int texture_paint_init(bContext *C, wmOperator *op)
 {
 	Scene *scene= CTX_data_scene(C);
@@ -4673,12 +4717,16 @@ static int texture_paint_init(bContext *C, wmOperator *op)
 			return 0;
 		}
 	}
-
+	
+	paint_brush_init_tex(pop->s.brush);
+	
 	/* note, if we have no UVs on the derived mesh, then we must return here */
 	if(pop->mode == PAINT_MODE_3D_PROJECT) {
 
 		/* initialize all data from the context */
 		project_state_init(C, OBACT, &pop->ps);
+		
+		paint_brush_init_tex(pop->ps.brush);
 
 		pop->ps.source= PROJ_SRC_VIEW;
 
@@ -4743,6 +4791,15 @@ static void paint_apply(bContext *C, wmOperator *op, PointerRNA *itemptr)
 	pop->first= 0;
 }
 
+static void paint_brush_exit_tex(Brush *brush)
+{
+	if(brush) {
+		MTex *mtex= &brush->mtex;
+		if(mtex->tex && mtex->tex->nodetree)
+			ntreeEndExecTree(mtex->tex->nodetree);
+	}	
+}
+
 static void paint_exit(bContext *C, wmOperator *op)
 {
 	Scene *scene= CTX_data_scene(C);
@@ -4755,12 +4812,16 @@ static void paint_exit(bContext *C, wmOperator *op)
 	if(pop->restore_projection)
 		settings->imapaint.flag &= ~IMAGEPAINT_PROJECT_DISABLE;
 
+	paint_brush_exit_tex(pop->s.brush);
+	
 	settings->imapaint.flag &= ~IMAGEPAINT_DRAWING;
 	imapaint_canvas_free(&pop->s);
 	brush_painter_free(pop->painter);
 
 	if(pop->mode == PAINT_MODE_3D_PROJECT) {
 		brush_set_size(pop->ps.brush, pop->orig_brush_size);
+		paint_brush_exit_tex(pop->ps.brush);
+		
 		project_paint_end(&pop->ps);
 	}
 	
@@ -5299,7 +5360,7 @@ static int texture_paint_toggle_exec(bContext *C, wmOperator *op)
 {
 	Scene *scene= CTX_data_scene(C);
 	Object *ob= CTX_data_active_object(C);
-	Mesh *me= 0;
+	Mesh *me= NULL;
 	
 	if(ob==NULL)
 		return OPERATOR_CANCELLED;
@@ -5424,7 +5485,7 @@ static int texture_paint_camera_project_exec(bContext *C, wmOperator *op)
 {
 	Image *image= BLI_findlink(&CTX_data_main(C)->image, RNA_enum_get(op->ptr, "image"));
 	Scene *scene= CTX_data_scene(C);
-	ProjPaintState ps= {0};
+	ProjPaintState ps= {NULL};
 	int orig_brush_size;
 	IDProperty *idgroup;
 	IDProperty *view_data= NULL;
@@ -5452,10 +5513,10 @@ static int texture_paint_camera_project_exec(bContext *C, wmOperator *op)
 	idgroup= IDP_GetProperties(&image->id, 0);
 
 	if(idgroup) {
-		view_data= IDP_GetPropertyFromGroup(idgroup, PROJ_VIEW_DATA_ID);
+		view_data= IDP_GetPropertyTypeFromGroup(idgroup, PROJ_VIEW_DATA_ID, IDP_ARRAY);
 
 		/* type check to make sure its ok */
-		if(view_data->len != PROJ_VIEW_DATA_SIZE || view_data->type != IDP_ARRAY || view_data->subtype != IDP_FLOAT) {
+		if(view_data->len != PROJ_VIEW_DATA_SIZE || view_data->subtype != IDP_FLOAT) {
 			BKE_report(op->reports, RPT_ERROR, "Image project data invalid.");
 			return OPERATOR_CANCELLED;
 		}
@@ -5552,6 +5613,7 @@ static int texture_paint_image_from_view_exec(bContext *C, wmOperator *op)
 	int w= settings->imapaint.screen_grab_size[0];
 	int h= settings->imapaint.screen_grab_size[1];
 	int maxsize;
+	char err_out[256]= "unknown";
 
 	RNA_string_get(op->ptr, "filepath", filename);
 
@@ -5560,11 +5622,11 @@ static int texture_paint_image_from_view_exec(bContext *C, wmOperator *op)
 	if(w > maxsize) w= maxsize;
 	if(h > maxsize) h= maxsize;
 
-	ibuf= ED_view3d_draw_offscreen_imbuf(CTX_data_scene(C), CTX_wm_view3d(C), CTX_wm_region(C), w, h, IB_rect);
+	ibuf= ED_view3d_draw_offscreen_imbuf(CTX_data_scene(C), CTX_wm_view3d(C), CTX_wm_region(C), w, h, IB_rect, err_out);
 	if(!ibuf) {
 		/* Mostly happens when OpenGL offscreen buffer was failed to create, */
 		/* but could be other reasons. Should be handled in the future. nazgul */
-		BKE_report(op->reports, RPT_ERROR, "Failed to create OpenGL offscreen buffer.");
+		BKE_reportf(op->reports, RPT_ERROR, "Failed to create OpenGL offscreen buffer: %s", err_out);
 		return OPERATOR_CANCELLED;
 	}
 

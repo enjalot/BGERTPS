@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -23,6 +23,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/editors/screen/screen_edit.c
+ *  \ingroup edscr
+ */
+
 
 #include <string.h>
 #include <math.h>
@@ -222,16 +227,16 @@ void removenotused_scredges(bScreen *sc)
 	sa= sc->areabase.first;
 	while(sa) {
 		se= screen_findedge(sc, sa->v1, sa->v2);
-		if(se==0) printf("error: area %d edge 1 doesn't exist\n", a);
+		if(se==NULL) printf("error: area %d edge 1 doesn't exist\n", a);
 		else se->flag= 1;
 		se= screen_findedge(sc, sa->v2, sa->v3);
-		if(se==0) printf("error: area %d edge 2 doesn't exist\n", a);
+		if(se==NULL) printf("error: area %d edge 2 doesn't exist\n", a);
 		else se->flag= 1;
 		se= screen_findedge(sc, sa->v3, sa->v4);
-		if(se==0) printf("error: area %d edge 3 doesn't exist\n", a);
+		if(se==NULL) printf("error: area %d edge 3 doesn't exist\n", a);
 		else se->flag= 1;
 		se= screen_findedge(sc, sa->v4, sa->v1);
-		if(se==0) printf("error: area %d edge 4 doesn't exist\n", a);
+		if(se==NULL) printf("error: area %d edge 4 doesn't exist\n", a);
 		else se->flag= 1;
 		sa= sa->next;
 		a++;
@@ -346,7 +351,7 @@ static short testsplitpoint(ScrArea *sa, char dir, float fac)
 	}
 }
 
-ScrArea *area_split(bScreen *sc, ScrArea *sa, char dir, float fac)
+ScrArea *area_split(bScreen *sc, ScrArea *sa, char dir, float fac, int merge)
 {
 	ScrArea *newa=NULL;
 	ScrVert *sv1, *sv2;
@@ -400,7 +405,8 @@ ScrArea *area_split(bScreen *sc, ScrArea *sa, char dir, float fac)
 	}
 	
 	/* remove double vertices en edges */
-	removedouble_scrverts(sc);
+	if(merge)
+		removedouble_scrverts(sc);
 	removedouble_scredges(sc);
 	removenotused_scredges(sc);
 	
@@ -417,6 +423,7 @@ bScreen *ED_screen_add(wmWindow *win, Scene *scene, const char *name)
 	sc= alloc_libblock(&G.main->screen, ID_SCR, name);
 	sc->scene= scene;
 	sc->do_refresh= 1;
+	sc->redraws_flag= TIME_ALL_3D_WIN|TIME_ALL_ANIM_WIN;
 	sc->winid= win->winid;
 	
 	sv1= screen_addvert(sc, 0, 0);
@@ -953,8 +960,9 @@ static void region_cursor_set(wmWindow *win, int swinid)
 	}
 }
 
-void ED_screen_do_listen(wmWindow *win, wmNotifier *note)
+void ED_screen_do_listen(bContext *C, wmNotifier *note)
 {
+	wmWindow *win= CTX_wm_window(C);
 	
 	/* generic notes */
 	switch(note->category) {
@@ -966,8 +974,11 @@ void ED_screen_do_listen(wmWindow *win, wmNotifier *note)
 			win->screen->do_draw= 1;
 			break;
 		case NC_SCREEN:
+			if(note->data==ND_SUBWINACTIVE)
+				uiFreeActiveButtons(C, win->screen);
 			if(note->action==NA_EDITED)
 				win->screen->do_draw= win->screen->do_refresh= 1;
+			break;
 		case NC_SCENE:
 			if(note->data==ND_MODE)
 				region_cursor_set(win, note->swinid);				
@@ -979,8 +990,9 @@ void ED_screen_do_listen(wmWindow *win, wmNotifier *note)
 void ED_screen_draw(wmWindow *win)
 {
 	ScrArea *sa;
-	ScrArea *sa1=NULL;
-	ScrArea *sa2=NULL;
+	ScrArea *sa1= NULL;
+	ScrArea *sa2= NULL;
+	ScrArea *sa3= NULL;
 	int dir = -1;
 	int dira = -1;
 
@@ -989,6 +1001,7 @@ void ED_screen_draw(wmWindow *win)
 	for(sa= win->screen->areabase.first; sa; sa= sa->next) {
 		if (sa->flag & AREA_FLAG_DRAWJOINFROM) sa1 = sa;
 		if (sa->flag & AREA_FLAG_DRAWJOINTO) sa2 = sa;
+		if (sa->flag & (AREA_FLAG_DRAWSPLIT_H|AREA_FLAG_DRAWSPLIT_V)) sa3 = sa;
 		drawscredge_area(sa, win->sizex, win->sizey, 0);
 	}
 	for(sa= win->screen->areabase.first; sa; sa= sa->next)
@@ -1021,7 +1034,25 @@ void ED_screen_draw(wmWindow *win)
 		scrarea_draw_shape_light(sa1, dira);
 	}
 	
-//	if(G.f & G_DEBUG) printf("draw screen\n");
+	/* splitpoint */
+	if(sa3) {
+		glEnable(GL_BLEND);
+		glColor4ub(255, 255, 255, 100);
+		
+		if(sa3->flag & AREA_FLAG_DRAWSPLIT_H) {
+			sdrawline(sa3->totrct.xmin, win->eventstate->y, sa3->totrct.xmax, win->eventstate->y);
+			glColor4ub(0, 0, 0, 100);
+			sdrawline(sa3->totrct.xmin, win->eventstate->y+1, sa3->totrct.xmax, win->eventstate->y+1);
+		}
+		else {
+			sdrawline(win->eventstate->x, sa3->totrct.ymin, win->eventstate->x, sa3->totrct.ymax);
+			glColor4ub(0, 0, 0, 100);
+			sdrawline(win->eventstate->x+1, sa3->totrct.ymin, win->eventstate->x+1, sa3->totrct.ymax);
+		}
+		
+		glDisable(GL_BLEND);
+	}
+	
 	win->screen->do_draw= 0;
 }
 
@@ -1190,8 +1221,10 @@ static void screen_cursor_set(wmWindow *win, wmEvent *event)
 
 /* called in wm_event_system.c. sets state vars in screen, cursors */
 /* event type is mouse move */
-void ED_screen_set_subwinactive(wmWindow *win, wmEvent *event)
+void ED_screen_set_subwinactive(bContext *C, wmEvent *event)
 {
+	wmWindow *win= CTX_wm_window(C);
+	
 	if(win->screen) {
 		bScreen *scr= win->screen;
 		ScrArea *sa;
@@ -1237,6 +1270,7 @@ void ED_screen_set_subwinactive(wmWindow *win, wmEvent *event)
 		}
 		else if(oldswin!=scr->subwinactive) {
 			region_cursor_set(win, scr->subwinactive);
+			WM_event_add_notifier(C, NC_SCREEN|ND_SUBWINACTIVE, scr);
 		}
 	}
 }
@@ -1468,7 +1502,7 @@ int ED_screen_full_newspace(bContext *C, ScrArea *sa, int type)
 	bScreen *screen= CTX_wm_screen(C);
 	ScrArea *newsa= NULL;
 
-	if(!sa || sa->full==0) {
+	if(!sa || sa->full==NULL) {
 		newsa= ED_screen_full_toggle(C, win, sa);
 	}
 	
@@ -1611,7 +1645,7 @@ ScrArea *ED_screen_full_toggle(bContext *C, wmWindow *win, ScrArea *sa)
 		oldscreen->animtimer= NULL;
 
 		/* returns the top small area */
-		newa= area_split(sc, (ScrArea *)sc->areabase.first, 'h', 0.99f);
+		newa= area_split(sc, (ScrArea *)sc->areabase.first, 'h', 0.99f, 1);
 		ED_area_newspace(C, newa, SPACE_INFO);
 
 		/* use random area when we have no active one, e.g. when the

@@ -1,3 +1,6 @@
+/** \file gameengine/Physics/Bullet/CcdPhysicsEnvironment.cpp
+ *  \ingroup physbullet
+ */
 /*
 Bullet Continuous Collision Detection and Physics Library
 Copyright (c) 2003-2006 Erwin Coumans  http://continuousphysics.com/Bullet/
@@ -1454,7 +1457,7 @@ struct OcclusionBuffer
 						const float face,
 						const btScalar minarea)
 	{
-		const btScalar		a2=cross(b-a,c-a)[2];
+		const btScalar		a2=btCross(b-a,c-a)[2];
 		if((face*a2)<0.f || btFabs(a2)<minarea)
 			return false;
 		// further down we are normally going to write to the Zbuffer, mark it so
@@ -1984,6 +1987,44 @@ void	CcdPhysicsEnvironment::setConstraintParam(int constraintId,int param,float 
 					break;
 			}
 
+			default:
+				{
+				}
+			};
+			break;
+		};
+	case PHY_CONE_TWIST_CONSTRAINT:
+		{
+			switch (param)
+			{
+			case 3: case 4: case 5:
+				{
+					//param = 3,4,5 are constraint limits, high limit values
+					btConeTwistConstraint* coneTwist = (btConeTwistConstraint*)typedConstraint;
+					if(value1<0.0f)
+						coneTwist->setLimit(param,btScalar(BT_LARGE_FLOAT));
+					else
+						coneTwist->setLimit(param,value1);
+					break;
+				}
+			default:
+				{
+				}
+			};
+			break;
+		};
+	case PHY_ANGULAR_CONSTRAINT:
+	case PHY_LINEHINGE_CONSTRAINT:
+		{
+			switch (param)
+			{
+			case 3:
+				{
+					//param = 3 is a constraint limit, with low/high limit value
+					btHingeConstraint* hingeCons = (btHingeConstraint*)typedConstraint;
+					hingeCons->setLimit(value0,value1);
+					break;
+				}
 			default:
 				{
 				}
@@ -2620,20 +2661,54 @@ int			CcdPhysicsEnvironment::createConstraint(class PHY_IPhysicsController* ctrl
 
 			if (rb1)
 			{
-				btVector3 axisInB = rb1 ? 
-				(rb1->getCenterOfMassTransform().getBasis().inverse()*(rb0->getCenterOfMassTransform().getBasis() * axisInA)) : 
-				rb0->getCenterOfMassTransform().getBasis() * axisInA;
+				// We know the orientations so we should use them instead of
+				// having btHingeConstraint fill in the blanks any way it wants to.
+				btTransform frameInA;
+				btTransform frameInB;
+				
+				btVector3 axis1(axis1X,axis1Y,axis1Z), axis2(axis2X,axis2Y,axis2Z);
+				if (axis1.length() == 0.0)
+				{
+					btPlaneSpace1( axisInA, axis1, axis2 );
+				}
+				
+				// Internally btHingeConstraint's hinge-axis is z
+				frameInA.getBasis().setValue( axis1.x(), axis2.x(), axisInA.x(),
+											axis1.y(), axis2.y(), axisInA.y(),
+											axis1.z(), axis2.z(), axisInA.z() );
+											
+				frameInA.setOrigin( pivotInA );
 
-				hinge = new btHingeConstraint(
-					*rb0,
-					*rb1,pivotInA,pivotInB,axisInA,axisInB);
+				btTransform inv = rb1->getCenterOfMassTransform().inverse();
+
+				btTransform globalFrameA = rb0->getCenterOfMassTransform() * frameInA;
+				
+				frameInB = inv  * globalFrameA;
+				
+				hinge = new btHingeConstraint(*rb0,*rb1,frameInA,frameInB);
 
 
 			} else
 			{
-				hinge = new btHingeConstraint(*rb0,
-					pivotInA,axisInA);
+				static btRigidBody s_fixedObject2( 0,0,0);
 
+				btTransform frameInA;
+				btTransform frameInB;
+				
+				btVector3 axis1(axis1X,axis1Y,axis1Z), axis2(axis2X,axis2Y,axis2Z);
+				if (axis1.length() == 0.0)
+				{
+					btPlaneSpace1( axisInA, axis1, axis2 );
+				}
+
+				// Internally btHingeConstraint's hinge-axis is z
+				frameInA.getBasis().setValue( axis1.x(), axis2.x(), axisInA.x(),
+											axis1.y(), axis2.y(), axisInA.y(),
+											axis1.z(), axis2.z(), axisInA.z() );
+				frameInA.setOrigin( pivotInA );
+				frameInB = rb0->getCenterOfMassTransform() * frameInA;
+
+				hinge = new btHingeConstraint(*rb0, s_fixedObject2, frameInA, frameInB);
 			}
 			hinge->setAngularOnly(angularOnly);
 
@@ -2718,3 +2793,35 @@ float		CcdPhysicsEnvironment::getAppliedImpulse(int	constraintid)
 
 	return 0.f;
 }
+
+void	CcdPhysicsEnvironment::exportFile(const char* filename)
+{
+	btDefaultSerializer*	serializer = new btDefaultSerializer();
+	
+		
+	for (int i=0;i<m_dynamicsWorld->getNumCollisionObjects();i++)
+	{
+
+		btCollisionObject* colObj = m_dynamicsWorld->getCollisionObjectArray()[i];
+
+		CcdPhysicsController* controller = static_cast<CcdPhysicsController*>(colObj->getUserPointer());
+		if (controller)
+		{
+			const char* name = controller->getName();
+			if (name)
+			{
+				serializer->registerNameForPointer(colObj,name);
+			}
+		}
+	}
+
+	m_dynamicsWorld->serialize(serializer);
+
+	FILE* file = fopen(filename,"wb");
+	if (file)
+	{
+		fwrite(serializer->getBufferPointer(),serializer->getCurrentBufferSize(),1, file);
+		fclose(file);
+	}
+}
+

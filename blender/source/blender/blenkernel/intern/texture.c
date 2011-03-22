@@ -29,6 +29,11 @@
  * ***** END GPL LICENSE BLOCK *****
  */
 
+/** \file blender/blenkernel/intern/texture.c
+ *  \ingroup bke
+ */
+
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -51,6 +56,7 @@
 #include "DNA_brush_types.h"
 #include "DNA_node_types.h"
 #include "DNA_color_types.h"
+#include "DNA_particle_types.h"
 
 #include "IMB_imbuf.h"
 
@@ -92,14 +98,14 @@ void open_plugin_tex(PluginTex *pit)
 	int (*version)(void);
 	
 	/* init all the happy variables */
-	pit->doit= 0;
-	pit->pname= 0;
-	pit->stnames= 0;
-	pit->varstr= 0;
-	pit->result= 0;
-	pit->cfra= 0;
+	pit->doit= NULL;
+	pit->pname= NULL;
+	pit->stnames= NULL;
+	pit->varstr= NULL;
+	pit->result= NULL;
+	pit->cfra= NULL;
 	pit->version= 0;
-	pit->instance_init= 0;
+	pit->instance_init= NULL;
 	
 	/* clear the error list */
 	PIL_dynlib_get_error_as_string(NULL);
@@ -112,12 +118,12 @@ void open_plugin_tex(PluginTex *pit)
 	pit->handle= PIL_dynlib_open(pit->name);
 	if(test_dlerr(pit->name, pit->name)) return;
 
-	if (pit->handle != 0) {
+	if (pit->handle != NULL) {
 		/* find the address of the version function */
 		version= (int (*)(void)) PIL_dynlib_find_symbol(pit->handle, "plugin_tex_getversion");
 		if (test_dlerr(pit->name, "plugin_tex_getversion")) return;
 		
-		if (version != 0) {
+		if (version != NULL) {
 			pit->version= version();
 			if( pit->version >= 2 && pit->version <=6) {
 				int (*info_func)(PluginInfo *);
@@ -167,8 +173,8 @@ PluginTex *add_plugin_tex(char *str)
 	strcpy(pit->name, str);
 	open_plugin_tex(pit);
 	
-	if(pit->doit==0) {
-		if(pit->handle==0) {;} //XXX error("no plugin: %s", str);
+	if(pit->doit==NULL) {
+		if(pit->handle==NULL) {;} //XXX error("no plugin: %s", str);
 		else {;} //XXX error("in plugin: %s", str);
 		MEM_freeN(pit);
 		return NULL;
@@ -192,7 +198,7 @@ PluginTex *add_plugin_tex(char *str)
 
 void free_plugin_tex(PluginTex *pit)
 {
-	if(pit==0) return;
+	if(pit==NULL) return;
 		
 	/* no PIL_dynlib_close: same plugin can be opened multiple times, 1 handle */
 	MEM_freeN(pit);	
@@ -474,11 +480,13 @@ int colorband_element_remove(struct ColorBand *coba, int index)
 void free_texture(Tex *tex)
 {
 	free_plugin_tex(tex->plugin);
+	
 	if(tex->coba) MEM_freeN(tex->coba);
 	if(tex->env) BKE_free_envmap(tex->env);
 	if(tex->pd) BKE_free_pointdensity(tex->pd);
 	if(tex->vd) BKE_free_voxeldata(tex->vd);
 	BKE_free_animdata((struct ID *)tex);
+	
 	BKE_previewimg_free(&tex->preview);
 	BKE_icon_delete((struct ID*)tex);
 	tex->id.icon_id = 0;
@@ -618,7 +626,7 @@ void default_mtex(MTex *mtex)
 {
 	mtex->texco= TEXCO_ORCO;
 	mtex->mapto= MAP_COL;
-	mtex->object= 0;
+	mtex->object= NULL;
 	mtex->projx= PROJ_X;
 	mtex->projy= PROJ_Y;
 	mtex->projz= PROJ_Z;
@@ -629,8 +637,8 @@ void default_mtex(MTex *mtex)
 	mtex->size[0]= 1.0;
 	mtex->size[1]= 1.0;
 	mtex->size[2]= 1.0;
-	mtex->tex= 0;
-	mtex->texflag= MTEX_NEW_BUMP;
+	mtex->tex= NULL;
+	mtex->texflag= MTEX_3TAP_BUMP | MTEX_BUMP_OBJECTSPACE;
 	mtex->colormodel= 0;
 	mtex->r= 1.0;
 	mtex->g= 0.0;
@@ -671,14 +679,16 @@ void default_mtex(MTex *mtex)
 	mtex->lifefac= 1.0f;
 	mtex->sizefac= 1.0f;
 	mtex->ivelfac= 1.0f;
-	mtex->pvelfac= 1.0f;
+	mtex->dampfac= 1.0f;
+	mtex->gravityfac= 1.0f;
+	mtex->fieldfac= 1.0f;
 	mtex->normapspace= MTEX_NSPACE_TANGENT;
 }
 
 
 /* ------------------------------------------------------------------------- */
 
-MTex *add_mtex()
+MTex *add_mtex(void)
 {
 	MTex *mtex;
 	
@@ -740,11 +750,7 @@ Tex *copy_texture(Tex *tex)
 	
 	texn= copy_libblock(tex);
 	if(texn->type==TEX_IMAGE) id_us_plus((ID *)texn->ima);
-	else texn->ima= 0;
-	
-#if 0 // XXX old animation system
-	id_us_plus((ID *)texn->ipo);
-#endif // XXX old animation system
+	else texn->ima= NULL;
 	
 	if(texn->plugin) {
 		texn->plugin= MEM_dupallocN(texn->plugin);
@@ -760,11 +766,45 @@ Tex *copy_texture(Tex *tex)
 
 	if(tex->nodetree) {
 		ntreeEndExecTree(tex->nodetree);
-		texn->nodetree= ntreeCopyTree(tex->nodetree, 0); /* 0 == full new tree */
+		texn->nodetree= ntreeCopyTree(tex->nodetree); 
 	}
 	
 	return texn;
 }
+
+/* texture copy without adding to main dbase */
+Tex *localize_texture(Tex *tex)
+{
+	Tex *texn;
+	
+	texn= copy_libblock(tex);
+	BLI_remlink(&G.main->tex, texn);
+	
+	/* image texture: free_texture also doesn't decrease */
+	
+	if(texn->plugin) {
+		texn->plugin= MEM_dupallocN(texn->plugin);
+		open_plugin_tex(texn->plugin);
+	}
+	
+	if(texn->coba) texn->coba= MEM_dupallocN(texn->coba);
+	if(texn->env) texn->env= BKE_copy_envmap(texn->env);
+	if(texn->pd) texn->pd= MEM_dupallocN(texn->pd);
+	if(texn->vd) {
+		texn->vd= MEM_dupallocN(texn->vd);
+		if(texn->vd->dataset)
+			texn->vd->dataset= MEM_dupallocN(texn->vd->dataset);
+	}
+	
+	texn->preview = NULL;
+	
+	if(tex->nodetree) {
+		texn->nodetree= ntreeLocalize(tex->nodetree);
+	}
+	
+	return texn;
+}
+
 
 /* ------------------------------------------------------------------------- */
 
@@ -776,6 +816,7 @@ void make_local_texture(Tex *tex)
 	World *wrld;
 	Lamp *la;
 	Brush *br;
+	ParticleSettings *pa;
 	int a, local=0, lib=0;
 
 	/* - only lib users: do nothing
@@ -783,19 +824,19 @@ void make_local_texture(Tex *tex)
 		* - mixed: make copy
 		*/
 	
-	if(tex->id.lib==0) return;
+	if(tex->id.lib==NULL) return;
 
 	/* special case: ima always local immediately */
 	if(tex->ima) {
-		tex->ima->id.lib= 0;
+		tex->ima->id.lib= NULL;
 		tex->ima->id.flag= LIB_LOCAL;
-		new_id(0, (ID *)tex->ima, 0);
+		new_id(NULL, (ID *)tex->ima, NULL);
 	}
 
 	if(tex->id.us==1) {
-		tex->id.lib= 0;
+		tex->id.lib= NULL;
 		tex->id.flag= LIB_LOCAL;
-		new_id(0, (ID *)tex, 0);
+		new_id(NULL, (ID *)tex, NULL);
 
 		return;
 	}
@@ -838,11 +879,21 @@ void make_local_texture(Tex *tex)
 		}
 		br= br->id.next;
 	}
+	pa= bmain->particle.first;
+	while(pa) {
+		for(a=0; a<MAX_MTEX; a++) {
+			if(pa->mtex[a] && pa->mtex[a]->tex==tex) {
+				if(pa->id.lib) lib= 1;
+				else local= 1;
+			}
+		}
+		pa= pa->id.next;
+	}
 	
 	if(local && lib==0) {
-		tex->id.lib= 0;
+		tex->id.lib= NULL;
 		tex->id.flag= LIB_LOCAL;
-		new_id(0, (ID *)tex, 0);
+		new_id(NULL, (ID *)tex, NULL);
 	}
 	else if(local && lib) {
 		texn= copy_texture(tex);
@@ -852,7 +903,7 @@ void make_local_texture(Tex *tex)
 		while(ma) {
 			for(a=0; a<MAX_MTEX; a++) {
 				if(ma->mtex[a] && ma->mtex[a]->tex==tex) {
-					if(ma->id.lib==0) {
+					if(ma->id.lib==NULL) {
 						ma->mtex[a]->tex= texn;
 						texn->id.us++;
 						tex->id.us--;
@@ -865,7 +916,7 @@ void make_local_texture(Tex *tex)
 		while(la) {
 			for(a=0; a<MAX_MTEX; a++) {
 				if(la->mtex[a] && la->mtex[a]->tex==tex) {
-					if(la->id.lib==0) {
+					if(la->id.lib==NULL) {
 						la->mtex[a]->tex= texn;
 						texn->id.us++;
 						tex->id.us--;
@@ -878,7 +929,7 @@ void make_local_texture(Tex *tex)
 		while(wrld) {
 			for(a=0; a<MAX_MTEX; a++) {
 				if(wrld->mtex[a] && wrld->mtex[a]->tex==tex) {
-					if(wrld->id.lib==0) {
+					if(wrld->id.lib==NULL) {
 						wrld->mtex[a]->tex= texn;
 						texn->id.us++;
 						tex->id.us--;
@@ -890,13 +941,26 @@ void make_local_texture(Tex *tex)
 		br= bmain->brush.first;
 		while(br) {
 			if(br->mtex.tex==tex) {
-				if(br->id.lib==0) {
+				if(br->id.lib==NULL) {
 					br->mtex.tex= texn;
 					texn->id.us++;
 					tex->id.us--;
 				}
 			}
 			br= br->id.next;
+		}
+		pa= bmain->particle.first;
+		while(pa) {
+			for(a=0; a<MAX_MTEX; a++) {
+				if(pa->mtex[a] && pa->mtex[a]->tex==tex) {
+					if(pa->id.lib==NULL) {
+						pa->mtex[a]->tex= texn;
+						texn->id.us++;
+						tex->id.us--;
+					}
+				}
+			}
+			pa= pa->id.next;
 		}
 	}
 }
@@ -940,8 +1004,8 @@ Tex *give_current_object_texture(Object *ob)
 	Material *ma;
 	Tex *tex= NULL;
 	
-	if(ob==0) return 0;
-	if(ob->totcol==0 && !(ob->type==OB_LAMP)) return 0;
+	if(ob==NULL) return NULL;
+	if(ob->totcol==0 && !(ob->type==OB_LAMP)) return NULL;
 	
 	if(ob->type==OB_LAMP) {
 		tex= give_current_lamp_texture(ob->data);
@@ -1048,6 +1112,10 @@ int give_active_mtex(ID *id, MTex ***mtex_ar, short *act)
 		*mtex_ar=		((Lamp *)id)->mtex;
 		if(act) *act=	(((Lamp *)id)->texact);
 		break;
+	case ID_PA:
+		*mtex_ar=		((ParticleSettings *)id)->mtex;
+		if(act) *act=	(((ParticleSettings *)id)->texact);
+		break;
 	default:
 		*mtex_ar = NULL;
 		if(act) *act=	0;
@@ -1071,6 +1139,9 @@ void set_active_mtex(ID *id, short act)
 		break;
 	case ID_LA:
 		((Lamp *)id)->texact= act;
+		break;
+	case ID_PA:
+		((ParticleSettings *)id)->texact= act;
 		break;
 	}
 }
@@ -1121,7 +1192,7 @@ Tex *give_current_world_texture(World *world)
 	MTex *mtex= NULL;
 	Tex *tex= NULL;
 	
-	if(!world) return 0;
+	if(!world) return NULL;
 	
 	mtex= world->mtex[(int)(world->texact)];
 	if(mtex) tex= mtex->tex;
@@ -1164,6 +1235,42 @@ void set_current_brush_texture(Brush *br, Tex *newtex)
 	if(newtex) {
 		br->mtex.tex= newtex;
 		id_us_plus(&newtex->id);
+	}
+}
+
+Tex *give_current_particle_texture(ParticleSettings *part)
+{
+	MTex *mtex= NULL;
+	Tex *tex= NULL;
+	
+	if(!part) return NULL;
+	
+	mtex= part->mtex[(int)(part->texact)];
+	if(mtex) tex= mtex->tex;
+	
+	return tex;
+}
+
+void set_current_particle_texture(ParticleSettings *part, Tex *newtex)
+{
+	int act= part->texact;
+
+	if(part->mtex[act] && part->mtex[act]->tex)
+		id_us_min(&part->mtex[act]->tex->id);
+
+	if(newtex) {
+		if(!part->mtex[act]) {
+			part->mtex[act]= add_mtex();
+			part->mtex[act]->texco= TEXCO_ORCO;
+			part->mtex[act]->blendtype= MTEX_MUL;
+		}
+		
+		part->mtex[act]->tex= newtex;
+		id_us_plus(&newtex->id);
+	}
+	else if(part->mtex[act]) {
+		MEM_freeN(part->mtex[act]);
+		part->mtex[act]= NULL;
 	}
 }
 
@@ -1272,7 +1379,10 @@ void BKE_free_pointdensitydata(PointDensity *pd)
 		MEM_freeN(pd->point_data);
 		pd->point_data = NULL;
 	}
-	if(pd->coba) MEM_freeN(pd->coba);
+	if(pd->coba) {
+		MEM_freeN(pd->coba);
+		pd->coba = NULL;
+	}
 }
 
 void BKE_free_pointdensity(PointDensity *pd)

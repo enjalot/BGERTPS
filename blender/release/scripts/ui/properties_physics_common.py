@@ -20,6 +20,7 @@
 
 import bpy
 
+
 class PhysicButtonsPanel():
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
@@ -29,7 +30,8 @@ class PhysicButtonsPanel():
     def poll(cls, context):
         rd = context.scene.render
         return (context.object) and (not rd.use_game_engine)
-        
+
+
 def physics_add(self, layout, md, name, type, typeicon, toggles):
     sub = layout.row(align=True)
     if md:
@@ -41,35 +43,36 @@ def physics_add(self, layout, md, name, type, typeicon, toggles):
     else:
         sub.operator("object.modifier_add", text=name, icon=typeicon).type = type
 
+
 class PHYSICS_PT_add(PhysicButtonsPanel, bpy.types.Panel):
     bl_label = ""
     bl_options = {'HIDE_HEADER'}
-    
+
     def draw(self, context):
         ob = context.object
-        
+
         layout = self.layout
         layout.label("Enable physics for:")
         split = layout.split()
         col = split.column()
-        
+
         if(context.object.field.type == 'NONE'):
             col.operator("object.forcefield_toggle", text="Force Field", icon='FORCE_FORCE')
         else:
             col.operator("object.forcefield_toggle", text="Force Field", icon='X')
-            
+
         if(ob.type == 'MESH'):
-            physics_add(self, col, context.collision, "Collision", 'COLLISION', 'MOD_PHYSICS', False);
-            physics_add(self, col, context.cloth, "Cloth", 'CLOTH', 'MOD_CLOTH', True);
-        
+            physics_add(self, col, context.collision, "Collision", 'COLLISION', 'MOD_PHYSICS', False)
+            physics_add(self, col, context.cloth, "Cloth", 'CLOTH', 'MOD_CLOTH', True)
+
         col = split.column()
-        
+
         if(ob.type == 'MESH' or ob.type == 'LATTICE'or ob.type == 'CURVE'):
-            physics_add(self, col, context.soft_body, "Soft Body", 'SOFT_BODY', 'MOD_SOFT', True);
-            
+            physics_add(self, col, context.soft_body, "Soft Body", 'SOFT_BODY', 'MOD_SOFT', True)
+
         if(ob.type == 'MESH'):
-            physics_add(self, col, context.fluid, "Fluid", 'FLUID_SIMULATION', 'MOD_FLUIDSIM', True);
-            physics_add(self, col, context.smoke, "Smoke", 'SMOKE', 'MOD_SMOKE', True);
+            physics_add(self, col, context.fluid, "Fluid", 'FLUID_SIMULATION', 'MOD_FLUIDSIM', True)
+            physics_add(self, col, context.smoke, "Smoke", 'SMOKE', 'MOD_SMOKE', True)
 
 
 #cachetype can be 'PSYS' 'HAIR' 'SMOKE' etc
@@ -86,7 +89,7 @@ def point_cache_ui(self, context, cache, enabled, cachetype):
     col.operator("ptcache.remove", icon='ZOOMOUT', text="")
 
     row = layout.row()
-    if cachetype in ('PSYS', 'HAIR', 'SMOKE'):
+    if cachetype in {'PSYS', 'HAIR', 'SMOKE'}:
         row.prop(cache, "use_external")
 
     if cache.use_external:
@@ -118,7 +121,7 @@ def point_cache_ui(self, context, cache, enabled, cachetype):
             row.enabled = enabled
             row.prop(cache, "frame_start")
             row.prop(cache, "frame_end")
-        if cachetype not in ('SMOKE', 'CLOTH'):
+        if cachetype not in {'SMOKE', 'CLOTH'}:
             row.prop(cache, "frame_step")
             row.prop(cache, "use_quick_cache")
         if cachetype != 'SMOKE':
@@ -229,8 +232,9 @@ def basic_force_field_settings_ui(self, context, field):
         col.prop(field, "flow")
 
     col = split.column()
-    col.prop(field, "noise")
-    col.prop(field, "seed")
+    sub = col.column(align=True)
+    sub.prop(field, "noise")
+    sub.prop(field, "seed")
     if field.type == 'TURBULENCE':
         col.prop(field, "use_global_coords", text="Global")
     elif field.type == 'HARMONIC':
@@ -251,8 +255,6 @@ def basic_force_field_settings_ui(self, context, field):
 def basic_force_field_falloff_ui(self, context, field):
     layout = self.layout
 
-    # XXX: This doesn't update for some reason.
-    #split = layout.split()
     split = layout.split(percentage=0.35)
 
     if not field or field.type == 'NONE':
@@ -260,27 +262,32 @@ def basic_force_field_falloff_ui(self, context, field):
 
     col = split.column()
     col.prop(field, "z_direction", text="")
-    col.prop(field, "use_min_distance", text="Use Minimum")
-    col.prop(field, "use_max_distance", text="Use Maximum")
 
     col = split.column()
     col.prop(field, "falloff_power", text="Power")
 
-    sub = col.column()
+    split = layout.split()
+    col = split.column()
+    row = col.row(align=True)
+    row.prop(field, "use_min_distance", text="")
+    sub = row.row()
     sub.active = field.use_min_distance
-    sub.prop(field, "distance_min", text="Distance")
+    sub.prop(field, "distance_min", text="Minimum")
 
-    sub = col.column()
+    col = split.column()
+    row = col.row(align=True)
+    row.prop(field, "use_max_distance", text="")
+    sub = row.row()
     sub.active = field.use_max_distance
-    sub.prop(field, "distance_max", text="Distance")
+    sub.prop(field, "distance_max", text="Maximum")
 
 
 def register():
-    pass
+    bpy.utils.register_module(__name__)
 
 
 def unregister():
-    pass
+    bpy.utils.unregister_module(__name__)
 
 if __name__ == "__main__":
     register()

@@ -16,14 +16,50 @@ Variables = SCons.Variables
 BoolVariable = SCons.Variables.BoolVariable
 
 def get_version():
+    import re
+
     fname = os.path.join(os.path.dirname(__file__), "..", "..", "..", "source", "blender", "blenkernel", "BKE_blender.h")
+    ver_base = None
+    ver_char = None
+    ver_cycle = None
+
+    re_ver = re.compile("^#\s*define\s+BLENDER_VERSION\s+([0-9]+)")
+    re_ver_char = re.compile("^#\s*define\s+BLENDER_VERSION_CHAR\s*(\S*)") # optional arg
+    re_ver_cycle = re.compile("^#\s*define\s+BLENDER_VERSION_CYCLE\s*(\S*)") # optional arg
+
     for l in open(fname, "r"):
-        if "BLENDER_VERSION" in l:
-            ver = int(l.split()[-1])
-            return "%d.%d" % (ver / 100, ver % 100)
+        match = re_ver.match(l)
+        if match:
+            ver = int(match.group(1))
+            ver_base = "%d.%d" % (ver / 100, ver % 100)
+
+        match = re_ver_char.match(l)
+        if match:
+            ver_char = match.group(1)
+            if ver_char == "BLENDER_CHAR_VERSION":
+                ver_char = ""
+
+        match = re_ver_cycle.match(l)
+        if match:
+            ver_cycle = match.group(1)
+            if ver_cycle == "BLENDER_CYCLE_VERSION":
+                ver_cycle = ""
+
+        if (ver_base is not None) and (ver_char is not None) and (ver_cycle is not None):
+            # eg '2.56a-beta'
+            if ver_cycle:
+                ver_display = "%s%s-%s" % (ver_base, ver_char, ver_cycle)
+            else:
+                ver_display = "%s%s" % (ver_base, ver_char)  # assume release
+
+            return ver_base, ver_display
+
     raise Exception("%s: missing version string" % fname)
 
-VERSION = get_version() # This is used in creating the local config directories
+
+# This is used in creating the local config directories
+VERSION, VERSION_DISPLAY = get_version()
+
 
 def print_arguments(args, bc):
     if len(args):
@@ -36,7 +72,7 @@ def print_arguments(args, bc):
 
 def validate_arguments(args, bc):
     opts_list = [
-            'WITH_BF_PYTHON', 'BF_PYTHON', 'BF_PYTHON_VERSION', 'BF_PYTHON_INC', 'BF_PYTHON_BINARY', 'BF_PYTHON_LIB', 'BF_PYTHON_LIBPATH', 'WITH_BF_STATICPYTHON', 'BF_PYTHON_LIB_STATIC', 'BF_PYTHON_DLL',
+            'WITH_BF_PYTHON', 'WITH_BF_PYTHON_SAFETY', 'BF_PYTHON', 'BF_PYTHON_VERSION', 'BF_PYTHON_INC', 'BF_PYTHON_BINARY', 'BF_PYTHON_LIB', 'BF_PYTHON_LIBPATH', 'WITH_BF_STATICPYTHON', 'BF_PYTHON_LIB_STATIC', 'BF_PYTHON_DLL', 'BF_PYTHON_ABI_FLAGS', 
             'WITH_BF_OPENAL', 'BF_OPENAL', 'BF_OPENAL_INC', 'BF_OPENAL_LIB', 'BF_OPENAL_LIBPATH', 'WITH_BF_STATICOPENAL', 'BF_OPENAL_LIB_STATIC',
             'WITH_BF_SDL', 'BF_SDL', 'BF_SDL_INC', 'BF_SDL_LIB', 'BF_SDL_LIBPATH',
             'BF_LIBSAMPLERATE', 'BF_LIBSAMPLERATE_INC', 'BF_LIBSAMPLERATE_LIB', 'BF_LIBSAMPLERATE_LIBPATH', 'WITH_BF_STATICLIBSAMPLERATE', 'BF_LIBSAMPLERATE_LIB_STATIC',
@@ -92,7 +128,7 @@ def validate_arguments(args, bc):
             'WITH_BF_RAYOPTIMIZATION',
             'BF_RAYOPTIMIZATION_SSE_FLAGS',
             'BF_NO_ELBEEM',
-	    'WITH_BF_CXX_GUARDEDALLOC'
+            'WITH_BF_CXX_GUARDEDALLOC'
             ]
     
     # Have options here that scons expects to be lists
@@ -175,6 +211,7 @@ def read_opts(env, cfg, args):
     localopts.AddVariables(
         ('LCGDIR', 'location of cvs lib dir'),
         (BoolVariable('WITH_BF_PYTHON', 'Compile with python', True)),
+        (BoolVariable('WITH_BF_PYTHON_SAFETY', 'Internal API error checking to track invalid data to prevent crash on access (at the expense of some effeciency)', False)),
         ('BF_PYTHON', 'base path for python', ''),
         ('BF_PYTHON_VERSION', 'Python version to use', ''),
         ('BF_PYTHON_INC', 'include path for Python headers', ''),
@@ -185,6 +222,7 @@ def read_opts(env, cfg, args):
         ('BF_PYTHON_LIBPATH', 'Library path', ''),
         ('BF_PYTHON_LINKFLAGS', 'Python link flags', ''),
         (BoolVariable('WITH_BF_STATICPYTHON', 'Staticly link to python', False)),
+        ('BF_PYTHON_ABI_FLAGS', 'Python ABI flags (suffix in library version: m, mu, etc)', ''),
 
         (BoolVariable('BF_NO_ELBEEM', 'Disable Fluid Sim', False)),
         ('BF_PROFILE_FLAGS', 'Profiling compiler flags', ''),
@@ -502,11 +540,6 @@ def NSIS_Installer(target=None, source=None, env=None):
                 for f in df:
                     outfile = os.path.join(dp,f)
                     datafiles += '  File '+outfile + "\n"
-    
-    os.chdir("release")
-    v = open("VERSION")
-    version = v.read()[:-1]    
-    v.close()
 
     #### change to suit install dir ####
     inst_dir = install_base_dir + env['BF_INSTALLDIR']
@@ -520,7 +553,7 @@ def NSIS_Installer(target=None, source=None, env=None):
 
     # var replacements
     ns_cnt = string.replace(ns_cnt, "[DISTDIR]", os.path.normpath(inst_dir+os.sep))
-    ns_cnt = string.replace(ns_cnt, "[VERSION]", version)
+    ns_cnt = string.replace(ns_cnt, "[VERSION]", VERSION_DISPLAY)
     ns_cnt = string.replace(ns_cnt, "[SHORTVERSION]", VERSION)
     ns_cnt = string.replace(ns_cnt, "[RELDIR]", os.path.normpath(rel_dir))
     ns_cnt = string.replace(ns_cnt, "[BITNESS]", bitness)
@@ -568,3 +601,24 @@ def NSIS_Installer(target=None, source=None, env=None):
         print data.strip().split("\n")[-1]
     return rv
 
+def check_environ():
+    problematic_envvars = ""
+    for i in os.environ:
+        try:
+            os.environ[i].decode('ascii')
+        except UnicodeDecodeError:
+            problematic_envvars = problematic_envvars + "%s = %s\n" % (i, os.environ[i])
+    if len(problematic_envvars)>0:
+        print("================\n\n")
+        print("@@ ABORTING BUILD @@\n")
+        print("PROBLEM DETECTED WITH ENVIRONMENT")
+        print("---------------------------------\n\n")
+        print("A problem with one or more environment variable was found")
+        print("Their value contain non-ascii characters. Check the below")
+        print("list and override them locally to be ASCII-clean by doing")
+        print("'set VARNAME=cleanvalue' on the command-line prior to")
+        print("starting the build process:\n")
+        print(problematic_envvars)
+        return False
+    else:
+        return True

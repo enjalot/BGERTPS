@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -24,6 +24,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/blenkernel/intern/report.c
+ *  \ingroup bke
+ */
+
 
 #include "MEM_guardedalloc.h"
 
@@ -124,7 +129,7 @@ void BKE_reportf(ReportList *reports, ReportType type, const char *format, ...)
 	Report *report;
 	va_list args;
 
-	if(!reports || ((reports->flag & RPT_PRINT) && (type >= reports->printlevel))) {
+	if(G.background || !reports || ((reports->flag & RPT_PRINT) && (type >= reports->printlevel))) {
 		va_start(args, format);
 		vprintf(format, args);
 		va_end(args);

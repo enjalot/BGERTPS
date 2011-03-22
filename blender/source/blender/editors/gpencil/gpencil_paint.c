@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -24,6 +24,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/editors/gpencil/gpencil_paint.c
+ *  \ingroup edgpencil
+ */
+
 
 #include <stdio.h>
 #include <stddef.h>
@@ -379,10 +384,18 @@ static short gp_stroke_addpoint (tGPsdata *p, int mval[2], float pressure)
 	return GP_STROKEADD_INVALID;
 }
 
+
+/* temp struct for gp_stroke_smooth() */
+typedef struct tGpSmoothCo {
+	short x;
+	short y;
+} tGpSmoothCo;
+
 /* smooth a stroke (in buffer) before storing it */
 static void gp_stroke_smooth (tGPsdata *p)
 {
 	bGPdata *gpd= p->gpd;
+	tGpSmoothCo *smoothArray, *spc;
 	int i=0, cmx=gpd->sbuffer_size;
 	
 	/* only smooth if smoothing is enabled, and we're not doing a straight line */
@@ -393,17 +406,31 @@ static void gp_stroke_smooth (tGPsdata *p)
 	if ((cmx <= 2) || (gpd->sbuffer == NULL))
 		return;
 	
-	/* apply weighting-average (note doing this along path sequentially does introduce slight error) */
-	for (i=0; i < gpd->sbuffer_size; i++) {
-		tGPspoint *pc= (((tGPspoint *)gpd->sbuffer) + i);
-		tGPspoint *pb= (i-1 > 0)?(pc-1):(pc);
-		tGPspoint *pa= (i-2 > 0)?(pc-2):(pb);
-		tGPspoint *pd= (i+1 < cmx)?(pc+1):(pc);
-		tGPspoint *pe= (i+2 < cmx)?(pc+2):(pd);
+	/* create a temporary smoothing coordinates buffer, use to store calculated values to prevent sequential error */
+	smoothArray = MEM_callocN(sizeof(tGpSmoothCo)*cmx, "gp_stroke_smooth smoothArray");
+	
+	/* first pass: calculate smoothing coordinates using weighted-averages */
+	for (i=0, spc=smoothArray; i < gpd->sbuffer_size; i++, spc++) {
+		const tGPspoint *pc= (((tGPspoint *)gpd->sbuffer) + i);
+		const tGPspoint *pb= (i-1 > 0)?(pc-1):(pc);
+		const tGPspoint *pa= (i-2 > 0)?(pc-2):(pb);
+		const tGPspoint *pd= (i+1 < cmx)?(pc+1):(pc);
+		const tGPspoint *pe= (i+2 < cmx)?(pc+2):(pd);
 		
-		pc->x= (short)(0.1*pa->x + 0.2*pb->x + 0.4*pc->x + 0.2*pd->x + 0.1*pe->x);
-		pc->y= (short)(0.1*pa->y + 0.2*pb->y + 0.4*pc->y + 0.2*pd->y + 0.1*pe->y);
+		spc->x= (short)(0.1*pa->x + 0.2*pb->x + 0.4*pc->x + 0.2*pd->x + 0.1*pe->x);
+		spc->y= (short)(0.1*pa->y + 0.2*pb->y + 0.4*pc->y + 0.2*pd->y + 0.1*pe->y);
 	}
+	
+	/* second pass: apply smoothed coordinates */
+	for (i=0, spc=smoothArray; i < gpd->sbuffer_size; i++, spc++) {
+		tGPspoint *pc= (((tGPspoint *)gpd->sbuffer) + i);
+		
+		pc->x = spc->x;
+		pc->y = spc->y;
+	}
+	
+	/* free temp array */
+	MEM_freeN(smoothArray);
 }
 
 /* simplify a stroke (in buffer) before storing it 
@@ -547,18 +574,25 @@ static void gp_stroke_newfrombuffer (tGPsdata *p)
 		
 		/* get an array of depths, far depths are blended */
 		if (gpencil_project_check(p)) {
-			short mval[2];
+			short mval[2], mval_prev[2]= {0};
 			int interp_depth = 0;
 			int found_depth = 0;
 			
 			depth_arr= MEM_mallocN(sizeof(float) * gpd->sbuffer_size, "depth_points");
-			
+
 			for (i=0, ptc=gpd->sbuffer; i < gpd->sbuffer_size; i++, ptc++, pt++) {
 				mval[0]= ptc->x; mval[1]= ptc->y;
-				if (view_autodist_depth(p->ar, mval, depth_margin, depth_arr+i) == 0)
+
+				if ((view_autodist_depth(p->ar, mval, depth_margin, depth_arr+i) == 0) &&
+					(i && (view_autodist_depth_segment(p->ar, mval, mval_prev, depth_margin + 1, depth_arr+i) == 0))
+				) {
 					interp_depth= TRUE;
-				else
+				}
+				else {
 					found_depth= TRUE;
+				}
+
+				VECCOPY2D(mval_prev, mval);
 			}
 			
 			if (found_depth == FALSE) {
@@ -1212,37 +1246,8 @@ static void gp_paint_cleanup (tGPsdata *p)
 	gp_paint_strokeend(p);
 	
 	/* "unlock" frame */
-	p->gpf->flag &= ~GP_FRAME_PAINT;
-}
-
-/* ------------------------------- */
-
-
-static int gpencil_draw_init (bContext *C, wmOperator *op)
-{
-	tGPsdata *p;
-	int paintmode= RNA_enum_get(op->ptr, "mode");
-	
-	/* check context */
-	p= op->customdata= gp_session_initpaint(C);
-	if ((p == NULL) || (p->status == GP_STATUS_ERROR)) {
-		/* something wasn't set correctly in context */
-		gp_session_cleanup(p);
-		return 0;
-	}
-	
-	/* init painting data */
-	gp_paint_initstroke(p, paintmode);
-	if (p->status == GP_STATUS_ERROR) {
-		gp_session_cleanup(p);
-		return 0;
-	}
-	
-	/* radius for eraser circle is defined in userprefs now */
-	p->radius= U.gp_eraser;
-	
-	/* everything is now setup ok */
-	return 1;
+	if (p->gpf)
+		p->gpf->flag &= ~GP_FRAME_PAINT;
 }
 
 /* ------------------------------- */
@@ -1257,18 +1262,22 @@ static void gpencil_draw_exit (bContext *C, wmOperator *op)
 	/* restore cursor to indicate end of drawing */
 	WM_cursor_restore(CTX_wm_window(C));
 	
-	/* check size of buffer before cleanup, to determine if anything happened here */
-	if (p->paintmode == GP_PAINTMODE_ERASER) {
-		// TODO clear radial cursor thing
-		// XXX draw_sel_circle(NULL, p.mvalo, 0, p.radius, 0);
+	/* don't assume that operator data exists at all */
+	if (p) {
+		/* check size of buffer before cleanup, to determine if anything happened here */
+		if (p->paintmode == GP_PAINTMODE_ERASER) {
+			// TODO clear radial cursor thing
+			// XXX draw_sel_circle(NULL, p.mvalo, 0, p.radius, 0);
+		}
+		
+		/* cleanup */
+		gp_paint_cleanup(p);
+		gp_session_cleanup(p);
+		
+		/* finally, free the temp data */
+		MEM_freeN(p);	
 	}
 	
-	/* cleanup */
-	gp_paint_cleanup(p);
-	gp_session_cleanup(p);
-	
-	/* finally, free the temp data */
-	MEM_freeN(p);
 	op->customdata= NULL;
 }
 
@@ -1277,6 +1286,36 @@ static int gpencil_draw_cancel (bContext *C, wmOperator *op)
 	/* this is just a wrapper around exit() */
 	gpencil_draw_exit(C, op);
 	return OPERATOR_CANCELLED;
+}
+
+/* ------------------------------- */
+
+
+static int gpencil_draw_init (bContext *C, wmOperator *op)
+{
+	tGPsdata *p;
+	int paintmode= RNA_enum_get(op->ptr, "mode");
+	
+	/* check context */
+	p= op->customdata= gp_session_initpaint(C);
+	if ((p == NULL) || (p->status == GP_STATUS_ERROR)) {
+		/* something wasn't set correctly in context */
+		gpencil_draw_exit(C, op);
+		return 0;
+	}
+	
+	/* init painting data */
+	gp_paint_initstroke(p, paintmode);
+	if (p->status == GP_STATUS_ERROR) {
+		gpencil_draw_exit(C, op);
+		return 0;
+	}
+	
+	/* radius for eraser circle is defined in userprefs now */
+	p->radius= U.gp_eraser;
+	
+	/* everything is now setup ok */
+	return 1;
 }
 
 /* ------------------------------- */
@@ -1567,7 +1606,6 @@ static int gpencil_draw_modal (bContext *C, wmOperator *op, wmEvent *event)
 	if (ELEM4(event->type, RETKEY, PADENTER, ESCKEY, SPACEKEY)) {
 		/* exit() ends the current stroke before cleaning up */
 		//printf("\t\tGP - end of paint op + end of stroke\n");
-		gpencil_draw_exit(C, op);
 		p->status= GP_STATUS_DONE;
 		estate = OPERATOR_FINISHED;
 	}
@@ -1590,7 +1628,6 @@ static int gpencil_draw_modal (bContext *C, wmOperator *op, wmEvent *event)
 			}
 			else {
 				//printf("\t\tGP - end of stroke + op\n");
-				gpencil_draw_exit(C, op);
 				p->status= GP_STATUS_DONE;
 				estate = OPERATOR_FINISHED;
 			}
@@ -1603,7 +1640,6 @@ static int gpencil_draw_modal (bContext *C, wmOperator *op, wmEvent *event)
 			 */
 			if (CTX_wm_area(C) != p->sa) {
 				//printf("\t\t\tGP - wrong area execution abort! \n");
-				gpencil_draw_exit(C, op);
 				p->status= GP_STATUS_ERROR;
 				estate = OPERATOR_CANCELLED;
 			}
@@ -1617,7 +1653,6 @@ static int gpencil_draw_modal (bContext *C, wmOperator *op, wmEvent *event)
 				gp_paint_initstroke(p, p->paintmode);
 				
 				if (p->status == GP_STATUS_ERROR) {
-					gpencil_draw_exit(C, op);
 					estate = OPERATOR_CANCELLED;
 				}
 			}
@@ -1636,7 +1671,6 @@ static int gpencil_draw_modal (bContext *C, wmOperator *op, wmEvent *event)
 			/* finish painting operation if anything went wrong just now */
 			if (p->status == GP_STATUS_ERROR) {
 				//printf("\t\t\t\tGP - add error done! \n");
-				gpencil_draw_exit(C, op);
 				estate = OPERATOR_CANCELLED;
 			}
 			else {
@@ -1678,9 +1712,14 @@ static int gpencil_draw_modal (bContext *C, wmOperator *op, wmEvent *event)
 	switch (estate) {
 		case OPERATOR_FINISHED:
 			/* one last flush before we're done */
+			gpencil_draw_exit(C, op);
 			WM_event_add_notifier(C, NC_SCREEN|ND_GPENCIL|NA_EDITED, NULL); // XXX need a nicer one that will work
 			break;
 			
+		case OPERATOR_CANCELLED:
+			gpencil_draw_exit(C, op);
+			break;
+
 		case OPERATOR_RUNNING_MODAL|OPERATOR_PASS_THROUGH:
 			/* event doesn't need to be handled */
 			//printf("unhandled event -> %d (mmb? = %d | mmv? = %d)\n", event->type, event->type == MIDDLEMOUSE, event->type==MOUSEMOVE);

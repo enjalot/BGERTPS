@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -30,6 +30,10 @@
 
 #ifndef DNA_CONSTRAINT_TYPES_H
 #define DNA_CONSTRAINT_TYPES_H
+
+/** \file DNA_constraint_types.h
+ *  \ingroup DNA
+ */
 
 #include "DNA_ID.h"
 #include "DNA_listBase.h"
@@ -699,7 +703,8 @@ typedef enum eChildOf_Flags {
 	CHILDOF_ROTZ	= (1<<5),
 	CHILDOF_SIZEX	= (1<<6),
 	CHILDOF_SIZEY	= (1<<7),
-	CHILDOF_SIZEZ	= (1<<8)
+	CHILDOF_SIZEZ	= (1<<8),
+	CHILDOF_ALL		= 511
 } eChildOf_Flags;
 
 /* Pivot Constraint */

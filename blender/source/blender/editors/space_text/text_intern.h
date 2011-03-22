@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -25,6 +25,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/editors/space_text/text_intern.h
+ *  \ingroup sptext
+ */
+
 #ifndef ED_TEXT_INTERN_H
 #define ED_TEXT_INTERN_H
 
@@ -45,7 +50,7 @@ struct wmWindowManager;
 void draw_text_main(struct SpaceText *st, struct ARegion *ar);
 
 int text_font_width_character(struct SpaceText *st);
-int text_font_width(struct SpaceText *st, char *str);
+int text_font_width(struct SpaceText *st, const char *str);
 
 void text_update_line_edited(struct TextLine *line);
 void text_update_edited(struct Text *text);
@@ -79,13 +84,13 @@ typedef struct FlattenString {
 	int pos, len;
 } FlattenString;
 
-int flatten_string(struct SpaceText *st, FlattenString *fs, char *in);
+int flatten_string(struct SpaceText *st, FlattenString *fs, const char *in);
 void flatten_string_free(FlattenString *fs);
 
 int wrap_width(struct SpaceText *st, struct ARegion *ar);
 void wrap_offset(struct SpaceText *st, struct ARegion *ar, struct TextLine *linein, int cursin, int *offl, int *offc);
 void wrap_offset_in_line(struct SpaceText *st, struct ARegion *ar, struct TextLine *linep, int cursin, int *offl, int *offc);
-int text_get_char_pos(struct SpaceText *st, char *line, int cur);
+int text_get_char_pos(struct SpaceText *st, const char *line, int cur);
 
 void text_drawcache_tag_update(struct SpaceText *st, int full);
 void text_free_caches(struct SpaceText *st);
@@ -95,7 +100,7 @@ int text_file_modified(struct Text *text);
 int text_do_suggest_select(struct SpaceText *st, struct ARegion *ar);
 void text_pop_suggest_list(void);
 
-int text_get_visible_lines(struct SpaceText *st, struct ARegion *ar, char *str);
+int text_get_visible_lines(struct SpaceText *st, struct ARegion *ar, const char *str);
 int text_get_span_wrap(struct SpaceText *st, struct ARegion *ar, struct TextLine *from, struct TextLine *to);
 int text_get_total_lines(struct SpaceText *st, struct ARegion *ar);
 
@@ -133,6 +138,7 @@ void TEXT_OT_previous_marker(struct wmOperatorType *ot);
 
 void TEXT_OT_select_line(struct wmOperatorType *ot);
 void TEXT_OT_select_all(struct wmOperatorType *ot);
+void TEXT_OT_select_word(struct wmOperatorType *ot);
 
 void TEXT_OT_jump(struct wmOperatorType *ot);
 void TEXT_OT_move(struct wmOperatorType *ot);
@@ -142,6 +148,7 @@ void TEXT_OT_overwrite_toggle(struct wmOperatorType *ot);
 
 void TEXT_OT_scroll(struct wmOperatorType *ot);
 void TEXT_OT_scroll_bar(struct wmOperatorType *ot);
+void TEXT_OT_selection_set(struct wmOperatorType *ot);
 void TEXT_OT_cursor_set(struct wmOperatorType *ot);
 void TEXT_OT_line_number(struct wmOperatorType *ot);
 
@@ -156,6 +163,9 @@ void TEXT_OT_mark_all(struct wmOperatorType *ot);
 void TEXT_OT_to_3d_object(struct wmOperatorType *ot);
 
 void TEXT_OT_resolve_conflict(struct wmOperatorType *ot);
+
+/* space_text.c */
+extern const char *text_context_dir[]; /* doc access */
 
 #endif /* ED_TEXT_INTERN_H */
 

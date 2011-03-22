@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -26,6 +26,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/nodes/intern/SHD_nodes/SHD_mapping.c
+ *  \ingroup shdnodes
+ */
+
 
 #include "../SHD_util.h"
 
@@ -83,22 +88,17 @@ static int gpu_shader_mapping(GPUMaterial *mat, bNode *node, GPUNodeStack *in, G
 	return GPU_stack_link(mat, "mapping", in, out, tmat, tmin, tmax, tdomin, tdomax);
 }
 
-bNodeType sh_node_mapping= {
-	/* *next,*prev */	NULL, NULL,
-	/* type code   */	SH_NODE_MAPPING,
-	/* name        */	"Mapping",
-	/* width+range */	240, 160, 320,
-	/* class+opts  */	NODE_CLASS_OP_VECTOR, NODE_OPTIONS,
-	/* input sock  */	sh_node_mapping_in,
-	/* output sock */	sh_node_mapping_out,
-	/* storage     */	"TexMapping",
-	/* execfunc    */	node_shader_exec_mapping,
-	/* butfunc     */	NULL,
-	/* initfunc    */	node_shader_init_mapping,
-	/* freestoragefunc    */	node_free_standard_storage,
-	/* copystoragefunc    */	node_copy_standard_storage,
-	/* id          */	NULL, NULL, NULL,
-	/* gpufunc     */	gpu_shader_mapping
+void register_node_type_sh_mapping(ListBase *lb)
+{
+	static bNodeType ntype;
 	
-};
-
+	node_type_base(&ntype, SH_NODE_MAPPING, "Mapping", NODE_CLASS_OP_VECTOR, NODE_OPTIONS,
+				   sh_node_mapping_in, sh_node_mapping_out);
+	node_type_size(&ntype, 240, 160, 320);
+	node_type_init(&ntype, node_shader_init_mapping);
+	node_type_storage(&ntype, "TexMapping", node_free_standard_storage, node_copy_standard_storage);
+	node_type_exec(&ntype, node_shader_exec_mapping);
+	node_type_gpu(&ntype, gpu_shader_mapping);
+	
+	nodeRegisterType(lb, &ntype);
+}

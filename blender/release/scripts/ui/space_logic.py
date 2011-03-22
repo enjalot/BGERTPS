@@ -66,8 +66,6 @@ class LOGIC_HT_header(bpy.types.Header):
     def draw(self, context):
         layout = self.layout
 
-        st = context.space_data
-
         row = layout.row(align=True)
         row.template_header()
 
@@ -90,11 +88,11 @@ class LOGIC_MT_view(bpy.types.Menu):
 
 
 def register():
-    pass
+    bpy.utils.register_module(__name__)
 
 
 def unregister():
-    pass
+    bpy.utils.unregister_module(__name__)
 
 if __name__ == "__main__":
     register()

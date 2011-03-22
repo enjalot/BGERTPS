@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -26,6 +26,11 @@
  * ***** END GPL LICENSE BLOCK *****
  */
 
+/** \file blender/editors/space_action/space_action.c
+ *  \ingroup spaction
+ */
+
+
 #include <string.h>
 #include <stdio.h>
 
@@ -52,6 +57,7 @@
 #include "UI_resources.h"
 #include "UI_view2d.h"
 
+#include "ED_space_api.h"
 #include "ED_anim_api.h"
 #include "ED_markers.h"
 
@@ -192,7 +198,7 @@ static void action_main_area_draw(const bContext *C, ARegion *ar)
 	/* markers */
 	UI_view2d_view_orthoSpecial(ar, v2d, 1);
 	
-	flag = (saction->flag & SACTION_POSEMARKERS_SHOW)? DRAW_MARKERS_LOCAL : 0;
+	flag = (ac.markers && (ac.markers != &ac.scene->markers))? DRAW_MARKERS_LOCAL : 0;
 	draw_markers_time(C, flag);
 	
 	/* preview range */

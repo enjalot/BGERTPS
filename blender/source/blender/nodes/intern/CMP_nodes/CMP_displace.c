@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -26,6 +26,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/nodes/intern/CMP_nodes/CMP_displace.c
+ *  \ingroup cmpnodes
+ */
+
 
 #include "../CMP_util.h"
 
@@ -171,20 +176,16 @@ static void node_composit_exec_displace(void *UNUSED(data), bNode *UNUSED(node),
 	}
 }
 
-bNodeType cmp_node_displace= {
-	/* *next,*prev */	NULL, NULL,
-	/* type code   */	CMP_NODE_DISPLACE,
-	/* name        */	"Displace",
-	/* width+range */	140, 100, 320,
-	/* class+opts  */	NODE_CLASS_DISTORT, NODE_OPTIONS,
-	/* input sock  */	cmp_node_displace_in,
-	/* output sock */	cmp_node_displace_out,
-	/* storage     */	"",
-	/* execfunc    */	node_composit_exec_displace, 
-	/* butfunc     */	NULL,
-	/* initfunc    */	NULL,
-	/* freestoragefunc    */	NULL,
-	/* copystoragefunc    */	NULL,
-	/* id          */	NULL
-};
+void register_node_type_cmp_displace(ListBase *lb)
+{
+	static bNodeType ntype;
+
+	node_type_base(&ntype, CMP_NODE_DISPLACE, "Displace", NODE_CLASS_DISTORT, NODE_OPTIONS,
+		cmp_node_displace_in, cmp_node_displace_out);
+	node_type_size(&ntype, 140, 100, 320);
+	node_type_exec(&ntype, node_composit_exec_displace);
+
+	nodeRegisterType(lb, &ntype);
+}
+
 

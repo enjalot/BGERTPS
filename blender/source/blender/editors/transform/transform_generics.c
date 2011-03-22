@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -26,6 +26,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/editors/transform/transform_generics.c
+ *  \ingroup edtransform
+ */
+
 
 #include <string.h>
 #include <math.h>
@@ -269,7 +274,7 @@ static void animrecord_check_state (Scene *scene, ID *id, wmTimer *animtimer)
 	 *	- we're not only keying for available channels
 	 *	- the option to add new actions for each round is not enabled
 	 */
-	if (IS_AUTOKEY_FLAG(INSERTAVAIL)==0 && (scene->toolsettings->autokey_flag & ANIMRECORD_FLAG_WITHNLA)) {
+	if (IS_AUTOKEY_FLAG(scene, INSERTAVAIL)==0 && (scene->toolsettings->autokey_flag & ANIMRECORD_FLAG_WITHNLA)) {
 		/* if playback has just looped around, we need to add a new NLA track+strip to allow a clean pass to occur */
 		if ((sad) && (sad->flag & ANIMPLAY_FLAG_JUMPED)) {
 			AnimData *adt= BKE_animdata_from_id(id);
@@ -333,7 +338,7 @@ void recalcData(TransInfo *t)
 		Scene *scene= t->scene;
 		SpaceAction *saction= (SpaceAction *)t->sa->spacedata.first;
 		
-		bAnimContext ac= {0};
+		bAnimContext ac= {NULL};
 		ListBase anim_data = {NULL, NULL};
 		bAnimListElem *ale;
 		int filter;
@@ -1318,7 +1323,7 @@ void calculateCenterCursor2D(TransInfo *t)
 	calculateCenter2D(t);
 }
 
-void calculateCenterCursorGraph2D(TransInfo *t)
+static void calculateCenterCursorGraph2D(TransInfo *t)
 {
 	SpaceIpo *sipo= (SpaceIpo *)t->sa->spacedata.first;
 	Scene *scene= t->scene;

@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -26,6 +26,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/nodes/intern/TEX_nodes/TEX_image.c
+ *  \ingroup texnodes
+ */
+
 
 #include "../TEX_util.h"
 
@@ -91,20 +96,16 @@ static void init(bNode* node)
    iuser->ok= 1;
 }
 
-bNodeType tex_node_image= {
-	/* *next,*prev */	NULL, NULL,
-	/* type code   */	TEX_NODE_IMAGE,
-	/* name        */	"Image",
-	/* width+range */	120, 80, 300,
-	/* class+opts  */	NODE_CLASS_INPUT, NODE_PREVIEW|NODE_OPTIONS,
-	/* input sock  */	NULL,
-	/* output sock */	outputs,
-	/* storage     */	"ImageUser",
-	/* execfunc    */	exec,
-	/* butfunc     */	NULL,
-	/* initfunc    */	init,
-	/* freestoragefunc    */	node_free_standard_storage,
-	/* copystoragefunc    */	node_copy_standard_storage,
-	/* id          */	NULL
-};
-
+void register_node_type_tex_image(ListBase *lb)
+{
+	static bNodeType ntype;
+	
+	node_type_base(&ntype, TEX_NODE_IMAGE, "Image", NODE_CLASS_INPUT, NODE_PREVIEW|NODE_OPTIONS,
+				   NULL, outputs);
+	node_type_size(&ntype, 120, 80, 300);
+	node_type_init(&ntype, init);
+	node_type_storage(&ntype, "ImageUser", node_free_standard_storage, node_copy_standard_storage);
+	node_type_exec(&ntype, exec);
+	
+	nodeRegisterType(lb, &ntype);
+}

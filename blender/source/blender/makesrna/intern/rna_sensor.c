@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -21,6 +21,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/makesrna/intern/rna_sensor.c
+ *  \ingroup RNA
+ */
+
 
 #include <stdlib.h>
 
@@ -507,12 +512,12 @@ static void rna_def_armature_sensor(BlenderRNA *brna)
 
 	prop= RNA_def_property(srna, "bone", PROP_STRING, PROP_NONE);
 	RNA_def_property_string_sdna(prop, NULL, "posechannel");
-	RNA_def_property_ui_text(prop, "Bone name", "Identify the bone to check value from");
+	RNA_def_property_ui_text(prop, "Bone Name", "Identify the bone to check value from");
 	RNA_def_property_update(prop, NC_LOGIC, "rna_Sensor_Armature_update");
 
 	prop= RNA_def_property(srna, "constraint", PROP_STRING, PROP_NONE);
 	RNA_def_property_string_sdna(prop, NULL, "constraint");
-	RNA_def_property_ui_text(prop, "Constraint name", "Identify the bone constraint to check value from");
+	RNA_def_property_ui_text(prop, "Constraint Name", "Identify the bone constraint to check value from");
 	RNA_def_property_update(prop, NC_LOGIC, "rna_Sensor_Armature_update");
 
 	prop= RNA_def_property(srna, "value", PROP_FLOAT, PROP_NONE);
@@ -629,9 +634,10 @@ static void rna_def_radar_sensor(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Axis", "Specify along which axis the radar cone is cast");
 	RNA_def_property_update(prop, NC_LOGIC, NULL);
 
-	prop= RNA_def_property(srna, "angle", PROP_FLOAT, PROP_ANGLE);
+	//XXX TODO - use radians internally then change to PROP_ANGLE
+	prop= RNA_def_property(srna, "angle", PROP_FLOAT, PROP_NONE);
 	RNA_def_property_range(prop, 0.0, 179.9);
-	RNA_def_property_ui_text(prop, "Angle", "Opening angle of the radar cone");
+	RNA_def_property_ui_text(prop, "Angle", "Opening angle of the radar cone (in degrees)");
 	RNA_def_property_update(prop, NC_LOGIC, NULL);
 
 	prop= RNA_def_property(srna, "distance", PROP_FLOAT, PROP_NONE);

@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -25,6 +25,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/editors/space_view3d/view3d_draw.c
+ *  \ingroup spview3d
+ */
+
 
 #include <string.h>
 #include <stdio.h>
@@ -850,7 +855,7 @@ static void draw_selected_name(Scene *scene, Object *ob, View3D *v3d)
 	BLF_draw_default(offset,  10, 0.0f, info, sizeof(info)-1);
 }
 
-static void view3d_get_viewborder_size(Scene *scene, ARegion *ar, float size_r[2])
+void view3d_viewborder_size_get(Scene *scene, ARegion *ar, float size_r[2])
 {
 	float winmax= MAX2(ar->winx, ar->winy);
 	float aspect= (scene->r.xsch*scene->r.xasp) / (scene->r.ysch*scene->r.yasp);
@@ -869,7 +874,7 @@ void view3d_calc_camera_border(Scene *scene, ARegion *ar, RegionView3D *rv3d, Vi
 	float zoomfac, size[2];
 	float dx= 0.0f, dy= 0.0f;
 	
-	view3d_get_viewborder_size(scene, ar, size);
+	view3d_viewborder_size_get(scene, ar, size);
 	
 	if (rv3d == NULL)
 		rv3d = ar->regiondata;
@@ -915,18 +920,6 @@ void view3d_calc_camera_border(Scene *scene, ARegion *ar, RegionView3D *rv3d, Vi
 		viewborder_r->ymin+= cam->shifty*side;
 		viewborder_r->ymax+= cam->shifty*side;
 	}
-}
-
-void view3d_set_1_to_1_viewborder(Scene *scene, ARegion *ar)
-{
-	RegionView3D *rv3d= ar->regiondata;
-	float size[2];
-	int im_width= (scene->r.size*scene->r.xsch)/100;
-	
-	view3d_get_viewborder_size(scene, ar, size);
-	
-	rv3d->camzoom= (sqrt(4.0*im_width/size[0]) - M_SQRT2)*50.0;
-	rv3d->camzoom= CLAMPIS(rv3d->camzoom, RV3D_CAMZOOM_MIN, RV3D_CAMZOOM_MAX);
 }
 
 static void drawviewborder(Scene *scene, ARegion *ar, View3D *v3d)
@@ -1915,7 +1908,7 @@ static void gpu_update_lamps_shadows(Scene *scene, View3D *v3d)
 		/* this needs to be done better .. */
 		float viewmat[4][4], winmat[4][4];
 		int drawtype, lay, winsize, flag2=v3d->flag2;
-		ARegion ar= {0};
+		ARegion ar= {NULL};
 		RegionView3D rv3d= {{{0}}};
 		
 		drawtype= v3d->drawtype;
@@ -1950,6 +1943,22 @@ static void gpu_update_lamps_shadows(Scene *scene, View3D *v3d)
 
 /* *********************** customdata **************** */
 
+CustomDataMask ED_view3d_datamask(Scene *scene, View3D *v3d)
+{
+	CustomDataMask mask= 0;
+	if(v3d->drawtype == OB_SHADED) {
+		/* this includes normals for mesh_create_shadedColors */
+		mask |= CD_MASK_MTFACE | CD_MASK_MCOL | CD_MASK_NORMAL | CD_MASK_ORCO;
+	}
+	if((v3d->drawtype == OB_TEXTURE) || ((v3d->drawtype == OB_SOLID) && (v3d->flag2 & V3D_SOLID_TEX))) {
+		mask |= CD_MASK_MTFACE | CD_MASK_MCOL;
+
+		if(scene->gm.matmode == GAME_MAT_GLSL)
+			mask |= CD_MASK_ORCO;
+	}
+
+	return mask;
+}
 /* goes over all modes and view3d settings */
 CustomDataMask ED_viewedit_datamask(bScreen *screen)
 {
@@ -1965,17 +1974,7 @@ CustomDataMask ED_viewedit_datamask(bScreen *screen)
 	/* check if we need tfaces & mcols due to view mode */
 	for(sa = screen->areabase.first; sa; sa = sa->next) {
 		if(sa->spacetype == SPACE_VIEW3D) {
-			View3D *view = sa->spacedata.first;
-			if(view->drawtype == OB_SHADED) {
-				/* this includes normals for mesh_create_shadedColors */
-				mask |= CD_MASK_MTFACE | CD_MASK_MCOL | CD_MASK_NORMAL | CD_MASK_ORCO;
-			}
-			if((view->drawtype == OB_TEXTURE) || ((view->drawtype == OB_SOLID) && (view->flag2 & V3D_SOLID_TEX))) {
-				mask |= CD_MASK_MTFACE | CD_MASK_MCOL;
-
-				if(scene->gm.matmode == GAME_MAT_GLSL)
-					mask |= CD_MASK_ORCO;
-			}
+			mask |= ED_view3d_datamask(scene, (View3D *)sa->spacedata.first);
 		}
 	}
 	
@@ -2157,7 +2156,7 @@ void ED_view3d_draw_offscreen(Scene *scene, View3D *v3d, ARegion *ar, int winx, 
 }
 
 /* utility func for ED_view3d_draw_offscreen */
-ImBuf *ED_view3d_draw_offscreen_imbuf(Scene *scene, View3D *v3d, ARegion *ar, int sizex, int sizey, unsigned int flag)
+ImBuf *ED_view3d_draw_offscreen_imbuf(Scene *scene, View3D *v3d, ARegion *ar, int sizex, int sizey, unsigned int flag, char err_out[256])
 {
 	RegionView3D *rv3d= ar->regiondata;
 	ImBuf *ibuf;
@@ -2167,7 +2166,7 @@ ImBuf *ED_view3d_draw_offscreen_imbuf(Scene *scene, View3D *v3d, ARegion *ar, in
 	glPushAttrib(GL_LIGHTING_BIT);
 
 	/* bind */
-	ofs= GPU_offscreen_create(&sizex, &sizey);
+	ofs= GPU_offscreen_create(&sizex, &sizey, err_out);
 	if(ofs == NULL)
 		return NULL;
 
@@ -2211,10 +2210,10 @@ ImBuf *ED_view3d_draw_offscreen_imbuf(Scene *scene, View3D *v3d, ARegion *ar, in
 }
 
 /* creates own 3d views, used by the sequencer */
-ImBuf *ED_view3d_draw_offscreen_imbuf_simple(Scene *scene, int width, int height, unsigned int flag, int drawtype)
+ImBuf *ED_view3d_draw_offscreen_imbuf_simple(Scene *scene, int width, int height, unsigned int flag, int drawtype, char err_out[256])
 {
-	View3D v3d= {0};
-	ARegion ar= {0};
+	View3D v3d= {NULL};
+	ARegion ar= {NULL};
 	RegionView3D rv3d= {{{0}}};
 
 	/* connect data */
@@ -2242,7 +2241,7 @@ ImBuf *ED_view3d_draw_offscreen_imbuf_simple(Scene *scene, int width, int height
 	mul_m4_m4m4(rv3d.persmat, rv3d.viewmat, rv3d.winmat);
 	invert_m4_m4(rv3d.persinv, rv3d.viewinv);
 
-	return ED_view3d_draw_offscreen_imbuf(scene, &v3d, &ar, width, height, flag);
+	return ED_view3d_draw_offscreen_imbuf(scene, &v3d, &ar, width, height, flag, err_out);
 
 	// seq_view3d_cb(scene, cfra, render_size, seqrectx, seqrecty);
 }

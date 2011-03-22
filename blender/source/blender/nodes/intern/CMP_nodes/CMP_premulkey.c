@@ -1,4 +1,4 @@
-/**
+/*
 * $Id$
 *
 * ***** BEGIN GPL LICENSE BLOCK *****
@@ -27,6 +27,11 @@
 * ***** END GPL LICENSE BLOCK *****
 
 */
+
+/** \file blender/nodes/intern/CMP_nodes/CMP_premulkey.c
+ *  \ingroup cmpnodes
+ */
+
 
 #include "../CMP_util.h"
 
@@ -58,20 +63,16 @@ static void node_composit_exec_premulkey(void *UNUSED(data), bNode *node, bNodeS
 	}
 }
 
-bNodeType cmp_node_premulkey= {
-	/* *next,*prev */	NULL, NULL,
-	/* type code   */	CMP_NODE_PREMULKEY,
-	/* name        */	"Alpha Convert",
-	/* width+range */	140, 100, 320,
-	/* class+opts  */	NODE_CLASS_CONVERTOR, NODE_OPTIONS,
-	/* input sock  */	cmp_node_premulkey_in,
-	/* output sock */	cmp_node_premulkey_out,
-	/* storage     */	"",
-	/* execfunc    */	node_composit_exec_premulkey,
-	/* butfunc     */	NULL, 
-	/* initfunc    */	NULL, 
-	/* freestoragefunc	*/ NULL, 
-	/* copysotragefunc	*/ NULL, 
-	/* id          */	NULL
-};
+void register_node_type_cmp_premulkey(ListBase *lb)
+{
+	static bNodeType ntype;
+
+	node_type_base(&ntype, CMP_NODE_PREMULKEY, "Alpha Convert", NODE_CLASS_CONVERTOR, NODE_OPTIONS,
+		cmp_node_premulkey_in, cmp_node_premulkey_out);
+	node_type_size(&ntype, 140, 100, 320);
+	node_type_exec(&ntype, node_composit_exec_premulkey);
+
+	nodeRegisterType(lb, &ntype);
+}
+
 

@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  * ***** BEGIN GPL LICENSE BLOCK *****
  *
@@ -25,6 +25,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file gameengine/Converter/KX_BlenderSceneConverter.cpp
+ *  \ingroup bgeconv
+ */
+
 
 #if defined(WIN32) && !defined(FREE_WINDOWS)
 #pragma warning (disable:4786) // suppress stl-MSVC debug info warning
@@ -937,7 +942,7 @@ bool KX_BlenderSceneConverter::LinkBlendFileMemory(void *data, int length, const
 
 bool KX_BlenderSceneConverter::LinkBlendFilePath(const char *path, char *group, KX_Scene *scene_merge, char **err_str)
 {
-	BlendHandle *bpy_openlib = BLO_blendhandle_from_file( (char *)path );
+	BlendHandle *bpy_openlib = BLO_blendhandle_from_file((char *)path, NULL);
 
 	// Error checking is done in LinkBlendFile
 	return LinkBlendFile(bpy_openlib, path, group, scene_merge, err_str);
@@ -979,8 +984,9 @@ bool KX_BlenderSceneConverter::LinkBlendFile(BlendHandle *bpy_openlib, const cha
 
 	/* here appending/linking starts */
 	main_tmp = BLO_library_append_begin(C, &bpy_openlib, (char *)path);
-	
-	names = BLO_blendhandle_get_datablock_names( bpy_openlib, idcode);
+
+	int totnames_dummy;
+	names = BLO_blendhandle_get_datablock_names( bpy_openlib, idcode, &totnames_dummy);
 	
 	int i=0;
 	LinkNode *n= names;
@@ -1006,21 +1012,19 @@ bool KX_BlenderSceneConverter::LinkBlendFile(BlendHandle *bpy_openlib, const cha
 	if(idcode==ID_ME) {
 		/* Convert all new meshes into BGE meshes */
 		ID* mesh;
-		KX_Scene *kx_scene= m_currentScene;
 	
 		for(mesh= (ID *)main_newlib->mesh.first; mesh; mesh= (ID *)mesh->next ) {
 			RAS_MeshObject *meshobj = BL_ConvertMesh((Mesh *)mesh, NULL, scene_merge, this);
-			kx_scene->GetLogicManager()->RegisterMeshName(meshobj->GetName(),meshobj);
+			scene_merge->GetLogicManager()->RegisterMeshName(meshobj->GetName(),meshobj);
 		}
 	}
 	else if(idcode==ID_AC) {
 		/* Convert all actions */
 		ID *action;
-		KX_Scene *kx_scene= m_currentScene;
 
 		for(action= (ID *)main_newlib->action.first; action; action= (ID *)action->next) {
 			printf("ActionName: %s\n", action->name);
-			kx_scene->GetLogicManager()->RegisterActionName(action->name+2, action);
+			scene_merge->GetLogicManager()->RegisterActionName(action->name+2, action);
 		}
 	}
 	else if(idcode==ID_SCE) {		
@@ -1093,6 +1097,7 @@ bool KX_BlenderSceneConverter::FreeBlendFile(struct Main *maggie)
 					{	
 						STR_HashedString mn = meshobj->GetName();
 						mapStringToMeshes.remove(mn);
+						m_map_mesh_to_gamemesh.remove(CHashedPtr(meshobj->GetMesh()));
 						i--;
 					}
 				}

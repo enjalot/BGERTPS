@@ -28,7 +28,7 @@ class CurveButtonsPanel():
 
     @classmethod
     def poll(cls, context):
-        return (context.object and context.object.type in ('CURVE', 'SURFACE', 'FONT') and context.curve)
+        return (context.object and context.object.type in {'CURVE', 'SURFACE', 'FONT'} and context.curve)
 
 
 class CurveButtonsPanelCurve(CurveButtonsPanel):
@@ -312,12 +312,9 @@ class DATA_PT_font(CurveButtonsPanel, bpy.types.Panel):
         col.prop(char, "use_italic")
         col.prop(char, "use_underline")
 
-        split = layout.split()
-        col = split.column()
-        col.prop(text, "small_caps_scale", text="Small Caps")
-
-        col = split.column()
-        col.prop(char, "use_small_caps")
+        row = layout.row()
+        row.prop(text, "small_caps_scale", text="Small Caps")
+        row.prop(char, "use_small_caps")
 
 
 class DATA_PT_paragraph(CurveButtonsPanel, bpy.types.Panel):
@@ -396,11 +393,11 @@ class DATA_PT_custom_props_curve(CurveButtonsPanel, PropertyPanel, bpy.types.Pan
 
 
 def register():
-    pass
+    bpy.utils.register_module(__name__)
 
 
 def unregister():
-    pass
+    bpy.utils.unregister_module(__name__)
 
 if __name__ == "__main__":
     register()

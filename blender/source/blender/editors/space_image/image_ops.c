@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -24,6 +24,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/editors/space_image/image_ops.c
+ *  \ingroup spimage
+ */
+
 
 #include <stddef.h>
 #include <string.h>
@@ -62,6 +67,7 @@
 #include "RNA_enum_types.h"
 
 #include "ED_image.h"
+#include "ED_render.h"
 #include "ED_screen.h"
 #include "ED_space_api.h"
 #include "ED_uvedit.h"
@@ -742,6 +748,9 @@ static int open_exec(bContext *C, wmOperator *op)
 		iuser->fie_ima= 2;
 	}
 
+	/* XXX unpackImage frees image buffers */
+	ED_preview_kill_jobs(C);
+	
 	BKE_image_signal(ima, iuser, IMA_SIGNAL_RELOAD);
 	WM_event_add_notifier(C, NC_IMAGE|NA_EDITED, ima);
 	
@@ -815,6 +824,9 @@ static int replace_exec(bContext *C, wmOperator *op)
 	RNA_string_get(op->ptr, "filepath", str);
 	BLI_strncpy(sima->image->name, str, sizeof(sima->image->name)); /* we cant do much if the str is longer then 240 :/ */
 
+	/* XXX unpackImage frees image buffers */
+	ED_preview_kill_jobs(C);
+	
 	BKE_image_signal(sima->image, &sima->iuser, IMA_SIGNAL_RELOAD);
 	WM_event_add_notifier(C, NC_IMAGE|NA_EDITED, sima->image);
 
@@ -874,6 +886,8 @@ static void save_image_doit(bContext *C, SpaceImage *sima, Scene *scene, wmOpera
 		short ok= FALSE;
 
 		BLI_path_abs(path, bmain->name);
+		/* old global to ensure a 2nd save goes to same dir */
+		BLI_strncpy(G.ima, path, sizeof(G.ima));
 
 		WM_cursor_wait(1);
 
@@ -1229,6 +1243,9 @@ static int reload_exec(bContext *C, wmOperator *UNUSED(op))
 	if(!ima)
 		return OPERATOR_CANCELLED;
 
+	/* XXX unpackImage frees image buffers */
+	ED_preview_kill_jobs(C);
+	
 	// XXX other users?
 	BKE_image_signal(ima, (sima)? &sima->iuser: NULL, IMA_SIGNAL_RELOAD);
 
@@ -1343,6 +1360,88 @@ void IMAGE_OT_new(wmOperatorType *ot)
 	RNA_def_boolean(ot->srna, "float", 0, "32 bit Float", "Create image with 32 bit floating point bit depth.");
 }
 
+/********************* invert operators *********************/
+
+static int image_invert_poll(bContext *C)
+{
+	Image *ima= CTX_data_edit_image(C);
+	ImBuf *ibuf= BKE_image_get_ibuf(ima, NULL);
+	
+	if( ibuf != NULL )
+		return 1;
+	return 0;
+}
+
+static int image_invert_exec(bContext *C, wmOperator *op)
+{
+	Image *ima= CTX_data_edit_image(C);
+	ImBuf *ibuf= BKE_image_get_ibuf(ima, NULL);
+
+	// flags indicate if this channel should be inverted
+	const short r= RNA_boolean_get(op->ptr, "invert_r");
+	const short g= RNA_boolean_get(op->ptr, "invert_g");
+	const short b= RNA_boolean_get(op->ptr, "invert_b");
+	const short a= RNA_boolean_get(op->ptr, "invert_a");
+
+	int i;
+
+	if( ibuf == NULL) // TODO: this should actually never happen, but does for render-results -> cleanup
+		return OPERATOR_CANCELLED;
+
+	/* TODO: make this into an IMB_invert_channels(ibuf,r,g,b,a) method!? */
+	if (ibuf->rect_float) {
+		
+		float *fp = (float *) ibuf->rect_float;
+		for( i = ibuf->x * ibuf->y; i > 0; i--, fp+=4 ) {
+			if( r ) fp[0] = 1.0f - fp[0];
+			if( g ) fp[1] = 1.0f - fp[1];
+			if( b ) fp[2] = 1.0f - fp[2];
+			if( a ) fp[3] = 1.0f - fp[3];
+		}
+
+		if(ibuf->rect) {
+			IMB_rect_from_float(ibuf);
+		}
+	}
+	else if(ibuf->rect) {
+		
+		char *cp = (char *) ibuf->rect;
+		for( i = ibuf->x * ibuf->y; i > 0; i--, cp+=4 ) {
+			if( r ) cp[0] = 255 - cp[0];
+			if( g ) cp[1] = 255 - cp[1];
+			if( b ) cp[2] = 255 - cp[2];
+			if( a ) cp[3] = 255 - cp[3];
+		}
+	}
+	else {
+		return OPERATOR_CANCELLED;
+	}
+
+	ibuf->userflags |= IB_BITMAPDIRTY;
+	WM_event_add_notifier(C, NC_IMAGE|NA_EDITED, ima);
+	return OPERATOR_FINISHED;
+}
+
+void IMAGE_OT_invert(wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name= "Invert Channels";
+	ot->idname= "IMAGE_OT_invert";
+	
+	/* api callbacks */
+	ot->exec= image_invert_exec;
+	ot->poll= image_invert_poll;
+	
+	/* properties */
+	RNA_def_boolean(ot->srna, "invert_r", 0, "Red", "Invert Red Channel");
+	RNA_def_boolean(ot->srna, "invert_g", 0, "Green", "Invert Green Channel");
+	RNA_def_boolean(ot->srna, "invert_b", 0, "Blue", "Invert Blue Channel");
+	RNA_def_boolean(ot->srna, "invert_a", 0, "Alpha", "Invert Alpha Channel");
+	
+	/* flags */
+	ot->flag= OPTYPE_REGISTER|OPTYPE_UNDO;
+}
+
 /********************* pack operator *********************/
 
 static int pack_test(bContext *C, wmOperator *op)
@@ -1401,7 +1500,7 @@ static int pack_invoke(bContext *C, wmOperator *op, wmEvent *UNUSED(event))
 	if(!as_png && (ibuf && (ibuf->userflags & IB_BITMAPDIRTY))) {
 		pup= uiPupMenuBegin(C, "OK", ICON_QUESTION);
 		layout= uiPupMenuLayout(pup);
-		uiItemBooleanO(layout, "Can't pack edited image from disk. Pack as internal PNG?", ICON_NULL, op->idname, "as_png", 1);
+		uiItemBooleanO(layout, "Can't pack edited image from disk. Pack as internal PNG?", ICON_NONE, op->idname, "as_png", 1);
 		uiPupMenuEnd(C, pup);
 
 		return OPERATOR_CANCELLED;
@@ -1453,7 +1552,10 @@ static int image_unpack_exec(bContext *C, wmOperator *op)
 
 	if(G.fileflags & G_AUTOPACK)
 		BKE_report(op->reports, RPT_WARNING, "AutoPack is enabled, so image will be packed again on file save.");
-		
+	
+	/* XXX unpackImage frees image buffers */
+	ED_preview_kill_jobs(C);
+	
 	unpackImage(op->reports, ima, method);
 	
 	WM_event_add_notifier(C, NC_IMAGE|NA_EDITED, ima);
@@ -1497,7 +1599,7 @@ void IMAGE_OT_unpack(wmOperatorType *ot)
 
 	/* flags */
 	ot->flag= OPTYPE_REGISTER|OPTYPE_UNDO;
-
+	
 	/* properties */
 	RNA_def_enum(ot->srna, "method", unpack_method_items, PF_USE_LOCAL, "Method", "How to unpack.");
 	RNA_def_string(ot->srna, "id", "", 21, "Image Name", "Image datablock name to unpack."); /* XXX, weark!, will fail with library, name collisions */
@@ -1527,9 +1629,9 @@ typedef struct ImageSampleInfo {
 static void sample_draw(const bContext *UNUSED(C), ARegion *ar, void *arg_info)
 {
 	ImageSampleInfo *info= arg_info;
-
-	draw_image_info(ar, info->channels, info->x, info->y, info->colp,
-		info->colfp, info->zp, info->zfp);
+	if(info->draw) {
+		draw_image_info(ar, info->channels, info->x, info->y, info->colp, info->colfp, info->zp, info->zfp);
+	}
 }
 
 static void sample_apply(bContext *C, wmOperator *op, wmEvent *event)
@@ -1856,7 +1958,7 @@ typedef struct RecordCompositeData {
 	int sfra, efra;
 } RecordCompositeData;
 
-int record_composite_apply(bContext *C, wmOperator *op)
+static int record_composite_apply(bContext *C, wmOperator *op)
 {
 	SpaceImage *sima= CTX_wm_space_image(C);
 	RecordCompositeData *rcd= op->customdata;
@@ -2031,6 +2133,10 @@ static int cycle_render_slot_exec(bContext *C, wmOperator *op)
 	
 	WM_event_add_notifier(C, NC_IMAGE|ND_DRAW, NULL);
 
+	/* no undo push for browsing existing */
+	if(ima->renders[ima->render_slot] || ima->render_slot==ima->last_render_slot)
+		return OPERATOR_CANCELLED;
+	
 	return OPERATOR_FINISHED;
 }
 

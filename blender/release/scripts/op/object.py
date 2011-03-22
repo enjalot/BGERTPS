@@ -19,7 +19,7 @@
 # <pep8 compliant>
 
 import bpy
-from bpy.props import *
+from bpy.props import StringProperty, BoolProperty, EnumProperty, IntProperty
 
 
 class SelectPattern(bpy.types.Operator):
@@ -476,7 +476,6 @@ class MakeDupliFace(bpy.types.Operator):
 
     def _main(self, context):
         from mathutils import Vector
-        from math import sqrt
 
         SCALE_FAC = 0.01
         offset = 0.5 * SCALE_FAC
@@ -484,8 +483,8 @@ class MakeDupliFace(bpy.types.Operator):
 
         def matrix_to_quat(matrix):
             # scale = matrix.median_scale
-            trans = matrix.translation_part()
-            rot = matrix.rotation_part()  # also contains scale
+            trans = matrix.to_translation()
+            rot = matrix.to_3x3()  # also contains scale
 
             return [(b * rot) + trans for b in base_tri]
         scene = bpy.context.scene
@@ -565,11 +564,11 @@ class ClearAllRestrictRender(bpy.types.Operator):
 
 
 def register():
-    pass
+    bpy.utils.register_module(__name__)
 
 
 def unregister():
-    pass
+    bpy.utils.unregister_module(__name__)
 
 if __name__ == "__main__":
     register()

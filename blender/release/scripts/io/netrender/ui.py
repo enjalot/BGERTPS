@@ -71,11 +71,11 @@ def verify_address(netsettings):
     global LAST_ADDRESS_TEST
     init_file()
 
-    if LAST_ADDRESS_TEST + 5 < time.time():
+    if LAST_ADDRESS_TEST + 30 < time.time():
         LAST_ADDRESS_TEST = time.time()
 
         try:
-            conn = clientConnection(netsettings.server_address, netsettings.server_port, scan = False)
+            conn = clientConnection(netsettings.server_address, netsettings.server_port, scan = False, timeout = 1)
         except:
             conn = None
 
@@ -115,8 +115,7 @@ class RENDER_PT_network_settings(NetRenderButtonsPanel, bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
 
-        scene = context.scene
-        netsettings = scene.network_render
+        netsettings = context.scene.network_render
 
         verify_address(netsettings)
 
@@ -157,18 +156,18 @@ class RENDER_PT_network_slave_settings(NetRenderButtonsPanel, bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
 
-        scene = context.scene
-        rd = scene.render
-        netsettings = scene.network_render
+        rd = context.scene.render
+        netsettings = context.scene.network_render
 
         layout.prop(netsettings, "use_slave_clear")
         layout.prop(netsettings, "use_slave_thumb")
         layout.prop(netsettings, "use_slave_output_log")
         layout.label(text="Threads:")
         layout.prop(rd, "threads_mode", expand=True)
-        sub = layout.column()
-        sub.enabled = rd.threads_mode == 'FIXED'
-        sub.prop(rd, "threads")
+        
+        col = layout.column()
+        col.enabled = rd.threads_mode == 'FIXED'
+        col.prop(rd, "threads")
 
 class RENDER_PT_network_master_settings(NetRenderButtonsPanel, bpy.types.Panel):
     bl_label = "Master Settings"
@@ -182,8 +181,7 @@ class RENDER_PT_network_master_settings(NetRenderButtonsPanel, bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
 
-        scene = context.scene
-        netsettings = scene.network_render
+        netsettings = context.scene.network_render
 
         layout.prop(netsettings, "use_master_broadcast")
         layout.prop(netsettings, "use_master_clear")
@@ -200,8 +198,7 @@ class RENDER_PT_network_job(NetRenderButtonsPanel, bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
 
-        scene = context.scene
-        netsettings = scene.network_render
+        netsettings = context.scene.network_render
 
         verify_address(netsettings)
 
@@ -244,8 +241,7 @@ class RENDER_PT_network_job_vcs(NetRenderButtonsPanel, bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
 
-        scene = context.scene
-        netsettings = scene.network_render
+        netsettings = context.scene.network_render
 
         layout.operator("render.netclientvcsguess", icon='FILE_REFRESH', text="")
 
@@ -266,8 +262,7 @@ class RENDER_PT_network_slaves(NeedValidAddress, NetRenderButtonsPanel, bpy.type
     def draw(self, context):
         layout = self.layout
 
-        scene = context.scene
-        netsettings = scene.network_render
+        netsettings = context.scene.network_render
 
         row = layout.row()
         row.template_list(netsettings, "slaves", netsettings, "active_slave_index", rows=2)
@@ -276,7 +271,7 @@ class RENDER_PT_network_slaves(NeedValidAddress, NetRenderButtonsPanel, bpy.type
         sub.operator("render.netclientslaves", icon='FILE_REFRESH', text="")
         sub.operator("render.netclientblacklistslave", icon='ZOOMOUT', text="")
 
-        if netsettings.active_slave_index >= 0 and len(netsettings.slaves) > 0:
+        if len(netrender.slaves) > netsettings.active_slave_index >= 0:
             layout.separator()
 
             slave = netrender.slaves[netsettings.active_slave_index]
@@ -298,8 +293,7 @@ class RENDER_PT_network_slaves_blacklist(NeedValidAddress, NetRenderButtonsPanel
     def draw(self, context):
         layout = self.layout
 
-        scene = context.scene
-        netsettings = scene.network_render
+        netsettings = context.scene.network_render
 
         row = layout.row()
         row.template_list(netsettings, "slaves_blacklist", netsettings, "active_blacklisted_slave_index", rows=2)
@@ -307,7 +301,7 @@ class RENDER_PT_network_slaves_blacklist(NeedValidAddress, NetRenderButtonsPanel
         sub = row.column(align=True)
         sub.operator("render.netclientwhitelistslave", icon='ZOOMOUT', text="")
 
-        if netsettings.active_blacklisted_slave_index >= 0 and len(netsettings.slaves_blacklist) > 0:
+        if len(netrender.blacklist) > netsettings.active_blacklisted_slave_index >= 0:
             layout.separator()
 
             slave = netrender.blacklist[netsettings.active_blacklisted_slave_index]
@@ -329,8 +323,7 @@ class RENDER_PT_network_jobs(NeedValidAddress, NetRenderButtonsPanel, bpy.types.
     def draw(self, context):
         layout = self.layout
 
-        scene = context.scene
-        netsettings = scene.network_render
+        netsettings = context.scene.network_render
 
         row = layout.row()
         row.template_list(netsettings, "jobs", netsettings, "active_job_index", rows=2)
@@ -341,7 +334,7 @@ class RENDER_PT_network_jobs(NeedValidAddress, NetRenderButtonsPanel, bpy.types.
         sub.operator("render.netclientcancelall", icon='PANEL_CLOSE', text="")
         sub.operator("render.netclientdownload", icon='RENDER_ANIMATION', text="")
 
-        if netsettings.active_job_index >= 0 and len(netsettings.jobs) > 0:
+        if len(netrender.jobs) > netsettings.active_job_index >= 0:
             layout.separator()
 
             job = netrender.jobs[netsettings.active_job_index]
@@ -363,16 +356,21 @@ class RENDER_PT_network_output(NeedValidAddress, NetRenderButtonsPanel, bpy.type
     
     draw = properties_render.RENDER_PT_output.draw
 
-class NetRenderSettings(bpy.types.IDPropertyGroup):
-    pass
-
-class NetRenderSlave(bpy.types.IDPropertyGroup):
-    pass
-
-class NetRenderJob(bpy.types.IDPropertyGroup):
-    pass
 
 def addProperties():
+    class NetRenderSettings(bpy.types.PropertyGroup):
+        pass
+
+    class NetRenderSlave(bpy.types.PropertyGroup):
+        pass
+
+    class NetRenderJob(bpy.types.PropertyGroup):
+        pass
+
+    bpy.utils.register_class(NetRenderSettings)
+    bpy.utils.register_class(NetRenderSlave)
+    bpy.utils.register_class(NetRenderJob)
+
     from bpy.props import PointerProperty, StringProperty, BoolProperty, EnumProperty, IntProperty, CollectionProperty
     bpy.types.Scene.network_render = PointerProperty(type=NetRenderSettings, name="Network Render", description="Network Render Settings")
     

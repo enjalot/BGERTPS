@@ -1,4 +1,4 @@
-/**
+/*
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
  *
@@ -26,6 +26,11 @@
  * ***** END GPL LICENSE BLOCK *****
  */
 
+/** \file blender/nodes/intern/TEX_util.h
+ *  \ingroup nodes
+ */
+
+
 #ifndef TEX_NODE_UTIL_H_
 #define TEX_NODE_UTIL_H_
 
@@ -50,6 +55,7 @@
 #include "BKE_image.h"
 #include "BKE_main.h"
 #include "BKE_material.h"
+#include "BKE_node.h"
 #include "BKE_texture.h"
 
 #include "BKE_library.h"

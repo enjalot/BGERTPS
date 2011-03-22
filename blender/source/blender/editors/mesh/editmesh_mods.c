@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -26,6 +26,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/editors/mesh/editmesh_mods.c
+ *  \ingroup edmesh
+ */
+
 
 /*
 
@@ -74,6 +79,7 @@ editmesh_mods.c, UI level access, no geometry changes
 #include "ED_mesh.h"
 #include "ED_screen.h"
 #include "ED_view3d.h"
+#include "ED_uvedit.h"
 
 #include "BIF_gl.h"
 
@@ -1353,7 +1359,7 @@ int mesh_layers_menu(CustomData *data, int type) {
 	return ret;
 }
 
-void EM_mesh_copy_edge(EditMesh *em, short type) 
+static void EM_mesh_copy_edge(EditMesh *em, short type) 
 {
 	EditSelection *ese;
 	short change=0;
@@ -1432,7 +1438,7 @@ void EM_mesh_copy_edge(EditMesh *em, short type)
 	}
 }
 
-void EM_mesh_copy_face(EditMesh *em, wmOperator *op, short type)
+static void EM_mesh_copy_face(EditMesh *em, wmOperator *op, short type)
 {
 	short change=0;
 	
@@ -1692,7 +1698,7 @@ void EM_mesh_copy_face_layer(EditMesh *em, wmOperator *op, short type)
 
 
 /* ctrl+c in mesh editmode */
-void mesh_copy_menu(EditMesh *em, wmOperator *op)
+static void mesh_copy_menu(EditMesh *em, wmOperator *op)
 {
 	EditSelection *ese;
 	int ret;
@@ -1730,7 +1736,6 @@ void mesh_copy_menu(EditMesh *em, wmOperator *op)
 		}
 	}
 }
-
 
 /* ****************  LOOP SELECTS *************** */
 
@@ -2197,7 +2202,15 @@ static void mouse_mesh_shortest_path(bContext *C, short mval[2])
 				me->drawflag |= ME_DRAWBWEIGHTS;
 				break;
 		}
-		
+
+		/* live unwrap while tagging */
+		if(	(vc.scene->toolsettings->edge_mode_live_unwrap) &&
+			(vc.scene->toolsettings->edge_mode == EDGE_MODE_TAG_SEAM) &&
+			(CustomData_has_layer(&em->fdata, CD_MTFACE))
+		) {
+			ED_unwrap_lscm(vc.scene, vc.obedit, FALSE); /* unwrap all not just sel */
+		}
+
 		DAG_id_tag_update(vc.obedit->data, 0);
 		WM_event_add_notifier(C, NC_GEOM|ND_SELECT, vc.obedit->data);
 	}
@@ -2840,7 +2853,7 @@ void MESH_OT_reveal(wmOperatorType *ot)
 	ot->flag= OPTYPE_REGISTER|OPTYPE_UNDO;
 }
 
-int select_by_number_vertices_exec(bContext *C, wmOperator *op)
+static int select_by_number_vertices_exec(bContext *C, wmOperator *op)
 {
 	Object *obedit= CTX_data_edit_object(C);
 	EditMesh *em= BKE_mesh_get_editmesh(((Mesh *)obedit->data));
@@ -2902,7 +2915,7 @@ void MESH_OT_select_by_number_vertices(wmOperatorType *ot)
 }
 
 
-int select_mirror_exec(bContext *C, wmOperator *op)
+static int select_mirror_exec(bContext *C, wmOperator *op)
 {
 	Object *obedit= CTX_data_edit_object(C);
 	EditMesh *em= BKE_mesh_get_editmesh(((Mesh *)obedit->data));
@@ -3220,10 +3233,10 @@ void MESH_OT_faces_select_linked_flat(wmOperatorType *ot)
 	ot->flag= OPTYPE_REGISTER|OPTYPE_UNDO;
 	
 	/* props */
-	RNA_def_float(ot->srna, "sharpness", 0.0f, 0.0f, FLT_MAX, "sharpness", "", 0.0f, 180.0f);
+	RNA_def_float(ot->srna, "sharpness", 135.0f, 0.0f, FLT_MAX, "sharpness", "", 0.0f, 180.0f);
 }
 
-void select_non_manifold(EditMesh *em, wmOperator *op )
+static void select_non_manifold(EditMesh *em, wmOperator *op )
 {
 	EditVert *eve;
 	EditEdge *eed;
@@ -3520,7 +3533,7 @@ void MESH_OT_select_more(wmOperatorType *ot)
 	ot->flag= OPTYPE_REGISTER|OPTYPE_UNDO;
 }
 
-void EM_select_less(EditMesh *em)
+static void EM_select_less(EditMesh *em)
 {
 	EditEdge *eed;
 	EditFace *efa;
@@ -3714,6 +3727,7 @@ void EM_deselect_by_material(EditMesh *em, int index)
 
 static int editmesh_mark_seam(bContext *C, wmOperator *op)
 {
+	Scene *scene= CTX_data_scene(C);
 	Object *obedit= CTX_data_edit_object(C);
 	EditMesh *em= BKE_mesh_get_editmesh(((Mesh *)obedit->data));
 	Mesh *me= ((Mesh *)obedit->data);
@@ -3742,6 +3756,13 @@ static int editmesh_mark_seam(bContext *C, wmOperator *op)
 			}
 			eed= eed->next;
 		}
+	}
+
+	/* live unwrap while tagging */
+	if(	(scene->toolsettings->edge_mode_live_unwrap) &&
+		(CustomData_has_layer(&em->fdata, CD_MTFACE))
+	) {
+		ED_unwrap_lscm(scene, obedit, FALSE); /* unwrap all not just sel */
 	}
 
 	BKE_mesh_end_editmesh(obedit->data, em);
@@ -4065,180 +4086,6 @@ void MESH_OT_normals_make_consistent(wmOperatorType *ot)
 	RNA_def_boolean(ot->srna, "inside", 0, "Inside", "");
 }
 
-/* ********** ALIGN WITH VIEW **************** */
-
-
-static void editmesh_calc_selvert_center(EditMesh *em, float cent_r[3])
-{
-	EditVert *eve;
-	int nsel= 0;
-
-	zero_v3(cent_r);
-
-	for (eve= em->verts.first; eve; eve= eve->next) {
-		if (eve->f & SELECT) {
-			cent_r[0]+= eve->co[0];
-			cent_r[1]+= eve->co[1];
-			cent_r[2]+= eve->co[2];
-			nsel++;
-		}
-	}
-
-	if (nsel) {
-		cent_r[0]/= nsel;
-		cent_r[1]/= nsel;
-		cent_r[2]/= nsel;
-	}
-}
-
-static int mface_is_selected(MFace *mf)
-{
-	return (!(mf->flag & ME_HIDE) && (mf->flag & ME_FACE_SEL));
-}
-
-	/* XXX, code for both these functions should be abstract,
-	 * then unified, then written for other things (like objects,
-	 * which would use same as vertices method), then added
-	 * to interface! Hoera! - zr
-	 */
-void faceselect_align_view_to_selected(View3D *v3d, RegionView3D *rv3d, Mesh *me, wmOperator *op,  int axis)
-{
-	float norm[3];
-	int i, totselected = 0;
-
-	norm[0]= norm[1]= norm[2]= 0.0;
-	for (i=0; i<me->totface; i++) {
-		MFace *mf= ((MFace*) me->mface) + i;
-
-		if (mface_is_selected(mf)) {
-			float *v1, *v2, *v3, fno[3];
-
-			v1= me->mvert[mf->v1].co;
-			v2= me->mvert[mf->v2].co;
-			v3= me->mvert[mf->v3].co;
-			if (mf->v4) {
-				float *v4= me->mvert[mf->v4].co;
-				normal_quad_v3( fno,v1, v2, v3, v4);
-			} else {
-				normal_tri_v3( fno,v1, v2, v3);
-			}
-
-			norm[0]+= fno[0];
-			norm[1]+= fno[1];
-			norm[2]+= fno[2];
-
-			totselected++;
-		}
-	}
-
-	if (totselected == 0)
-		BKE_report(op->reports, RPT_WARNING, "No faces selected.");
-	else
-		view3d_align_axis_to_vector(v3d, rv3d, axis, norm);
-}
-
-/* helper for below, to survive non-uniform scaled objects */
-static void face_getnormal_obspace(Object *obedit, EditFace *efa, float *fno)
-{
-	float vec[4][3];
-	
-	VECCOPY(vec[0], efa->v1->co);
-	mul_mat3_m4_v3(obedit->obmat, vec[0]);
-	VECCOPY(vec[1], efa->v2->co);
-	mul_mat3_m4_v3(obedit->obmat, vec[1]);
-	VECCOPY(vec[2], efa->v3->co);
-	mul_mat3_m4_v3(obedit->obmat, vec[2]);
-	if(efa->v4) {
-		VECCOPY(vec[3], efa->v4->co);
-		mul_mat3_m4_v3(obedit->obmat, vec[3]);
-		
-		normal_quad_v3( fno,vec[0], vec[1], vec[2], vec[3]);
-	}
-	else normal_tri_v3( fno,vec[0], vec[1], vec[2]);
-}
-
-
-void editmesh_align_view_to_selected(Object *obedit, EditMesh *em, wmOperator *op, View3D *v3d, RegionView3D *rv3d, int axis)
-{
-	int nselverts= EM_nvertices_selected(em);
-	float norm[3]={0.0, 0.0, 0.0}; /* used for storing the mesh normal */
-	
-	if (nselverts==0) {
-		BKE_report(op->reports, RPT_WARNING, "No faces or vertices selected.");
-	} 
-	else if (EM_nfaces_selected(em)) {
-		EditFace *efa;
-		for (efa= em->faces.first; efa; efa= efa->next) {
-			if (faceselectedAND(efa, SELECT)) {
-				float fno[3];
-				
-				face_getnormal_obspace(obedit, efa, fno);
-				norm[0]+= fno[0];
-				norm[1]+= fno[1];
-				norm[2]+= fno[2];
-			}
-		}
-
-		view3d_align_axis_to_vector(v3d, rv3d, axis, norm);
-	} 
-	else if (nselverts>2) {
-		float cent[3];
-		EditVert *eve, *leve= NULL;
-
-		editmesh_calc_selvert_center(em, cent);
-		for (eve= em->verts.first; eve; eve= eve->next) {
-			if (eve->f & SELECT) {
-				if (leve) {
-					float tno[3];
-					normal_tri_v3( tno,cent, leve->co, eve->co);
-					
-						/* XXX, fixme, should be flipped intp a 
-						 * consistent direction. -zr
-						 */
-					norm[0]+= tno[0];
-					norm[1]+= tno[1];
-					norm[2]+= tno[2];
-				}
-				leve= eve;
-			}
-		}
-
-		mul_mat3_m4_v3(obedit->obmat, norm);
-		view3d_align_axis_to_vector(v3d, rv3d, axis, norm);
-	} 
-	else if (nselverts==2) { /* Align view to edge (or 2 verts) */ 
-		EditVert *eve, *leve= NULL;
-
-		for (eve= em->verts.first; eve; eve= eve->next) {
-			if (eve->f & SELECT) {
-				if (leve) {
-					norm[0]= leve->co[0] - eve->co[0];
-					norm[1]= leve->co[1] - eve->co[1];
-					norm[2]= leve->co[2] - eve->co[2];
-					break; /* we know there are only 2 verts so no need to keep looking */
-				}
-				leve= eve;
-			}
-		}
-		mul_mat3_m4_v3(obedit->obmat, norm);
-		view3d_align_axis_to_vector(v3d, rv3d, axis, norm);
-	} 
-	else if (nselverts==1) { /* Align view to vert normal */ 
-		EditVert *eve;
-
-		for (eve= em->verts.first; eve; eve= eve->next) {
-			if (eve->f & SELECT) {
-				norm[0]= eve->no[0];
-				norm[1]= eve->no[1];
-				norm[2]= eve->no[2];
-				break; /* we know this is the only selected vert, so no need to keep looking */
-			}
-		}
-		mul_mat3_m4_v3(obedit->obmat, norm);
-		view3d_align_axis_to_vector(v3d, rv3d, axis, norm);
-	}
-} 
-
 /* **************** VERTEX DEFORMS *************** */
 
 static int smooth_vertex(bContext *C, wmOperator *op)
@@ -4435,6 +4282,7 @@ static int mesh_noise_exec(bContext *C, wmOperator *op)
 
 	ma= give_current_material(obedit, obedit->actcol);
 	if(ma==0 || ma->mtex[0]==0 || ma->mtex[0]->tex==0) {
+		BKE_report(op->reports, RPT_WARNING, "Mesh has no material or texture assigned.");
 		return OPERATOR_FINISHED;
 	}
 	tex= give_current_material_texture(ma);

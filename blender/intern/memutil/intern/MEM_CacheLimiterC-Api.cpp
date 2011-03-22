@@ -1,3 +1,6 @@
+/** \file memutil/intern/MEM_CacheLimiterC-Api.cpp
+ *  \ingroup memutil
+ */
 /**
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -20,10 +23,7 @@
  *
  */
 
-/* for types only, not alloc functions */
-//#include <malloc.h>
-//enjalot - malloc.h breaks on Mac, this should still work cross platform
-#include <stdlib.h>
+#include <cstddef>
 
 #include "MEM_CacheLimiter.h"
 #include "MEM_CacheLimiterC-Api.h"

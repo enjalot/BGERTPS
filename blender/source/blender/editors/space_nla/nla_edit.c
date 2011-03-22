@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -25,6 +25,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/editors/space_nla/nla_edit.c
+ *  \ingroup spnla
+ */
+
 
 #include <string.h>
 #include <stdio.h>
@@ -62,6 +67,7 @@
 #include "WM_types.h"
 
 #include "UI_interface.h"
+#include "UI_resources.h"
 
 #include "nla_intern.h"	// own include
 #include "nla_private.h" // FIXME... maybe this shouldn't be included?
@@ -929,7 +935,7 @@ static int nlaedit_bake_exec (bContext *C, wmOperator *UNUSED(op))
 	return OPERATOR_FINISHED;
 }
 
-void NLA_OT_bake (wmOperatorType *ot)
+static void NLA_OT_bake (wmOperatorType *ot)
 {
 	/* identifiers */
 	ot->name= "Bake Strips";
@@ -1417,7 +1423,7 @@ static int nlaedit_apply_scale_exec (bContext *C, wmOperator *UNUSED(op))
 	bAnimListElem *ale;
 	int filter;
 	
-	KeyframeEditData ked= {{0}};
+	KeyframeEditData ked= {{NULL}};
 	
 	/* get editor data */
 	if (ANIM_animdata_get_context(C, &ac) == 0)
@@ -1555,7 +1561,7 @@ void NLA_OT_clear_scale (wmOperatorType *ot)
 /* Moves the start-point of the selected strips to the specified places */
 
 /* defines for snap keyframes tool */
-EnumPropertyItem prop_nlaedit_snap_types[] = {
+static EnumPropertyItem prop_nlaedit_snap_types[] = {
 	{NLAEDIT_SNAP_CFRA, "CFRA", 0, "Current frame", ""},
 	{NLAEDIT_SNAP_NEAREST_FRAME, "NEAREST_FRAME", 0, "Nearest Frame", ""}, // XXX as single entry?
 	{NLAEDIT_SNAP_NEAREST_SECOND, "NEAREST_SECOND", 0, "Nearest Second", ""}, // XXX as single entry?
@@ -1708,7 +1714,7 @@ static int nla_fmodifier_add_invoke (bContext *C, wmOperator *UNUSED(op), wmEven
 	uiLayout *layout;
 	int i;
 	
-	pup= uiPupMenuBegin(C, "Add F-Modifier", ICON_NULL);
+	pup= uiPupMenuBegin(C, "Add F-Modifier", ICON_NONE);
 	layout= uiPupMenuLayout(pup);
 	
 	/* start from 1 to skip the 'Invalid' modifier type */

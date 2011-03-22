@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -26,6 +26,11 @@
  * ***** END GPL LICENSE BLOCK *****
  */
 
+/** \file blender/editors/space_view3d/view3d_view.c
+ *  \ingroup spview3d
+ */
+
+
 #include "DNA_camera_types.h"
 #include "DNA_lamp_types.h"
 #include "DNA_scene_types.h"
@@ -41,6 +46,7 @@
 #include "BKE_anim.h"
 #include "BKE_action.h"
 #include "BKE_context.h"
+#include "BKE_depsgraph.h"
 #include "BKE_object.h"
 #include "BKE_global.h"
 #include "BKE_main.h"
@@ -419,6 +425,7 @@ static int view3d_setcameratoview_exec(bContext *C, wmOperator *UNUSED(op))
 	}
 
 	setcameratoview3d(rv3d, v3d->camera);
+	DAG_id_tag_update(&v3d->camera->id, OB_RECALC_OB);
 	rv3d->persp = RV3D_CAMOB;
 	
 	WM_event_add_notifier(C, NC_OBJECT|ND_TRANSFORM, v3d->camera);
@@ -427,7 +434,7 @@ static int view3d_setcameratoview_exec(bContext *C, wmOperator *UNUSED(op))
 
 }
 
-int view3d_setcameratoview_poll(bContext *C)
+static int view3d_setcameratoview_poll(bContext *C)
 {
 	View3D *v3d = CTX_wm_view3d(C);
 	RegionView3D *rv3d= CTX_wm_region_view3d(C);
@@ -476,6 +483,13 @@ static int view3d_setobjectascamera_exec(bContext *C, wmOperator *UNUSED(op))
 	
 	return OPERATOR_FINISHED;
 }
+
+static int region3d_unlocked_poll(bContext *C)
+{
+	RegionView3D *rv3d= CTX_wm_region_view3d(C);
+	return (rv3d && rv3d->viewlock==0);
+}
+
 
 void VIEW3D_OT_object_as_camera(wmOperatorType *ot)
 {
@@ -1167,33 +1181,37 @@ static void obmat_to_viewmat(View3D *v3d, RegionView3D *rv3d, Object *ob, short 
 
 #define QUATSET(a, b, c, d, e)	a[0]=b; a[1]=c; a[2]=d; a[3]=e; 
 
-static void view3d_viewlock(RegionView3D *rv3d)
+int ED_view3d_lock(RegionView3D *rv3d)
 {
 	switch(rv3d->view) {
 	case RV3D_VIEW_BOTTOM :
 		QUATSET(rv3d->viewquat,0.0, -1.0, 0.0, 0.0);
 		break;
-		
+
 	case RV3D_VIEW_BACK:
 		QUATSET(rv3d->viewquat,0.0, 0.0, (float)-cos(M_PI/4.0), (float)-cos(M_PI/4.0));
 		break;
-		
+
 	case RV3D_VIEW_LEFT:
 		QUATSET(rv3d->viewquat,0.5, -0.5, 0.5, 0.5);
 		break;
-		
+
 	case RV3D_VIEW_TOP:
 		QUATSET(rv3d->viewquat,1.0, 0.0, 0.0, 0.0);
 		break;
-		
+
 	case RV3D_VIEW_FRONT:
 		QUATSET(rv3d->viewquat,(float)cos(M_PI/4.0), (float)-sin(M_PI/4.0), 0.0, 0.0);
 		break;
-		
+
 	case RV3D_VIEW_RIGHT:
 		QUATSET(rv3d->viewquat, 0.5, -0.5, -0.5, -0.5);
 		break;
+	default:
+		return FALSE;
 	}
+
+	return TRUE;
 }
 
 /* dont set windows active in in here, is used by renderwin too */
@@ -1212,7 +1230,7 @@ void setviewmatrixview3d(Scene *scene, View3D *v3d, RegionView3D *rv3d)
 	else {
 		/* should be moved to better initialize later on XXX */
 		if(rv3d->viewlock)
-			view3d_viewlock(rv3d);
+			ED_view3d_lock(rv3d);
 		
 		quat_to_mat4( rv3d->viewmat,rv3d->viewquat);
 		if(rv3d->persp==RV3D_PERSP) rv3d->viewmat[3][2]-= rv3d->dist;
@@ -1727,7 +1745,7 @@ extern void StartKetsjiShell(struct bContext *C, struct ARegion *ar, rcti *cam_f
 
 #endif // WITH_GAMEENGINE
 
-int game_engine_poll(bContext *C)
+static int game_engine_poll(bContext *C)
 {
 	/* we need a context and area to launch BGE
 	it's a temporary solution to avoid crash at load time

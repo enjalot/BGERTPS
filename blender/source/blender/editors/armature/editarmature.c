@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -24,6 +24,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/editors/armature/editarmature.c
+ *  \ingroup edarmature
+ */
+
 
 #include <ctype.h>
 #include <stdlib.h>
@@ -82,6 +87,7 @@
 #include "ED_view3d.h"
 
 #include "UI_interface.h"
+#include "UI_resources.h"
 
 #include "armature_intern.h"
 #include "meshlaplacian.h"
@@ -246,11 +252,6 @@ EditBone *make_boneList(ListBase *edbo, ListBase *bones, EditBone *parent, Bone 
 	EditBone	*eBoneAct= NULL;
 	EditBone	*eBoneTest= NULL;
 	Bone		*curBone;
-	float delta[3];
-	float premat[3][3];
-	float postmat[3][3];
-	float imat[3][3];
-	float difmat[3][3];
 		
 	for (curBone=bones->first; curBone; curBone=curBone->next) {
 		eBone= MEM_callocN(sizeof(EditBone), "make_editbone");
@@ -291,20 +292,8 @@ EditBone *make_boneList(ListBase *edbo, ListBase *bones, EditBone *parent, Bone 
 		}
 
 		copy_v3_v3(eBone->head, curBone->arm_head);
-		copy_v3_v3(eBone->tail, curBone->arm_tail);		
-		
-		eBone->roll= 0.0f;
-		
-		/* roll fixing */
-		sub_v3_v3v3(delta, eBone->tail, eBone->head);
-		vec_roll_to_mat3(delta, 0.0f, postmat);
-		
-		copy_m3_m4(premat, curBone->arm_mat);
-		
-		invert_m3_m3(imat, postmat);
-		mul_m3_m3m3(difmat, imat, premat);
-		
-		eBone->roll = (float)atan2(difmat[2][0], difmat[2][2]);
+		copy_v3_v3(eBone->tail, curBone->arm_tail);
+		eBone->roll = curBone->arm_roll;
 		
 		/* rest of stuff copy */
 		eBone->length= curBone->length;
@@ -420,8 +409,10 @@ void ED_armature_from_edit(Object *obedit)
 		eBone->temp= newBone;	/* Associate the real Bones with the EditBones */
 		
 		BLI_strncpy(newBone->name, eBone->name, sizeof(newBone->name));
-		memcpy(newBone->head, eBone->head, sizeof(newBone->head));
-		memcpy(newBone->tail, eBone->tail, sizeof(newBone->tail));
+		copy_v3_v3(newBone->arm_head, eBone->head);
+		copy_v3_v3(newBone->arm_tail, eBone->tail);
+		newBone->arm_roll = eBone->roll;
+		
 		newBone->flag= eBone->flag;
 		
 		if (eBone == arm->act_edbone) {
@@ -456,7 +447,6 @@ void ED_armature_from_edit(Object *obedit)
 			BLI_addtail(&newBone->parent->childbase, newBone);
 			
 			{
-				float M_boneRest[3][3];
 				float M_parentRest[3][3];
 				float iM_parentRest[3][3];
 				float	delta[3];
@@ -464,10 +454,6 @@ void ED_armature_from_edit(Object *obedit)
 				/* Get the parent's  matrix (rotation only) */
 				sub_v3_v3v3(delta, eBone->parent->tail, eBone->parent->head);
 				vec_roll_to_mat3(delta, eBone->parent->roll, M_parentRest);
-				
-				/* Get this bone's  matrix (rotation only) */
-				sub_v3_v3v3(delta, eBone->tail, eBone->head);
-				vec_roll_to_mat3(delta, eBone->roll, M_boneRest);
 				
 				/* Invert the parent matrix */
 				invert_m3_m3(iM_parentRest, M_parentRest);
@@ -481,8 +467,11 @@ void ED_armature_from_edit(Object *obedit)
 			}
 		}
 		/*	...otherwise add this bone to the armature's bonebase */
-		else
+		else {
+			copy_v3_v3(newBone->head, eBone->head);
+			copy_v3_v3(newBone->tail, eBone->tail);
 			BLI_addtail(&arm->bonebase, newBone);
+		}
 	}
 	
 	/* Make a pass through the new armature to fix rolling */
@@ -649,6 +638,8 @@ static int apply_armature_pose2bones_exec (bContext *C, wmOperator *op)
 	
 	/* helpful warnings... */
 	// TODO: add warnings to be careful about actions, applying deforms first, etc.
+	if (ob->adt && ob->adt->action) 
+		BKE_report(op->reports, RPT_WARNING, "Actions on this armature will be destroyed by this new rest pose as the transforms stored are relative to the old rest pose");
 	
 	/* Get editbones of active armature to alter */
 	ED_armature_to_edit(ob);	
@@ -688,10 +679,11 @@ static int apply_armature_pose2bones_exec (bContext *C, wmOperator *op)
 		}
 		
 		/* clear transform values for pchan */
-		pchan->loc[0]= pchan->loc[1]= pchan->loc[2]= 0.0f;
-		pchan->eul[0]= pchan->eul[1]= pchan->eul[2]= 0.0f;
-		pchan->quat[1]= pchan->quat[2]= pchan->quat[3]= 0.0f;
-		pchan->quat[0]= pchan->size[0]= pchan->size[1]= pchan->size[2]= 1.0f;
+		zero_v3(pchan->loc);
+		zero_v3(pchan->eul);
+		unit_qt(pchan->quat);
+		unit_axis_angle(pchan->rotAxis, &pchan->rotAngle);
+		pchan->size[0]= pchan->size[1]= pchan->size[2]= 1.0f;
 		
 		/* set anim lock */
 		curbone->flag |= BONE_UNKEYED;
@@ -732,7 +724,6 @@ void POSE_OT_armature_apply (wmOperatorType *ot)
 /* set the current pose as the restpose */
 static int pose_visual_transform_apply_exec (bContext *C, wmOperator *UNUSED(op))
 {
-	Scene *scene= CTX_data_scene(C);
 	Object *ob= ED_object_pose_armature(CTX_data_active_object(C)); // must be active object, not edit-object
 
 	/* don't check if editmode (should be done by caller) */
@@ -745,24 +736,18 @@ static int pose_visual_transform_apply_exec (bContext *C, wmOperator *UNUSED(op)
 	 * at once are to be predictable*/
 	CTX_DATA_BEGIN(C, bPoseChannel *, pchan, selected_pose_bones)
 	{
-		float delta_mat[4][4], imat[4][4], mat[4][4];
-
-		where_is_pose_bone(scene, ob, pchan, CFRA, 1);
-
-		copy_m4_m4(mat, pchan->pose_mat);
-
-		/* calculate pchan->pose_mat without loc/size/rot & constraints applied */
-		where_is_pose_bone(scene, ob, pchan, CFRA, 0);
-		invert_m4_m4(imat, pchan->pose_mat);
-		mul_m4_m4m4(delta_mat, mat, imat);
-
+		float delta_mat[4][4];
+		
+		/* chan_mat already contains the delta transform from rest pose to pose-mode pose
+		 * as that is baked into there so that B-Bones will work. Once we've set this as the
+		 * new raw-transform components, don't recalc the poses yet, otherwise IK result will 
+		 * change, thus changing the result we may be trying to record.
+		 */
+		copy_m4_m4(delta_mat, pchan->chan_mat);
 		pchan_apply_mat4(pchan, delta_mat, TRUE);
-
-		where_is_pose_bone(scene, ob, pchan, CFRA, 1);
 	}
 	CTX_DATA_END;
-
-	// ob->pose->flag |= (POSE_LOCKED|POSE_DO_UNLOCK);
+	
 	DAG_id_tag_update(&ob->id, OB_RECALC_DATA);
 
 	/* note, notifier might evolve */
@@ -2221,10 +2206,8 @@ static int armature_calc_roll_exec(bContext *C, wmOperator *op)
 			mul_m3_v3(imat, vec);
 		}
 		else if (type==5) {
-			bArmature *arm= ob->data;
-			EditBone *ebone= (EditBone *)arm->act_edbone;
 			float mat[3][3], nor[3];
-
+			ebone= (EditBone *)arm->act_edbone;
 			if(ebone==NULL) {
 				BKE_report(op->reports, RPT_ERROR, "No active bone set");
 				return OPERATOR_CANCELLED;
@@ -3341,11 +3324,12 @@ void ARMATURE_OT_merge (wmOperatorType *ot)
 /* ************** END Add/Remove stuff in editmode ************ */
 /* *************** Tools in editmode *********** */
 
-static int armature_hide_exec(bContext *C, wmOperator *UNUSED(op))
+static int armature_hide_exec(bContext *C, wmOperator *op)
 {
 	Object *obedit= CTX_data_edit_object(C);
 	bArmature *arm= obedit->data;
 	EditBone *ebone;
+	const int invert= RNA_boolean_get(op->ptr, "unselected") ? BONE_SELECTED : 0;
 
 	/* cancel if nothing selected */
 	if (CTX_DATA_COUNT(C, selected_bones) == 0)
@@ -3353,7 +3337,7 @@ static int armature_hide_exec(bContext *C, wmOperator *UNUSED(op))
 
 	for (ebone = arm->edbo->first; ebone; ebone=ebone->next) {
 		if (EBONE_VISIBLE(arm, ebone)) {
-			if (ebone->flag & BONE_SELECTED) {
+			if ((ebone->flag & BONE_SELECTED) != invert) {
 				ebone->flag &= ~(BONE_TIPSEL|BONE_SELECTED|BONE_ROOTSEL);
 				ebone->flag |= BONE_HIDDEN_A;
 			}
@@ -3380,6 +3364,9 @@ void ARMATURE_OT_hide(wmOperatorType *ot)
 	
 	/* flags */
 	ot->flag= OPTYPE_REGISTER|OPTYPE_UNDO;
+
+	/* props */
+	RNA_def_boolean(ot->srna, "unselected", 0, "Unselected", "Hide unselected rather than selected.");
 }
 
 static int armature_reveal_exec(bContext *C, wmOperator *UNUSED(op))
@@ -3417,9 +3404,10 @@ void ARMATURE_OT_reveal(wmOperatorType *ot)
 	
 	/* flags */
 	ot->flag= OPTYPE_REGISTER|OPTYPE_UNDO;
-}
 
-void hide_selected_armature_bones(Scene *scene)
+}
+#if 0 // remove this?
+static void hide_selected_armature_bones(Scene *scene)
 {
 	Object *obedit= scene->obedit; // XXX get from context
 	bArmature *arm= obedit->data;
@@ -3437,8 +3425,6 @@ void hide_selected_armature_bones(Scene *scene)
 	ED_armature_sync_selection(arm->edbo);
 }
 
-
-#if 0 // remove this?
 static void hide_unselected_armature_bones(Scene *scene)
 {
 	Object *obedit= scene->obedit; // XXX get from context
@@ -3458,9 +3444,7 @@ static void hide_unselected_armature_bones(Scene *scene)
 	ED_armature_validate_active(arm);
 	ED_armature_sync_selection(arm->edbo);
 }
-#endif
 
-#if 0 // remove this?
 void show_all_armature_bones(Scene *scene)
 {
 	Object *obedit= scene->obedit; // XXX get from context
@@ -4024,7 +4008,7 @@ static int armature_parent_set_exec(bContext *C, wmOperator *op)
 static int armature_parent_set_invoke(bContext *C, wmOperator *UNUSED(op), wmEvent *UNUSED(event))
 {
 	EditBone *actbone = CTX_data_active_bone(C);
-	uiPopupMenu *pup= uiPupMenuBegin(C, "Make Parent ", ICON_NULL);
+	uiPopupMenu *pup= uiPupMenuBegin(C, "Make Parent ", ICON_NONE);
 	uiLayout *layout= uiPupMenuLayout(pup);
 	int allchildbones = 0;
 	
@@ -4737,7 +4721,7 @@ static void envelope_bone_weighting(Object *ob, Mesh *mesh, float (*verts)[3], i
 	}
 }
 
-void add_verts_to_dgroups(ReportList *reports, Scene *scene, Object *ob, Object *par, int heat, int mirror)
+static void add_verts_to_dgroups(ReportList *reports, Scene *scene, Object *ob, Object *par, int heat, int mirror)
 {
 	/* This functions implements the automatic computation of vertex group
 	 * weights, either through envelopes or using a heat equilibrium.
@@ -5049,11 +5033,10 @@ static void pchan_clear_rot(bPoseChannel *pchan)
 		}
 		else if (pchan->rotmode == ROT_MODE_AXISANGLE) {
 			/* by default, make rotation of 0 radians around y-axis (roll) */
-			pchan->rotAxis[0]=pchan->rotAxis[2]=pchan->rotAngle= 0.0f;
-			pchan->rotAxis[1]= 1.0f;
+			unit_axis_angle(pchan->rotAxis, &pchan->rotAngle);
 		}
 		else {
-			pchan->eul[0]= pchan->eul[1]= pchan->eul[2]= 0.0f;
+			zero_v3(pchan->eul);
 		}
 	}
 }
@@ -5458,13 +5441,11 @@ static int bone_unique_check(void *arg, const char *name)
 	return get_named_bone((bArmature *)arg, name) != NULL;
 }
 
-void unique_bone_name(bArmature *arm, char *name)
+static void unique_bone_name(bArmature *arm, char *name)
 {
 	BLI_uniquename_cb(bone_unique_check, (void *)arm, "Bone", '.', name, sizeof(((Bone *)NULL)->name));
 }
 
-
-#define MAXBONENAME 32
 /* helper call for armature_bone_rename */
 static void constraint_bone_name_fix(Object *ob, ListBase *conlist, char *oldname, char *newname)
 {

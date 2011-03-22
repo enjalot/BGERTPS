@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -25,6 +25,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/editors/space_time/space_time.c
+ *  \ingroup sptime
+ */
+
 
 #include <string.h>
 #include <stdio.h>
@@ -56,6 +61,7 @@
 #include "UI_resources.h"
 #include "UI_view2d.h"
 
+#include "ED_space_api.h"
 #include "ED_markers.h"
 
 #include "time_intern.h"
@@ -263,7 +269,7 @@ static ActKeyColumn *time_cfra_find_ak (ActKeyColumn *ak, float cframe)
 /* helper for time_draw_keyframes() */
 static void time_draw_idblock_keyframes(View2D *v2d, ID *id, short onlysel)
 {
-	bDopeSheet ads= {0};
+	bDopeSheet ads= {NULL};
 	DLRBT_Tree keys;
 	ActKeyColumn *ak;
 	
@@ -466,14 +472,14 @@ static void time_main_area_draw(const bContext *C, ARegion *ar)
 	UI_view2d_grid_draw(v2d, grid, (V2D_VERTICAL_LINES|V2D_VERTICAL_AXIS));
 	UI_view2d_grid_free(grid);
 	
-	/* keyframes */
-	if(!G.rendering) /* ANIM_nla_mapping_apply_fcurve() modifies curve data while rendering, possible race condition */
-		time_draw_keyframes(C, stime, ar);
-	
 	/* current frame */
 	if ((stime->flag & TIME_DRAWFRAMES)==0) 	flag |= DRAWCFRA_UNIT_SECONDS;
 	if (stime->flag & TIME_CFRA_NUM) 			flag |= DRAWCFRA_SHOW_NUMBOX;
 	ANIM_draw_cfra(C, v2d, flag);
+	
+	/* keyframes */
+	if(!G.rendering) /* ANIM_nla_mapping_apply_fcurve() modifies curve data while rendering, possible race condition */
+		time_draw_keyframes(C, stime, ar);
 	
 	/* markers */
 	UI_view2d_view_orthoSpecial(ar, v2d, 1);
@@ -569,7 +575,7 @@ static SpaceLink *time_new(const bContext *C)
 	stime= MEM_callocN(sizeof(SpaceTime), "inittime");
 
 	stime->spacetype= SPACE_TIME;
-	stime->redraws= TIME_ALL_3D_WIN|TIME_ALL_ANIM_WIN;
+	stime->redraws= TIME_ALL_3D_WIN|TIME_ALL_ANIM_WIN; // XXX: depreceated
 	stime->flag |= TIME_DRAWFRAMES;
 
 	/* header */
@@ -637,7 +643,7 @@ static SpaceLink *time_duplicate(SpaceLink *sl)
 	SpaceTime *stime= (SpaceTime *)sl;
 	SpaceTime *stimen= MEM_dupallocN(stime);
 	
-	time_cache_free(stimen);
+	stimen->caches.first = stimen->caches.last = NULL;
 	
 	return (SpaceLink *)stimen;
 }

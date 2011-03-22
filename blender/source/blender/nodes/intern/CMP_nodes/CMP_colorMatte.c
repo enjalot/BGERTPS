@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -26,6 +26,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/nodes/intern/CMP_nodes/CMP_colorMatte.c
+ *  \ingroup cmpnodes
+ */
+
 
 #include "../CMP_util.h"
 
@@ -99,7 +104,7 @@ static void node_composit_exec_color_matte(void *data, bNode *node, bNodeStack *
 
 	if(cbuf!=in[0]->data)
 		free_compbuf(cbuf);
-};
+}
 
 static void node_composit_init_color_matte(bNode *node)
 {
@@ -110,23 +115,21 @@ static void node_composit_init_color_matte(bNode *node)
    c->t3= 0.1f;
    c->fsize= 0.0f;
    c->fstrength= 1.0f;
-};
+}
 
-bNodeType cmp_node_color_matte={
-	/* *next,*prev */	NULL, NULL,
-	/* type code   */	CMP_NODE_COLOR_MATTE,
-	/* name        */	"Color Key",
-	/* width+range */	200, 80, 300,
-	/* class+opts  */	NODE_CLASS_MATTE, NODE_PREVIEW|NODE_OPTIONS,
-	/* input sock  */	cmp_node_color_in,
-	/* output sock */	cmp_node_color_out,
-	/* storage     */	"NodeChroma",
-	/* execfunc    */	node_composit_exec_color_matte,
-	/* butfunc     */	NULL,
-	/* initfunc    */	node_composit_init_color_matte,
-	/* freestoragefunc    */	node_free_standard_storage,
-	/* copystoragefunc    */	node_copy_standard_storage,
-	/* id          */	NULL
-};
+void register_node_type_cmp_color_matte(ListBase *lb)
+{
+	static bNodeType ntype;
+
+	node_type_base(&ntype, CMP_NODE_COLOR_MATTE, "Color Key", NODE_CLASS_MATTE, NODE_PREVIEW|NODE_OPTIONS,
+		cmp_node_color_in, cmp_node_color_out);
+	node_type_size(&ntype, 200, 80, 300);
+	node_type_init(&ntype, node_composit_init_color_matte);
+	node_type_storage(&ntype, "NodeChroma", node_free_standard_storage, node_copy_standard_storage);
+	node_type_exec(&ntype, node_composit_exec_color_matte);
+
+	nodeRegisterType(lb, &ntype);
+}
+
 
 

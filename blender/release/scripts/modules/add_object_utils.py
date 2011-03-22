@@ -37,7 +37,7 @@ def add_object_align_init(context, operator):
             location = mathutils.Matrix.Translation(context.scene.cursor_location)
 
         if operator:
-            operator.properties.location = location.translation_part()
+            operator.properties.location = location.to_translation()
 
     # rotation
     view_align = (context.user_preferences.edit.object_align == 'VIEW')
@@ -49,10 +49,10 @@ def add_object_align_init(context, operator):
             operator.properties.view_align = view_align
 
     if operator and operator.properties.is_property_set("rotation") and not view_align_force:
-        rotation = mathutils.Euler(operator.properties.rotation).to_matrix().resize4x4()
+        rotation = mathutils.Euler(operator.properties.rotation).to_matrix().to_4x4()
     else:
         if view_align and space_data:
-            rotation = space_data.region_3d.view_matrix.rotation_part().invert().resize4x4()
+            rotation = space_data.region_3d.view_matrix.to_3x3().inverted().to_4x4()
         else:
             rotation = mathutils.Matrix()
 
@@ -83,6 +83,19 @@ def object_data_add(context, obdata, operator=None):
 
     obj_act = scene.objects.active
 
+    # XXX
+    # caused because entering editmodedoes not add a empty undo slot!
+    if context.user_preferences.edit.use_enter_edit_mode:
+        if not (obj_act and obj_act.mode == 'EDIT' and obj_act.type == obj_new.type):
+            _obdata = bpy.data.meshes.new(obdata.name)
+            obj_act = bpy.data.objects.new(_obdata.name, _obdata)
+            obj_act.matrix_world = obj_new.matrix_world
+            scene.objects.link(obj_act)
+            scene.objects.active = obj_act
+            bpy.ops.object.mode_set(mode='EDIT')
+            bpy.ops.ed.undo_push(message="Enter Editmode")  # need empty undo step
+    # XXX
+
     if obj_act and obj_act.mode == 'EDIT' and obj_act.type == obj_new.type:
         bpy.ops.mesh.select_all(action='DESELECT')
         bpy.ops.object.mode_set(mode='OBJECT')
@@ -92,6 +105,7 @@ def object_data_add(context, obdata, operator=None):
         #scene.objects.active = obj_new
 
         bpy.ops.object.join()  # join into the active.
+        bpy.data.meshes.remove(obdata)
 
         bpy.ops.object.mode_set(mode='EDIT')
     else:

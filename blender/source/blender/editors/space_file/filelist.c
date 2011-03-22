@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  *
  * ***** BEGIN GPL LICENSE BLOCK *****
@@ -25,6 +25,10 @@
  * Contributor(s): none yet.
  *
  * ***** END GPL LICENSE BLOCK *****
+ */
+
+/** \file blender/editors/space_file/filelist.c
+ *  \ingroup spfile
  */
 
 
@@ -62,6 +66,7 @@
 
 #include "DNA_space_types.h"
 
+#include "ED_fileselect.h"
 #include "ED_datafiles.h"
 
 #include "IMB_imbuf.h"
@@ -395,7 +400,7 @@ void filelist_free_icons(void)
 }
 
 //-----------------FOLDERLIST (previous/next) --------------//
-struct ListBase* folderlist_new()
+struct ListBase* folderlist_new(void)
 {
 	ListBase* p = MEM_callocN( sizeof(ListBase), "folderlist" );
 	return p;
@@ -535,20 +540,20 @@ void filelist_free(struct FileList* filelist)
 		if (filelist->filelist[i].image) {			
 			IMB_freeImBuf(filelist->filelist[i].image);
 		}
-		filelist->filelist[i].image = 0;
+		filelist->filelist[i].image = NULL;
 		if (filelist->filelist[i].relname)
 			MEM_freeN(filelist->filelist[i].relname);
 		if (filelist->filelist[i].path)
 			MEM_freeN(filelist->filelist[i].path);
-		filelist->filelist[i].relname = 0;
+		filelist->filelist[i].relname = NULL;
 		if (filelist->filelist[i].string)
 			MEM_freeN(filelist->filelist[i].string);
-		filelist->filelist[i].string = 0;
+		filelist->filelist[i].string = NULL;
 	}
 	
 	filelist->numfiles = 0;
 	free(filelist->filelist);
-	filelist->filelist = 0;	
+	filelist->filelist = NULL;	
 	filelist->filter = 0;
 	filelist->filter_glob[0] = '\0';
 	filelist->numfiltered =0;
@@ -559,7 +564,7 @@ void filelist_freelib(struct FileList* filelist)
 {
 	if(filelist->libfiledata)	
 		BLO_blendhandle_close(filelist->libfiledata);
-	filelist->libfiledata= 0;
+	filelist->libfiledata= NULL;
 }
 
 struct BlendHandle *filelist_lib(struct FileList* filelist)
@@ -593,7 +598,7 @@ short filelist_changed(struct FileList* filelist)
 	return filelist->changed;
 }
 
-struct ImBuf * filelist_loadimage(struct FileList* filelist, int index)
+static struct ImBuf * filelist_loadimage(struct FileList* filelist, int index)
 {
 	ImBuf *imb = NULL;
 	int fidx = 0;
@@ -722,10 +727,38 @@ void filelist_setfilter_types(struct FileList* filelist, const char *filter_glob
 	BLI_strncpy(filelist->filter_glob, filter_glob, sizeof(filelist->filter_glob));
 }
 
+static int file_is_blend_backup(const char *str)
+{
+	short a, b;
+	int retval= 0;
+	
+	a= strlen(str);
+	b= 7;
+	
+	if(a==0 || b>=a);
+	else {
+		char *loc;
+		
+		if(a > b+1)
+			b++;
+		
+		/* allow .blend1 .blend2 .blend32 */
+		loc= BLI_strcasestr(str+a-b, ".blend");
+		
+		if(loc)
+			retval= 1;
+	}
+	
+	return (retval);
+}
+
+
 static int file_extension_type(char *relname)
 {
 	if(BLO_has_bfile_extension(relname)) {
 		return BLENDERFILE;
+	} else if(file_is_blend_backup(relname)) {
+		return BLENDERFILE_BACKUP;
 	} else if(BLI_testextensie(relname, ".py")) {
 		return PYSCRIPTFILE;
 	} else if(BLI_testextensie(relname, ".txt")
@@ -757,7 +790,7 @@ int ED_file_extension_icon(char *relname)
 {
 	int type= file_extension_type(relname);
 	
-	if (type == BLENDERFILE)
+	if (type == BLENDERFILE || type==BLENDERFILE_BACKUP)
 		return ICON_FILE_BLEND;
 	else if (type ==  IMAGEFILE)
 		return ICON_FILE_IMAGE;
@@ -779,7 +812,7 @@ int ED_file_extension_icon(char *relname)
 	return ICON_FILE_BLANK;
 }
 
-void filelist_setfiletypes(struct FileList* filelist)
+static void filelist_setfiletypes(struct FileList* filelist)
 {
 	struct direntry *file;
 	int num;
@@ -805,13 +838,13 @@ void filelist_setfiletypes(struct FileList* filelist)
 
 static void filelist_read_dir(struct FileList* filelist)
 {
-	char wdir[FILE_MAX];
+	char wdir[FILE_MAX]= "";
 	if (!filelist) return;
 
-	filelist->fidx = 0;
-	filelist->filelist = 0;
+	filelist->fidx = NULL;
+	filelist->filelist = NULL;
 
-	BLI_getwdN(wdir);	 
+	BLI_getwdN(wdir, sizeof(wdir));	 /* backup cwd to restore after */
 
 	BLI_cleanup_dir(G.main->name, filelist->dir);
 	filelist->numfiles = BLI_getdir(filelist->dir, &(filelist->filelist));
@@ -863,7 +896,7 @@ void filelist_readdir(struct FileList* filelist)
 
 int filelist_empty(struct FileList* filelist)
 {	
-	return filelist->filelist == 0;
+	return filelist->filelist == NULL;
 }
 
 void filelist_parent(struct FileList* filelist)
@@ -873,23 +906,62 @@ void filelist_parent(struct FileList* filelist)
 	filelist_readdir(filelist);
 }
 
-
-void filelist_swapselect(struct FileList* filelist)
+void filelist_select_file(struct FileList* filelist, int index, FileSelType select, unsigned int flag, FileCheckType check)
 {
-	struct direntry *file;
-	int num, act= 0;
-	
-	file= filelist->filelist;
-	for(num=0; num<filelist->numfiles; num++, file++) {
-		if(file->flags & ACTIVEFILE) {
-			act= 1;
-			break;
+	struct direntry* file = filelist_file(filelist, index);
+	if (file != NULL) {	
+		int check_ok = 0; 
+		switch (check) {
+			case CHECK_DIRS:
+			case CHECK_ALL:
+				check_ok = 1;
+				break;
+			case CHECK_FILES:
+			default:
+				check_ok = !S_ISDIR(file->type);
+				break;
+		}
+		if (check_ok) {
+			switch (select) {
+				case FILE_SEL_REMOVE:
+					file->selflag &= ~flag;
+					break;
+				case FILE_SEL_ADD:
+					file->selflag |= flag;
+					break;
+				case FILE_SEL_TOGGLE:
+					file->selflag ^= flag;
+					break;
+			}
 		}
 	}
-	file= filelist->filelist+2;
-	for(num=2; num<filelist->numfiles; num++, file++) {
-		if(act) file->flags &= ~ACTIVEFILE;
-		else file->flags |= ACTIVEFILE;
+}
+
+void filelist_select(struct FileList* filelist, FileSelection* sel, FileSelType select, unsigned int flag, FileCheckType check)
+{
+	/* select all valid files between first and last indicated */
+	if ( (sel->first >= 0) && (sel->first < filelist->numfiltered) && (sel->last >= 0) && (sel->last < filelist->numfiltered) ) {
+		int current_file;
+		for (current_file = sel->first; current_file <= sel->last; current_file++) {	
+			filelist_select_file(filelist, current_file, select, flag, check);
+		}
+	}
+}
+
+int	filelist_is_selected(struct FileList* filelist, int index, FileCheckType check)
+{
+	struct direntry* file = filelist_file(filelist, index);
+	if (!file) {
+		return 0;
+	}
+	switch (check) {
+		case CHECK_DIRS:
+			return S_ISDIR(file->type) && (file->selflag & SELECTED_FILE);
+		case CHECK_FILES:
+			return S_ISREG(file->type) && (file->selflag & SELECTED_FILE);
+		case CHECK_ALL:
+		default:
+			return (file->selflag & SELECTED_FILE);
 	}
 }
 
@@ -944,7 +1016,7 @@ void filelist_from_library(struct FileList* filelist)
 	if (!ok) {
 		/* free */
 		if(filelist->libfiledata) BLO_blendhandle_close(filelist->libfiledata);
-		filelist->libfiledata= 0;
+		filelist->libfiledata= NULL;
 		return;
 	}
 	
@@ -952,9 +1024,9 @@ void filelist_from_library(struct FileList* filelist)
 
 	/* there we go */
 	/* for the time being only read filedata when libfiledata==0 */
-	if (filelist->libfiledata==0) {
-		filelist->libfiledata= BLO_blendhandle_from_file(dir);
-		if(filelist->libfiledata==0) return;
+	if (filelist->libfiledata == NULL) {
+		filelist->libfiledata= BLO_blendhandle_from_file(dir, NULL);
+		if(filelist->libfiledata == NULL) return;
 	}
 	
 	idcode= groupname_to_code(group);
@@ -964,16 +1036,15 @@ void filelist_from_library(struct FileList* filelist)
 	previews = NULL;
 	if (idcode) {
 		previews= BLO_blendhandle_get_previews(filelist->libfiledata, idcode);
-		names= BLO_blendhandle_get_datablock_names(filelist->libfiledata, idcode);
+		names= BLO_blendhandle_get_datablock_names(filelist->libfiledata, idcode, &nnames);
 		/* ugh, no rewind, need to reopen */
 		BLO_blendhandle_close(filelist->libfiledata);
-		filelist->libfiledata= BLO_blendhandle_from_file(dir);
+		filelist->libfiledata= BLO_blendhandle_from_file(dir, NULL);
 		
 	} else {
 		names= BLO_blendhandle_get_linkable_groups(filelist->libfiledata);
+		nnames= BLI_linklist_length(names);
 	}
-	
-	nnames= BLI_linklist_length(names);
 
 	filelist->numfiles= nnames + 1;
 	filelist->filelist= malloc(filelist->numfiles * sizeof(*filelist->filelist));
@@ -1083,7 +1154,7 @@ void filelist_from_main(struct FileList *filelist)
 		idcode= groupname_to_code(filelist->dir);
 		
 		lb= which_libbase(G.main, idcode );
-		if(lb==0) return;
+		if(lb == NULL) return;
 		
 		id= lb->first;
 		filelist->numfiles= 0;
@@ -1127,10 +1198,10 @@ void filelist_from_main(struct FileList *filelist)
 #if 0				// XXXXX TODO show the selection status of the objects
 					if(!filelist->has_func) { /* F4 DATA BROWSE */
 						if(idcode==ID_OB) {
-							if( ((Object *)id)->flag & SELECT) files->flags |= ACTIVEFILE;
+							if( ((Object *)id)->flag & SELECT) files->selflag |= SELECTED_FILE;
 						}
 						else if(idcode==ID_SCE) {
-							if( ((Scene *)id)->r.scemode & R_BG_RENDER) files->flags |= ACTIVEFILE;
+							if( ((Scene *)id)->r.scemode & R_BG_RENDER) files->selflag |= SELECTED_FILE;
 						}					
 					}
 #endif

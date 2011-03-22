@@ -1,4 +1,4 @@
-/**
+/*
  * $Id$
  * ***** BEGIN GPL LICENSE BLOCK *****
  *
@@ -26,6 +26,11 @@
  *
  * ***** END GPL LICENSE BLOCK *****
  */
+
+/** \file blender/ikplugin/intern/itasc_plugin.cpp
+ *  \ingroup ikplugin
+ */
+
 
 #include <stdlib.h>
 #include <string.h>

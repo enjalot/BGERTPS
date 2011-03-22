@@ -48,6 +48,7 @@ set(INC
 	../../../intern/memutil
 	../../../intern/opennl/extern
 	../../../intern/smoke/extern
+	../../../intern/mikktspace
     ../../../source/blender/windowmanager # XXX - BAD LEVEL CALL WM_api.h
 	${ZLIB_INCLUDE_DIRS}
 )
@@ -105,6 +106,7 @@ set(SRC
 	intern/material.c
 	intern/mball.c
 	intern/mesh.c
+	intern/mesh_validate.c
 	intern/modifier.c
 	intern/multires.c
 	intern/nla.c
