@@ -26,7 +26,7 @@
  * ***** END GPL LICENSE BLOCK *****
  */
 
-//#include "GL/glew.h" - IJ enjalot RTPS
+#include "GL/glew.h"
 
 /** \file gameengine/Rasterizer/RAS_OpenGLRasterizer/RAS_VAOpenGLRasterizer.cpp
  *  \ingroup bgerastogl
