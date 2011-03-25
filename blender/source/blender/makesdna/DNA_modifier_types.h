@@ -466,7 +466,7 @@ typedef struct RTPSModifierData {
     // boids attributes
     float maxspeed;
     float separationdist;
-    float perceptionrange;
+    float searchradius;
     float color_r;
     float color_g;
     float color_b;

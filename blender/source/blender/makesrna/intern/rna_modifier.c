@@ -2357,8 +2357,9 @@ static void rna_def_modifier_rtps(BlenderRNA *brna)
 
 	//-------------
 	prop= RNA_def_property(srna, "dt", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_float_default(prop, .001f);
-	RNA_def_property_ui_range(prop, .00001, 1.0, .01, 0);             
+    RNA_def_property_float_sdna(prop, NULL, "dt");
+	//RNA_def_property_float_default(prop, .001f);
+	//RNA_def_property_ui_range(prop, .00001, 1.0, .01, 0);             
 	RNA_def_property_ui_text(prop, "Time Step", "Time step used in the particle system");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
@@ -2421,10 +2422,10 @@ static void rna_def_modifier_rtps(BlenderRNA *brna)
         RNA_def_property_ui_text(prop, "Separation Distance", "Separation Distance to determine how close of far is a flockmate");
         RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
-        prop= RNA_def_property(srna, "perceptionrange", PROP_FLOAT, PROP_NONE);
+        prop= RNA_def_property(srna, "searchradius", PROP_FLOAT, PROP_NONE);
         RNA_def_property_range(prop, 1.0f, 50.f);
 	RNA_def_property_ui_range(prop, 1.0f, 50.0f, .01f, 5000);             
-        RNA_def_property_ui_text(prop, "Perception Range", "Perception Range to search for neighbors");
+        RNA_def_property_ui_text(prop, "Search Radius", "Perception Range to search for neighbors");
         RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
         prop= RNA_def_property(srna, "color_r", PROP_FLOAT, PROP_NONE);

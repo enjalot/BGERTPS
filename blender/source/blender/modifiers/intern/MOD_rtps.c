@@ -64,8 +64,8 @@ static void initData(ModifierData *md)
 
     //boids stuff
 	rtmd->maxspeed = 0.1f;
-	rtmd->separationdist = 1.0f;
-	rtmd->perceptionrange = 5.0f;
+	rtmd->separationdist = .1f;
+	rtmd->searchradius = .5f;
 
 	rtmd->color_r=255.0f;
 	rtmd->color_g=0.0f;

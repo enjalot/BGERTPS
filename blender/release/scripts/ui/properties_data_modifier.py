@@ -580,16 +580,19 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
 
             col = split.column()
             col.label(text="Rendering options")
-            col.prop(md, "glsl")
+            #col.prop(md, "glsl")
             col.prop(md, "blending")
             #layout.prop(md, "radius")
             col.prop(md, "render_type")
             if md.render_type == "SSF":
                 col.prop(md, "render_radius_scale")
                 col.prop(md, "render_blur_scale")
+
         elif md.system == "BOIDS":
             layout.label(text="Maximum number of particles:")
             layout.prop(md, "num")
+            layout.prop(md, "dt")
+            """
             layout.label(text="Maximum Speed of each Boid:")
             layout.prop(md, "maxspeed")
             layout.label(text="Separation Distance between Flockmates:")
@@ -612,6 +615,7 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
             col =  split.column()
             col.label(text="BLUE")
             col.prop(md, "color_b")
+            """
 
     def SOLIDIFY(self, layout, ob, md):
 
