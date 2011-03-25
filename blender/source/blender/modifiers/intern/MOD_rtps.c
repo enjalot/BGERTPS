@@ -32,23 +32,23 @@
 *
 */
 
-#include "DNA_scene_types.h"
-
 #include "BKE_cdderivedmesh.h"
 #include "BKE_particle.h"
 
 #include "MOD_modifiertypes.h"
+#include "MEM_guardedalloc.h"
 
 
 static void initData(ModifierData *md) 
 {
 	RTPSModifierData *rtmd = (RTPSModifierData*) md;
-	
+
+    // why are defaults required? Do not appear to be used
+    // at least not if there is no associated UI
 	rtmd->system = 1;
-    rtmd->num = 1024;
-    rtmd->radius = 5.0f; // why are defaults required? Do not appear to be used
-	                     // at least not if there is no associated UI
-    rtmd->updates = 1;
+    rtmd->num = 8192;
+	                     
+    rtmd->sub_intervals= 3;
     rtmd->dt= .001f;
 
 	// GE: scale of radius used by Andrew for improved rendering
@@ -62,14 +62,26 @@ static void initData(ModifierData *md)
 
     //boids stuff
 	rtmd->maxspeed = 0.1f;
-	rtmd->separationdist = 1.0f;
-	rtmd->perceptionrange = 5.0f;
+	rtmd->separationdist = .1f;
+	rtmd->searchradius = .5f;
 
 	rtmd->color_r=255.0f;
 	rtmd->color_g=0.0f;
 	rtmd->color_b=0.0f;
 
 }
+/*
+static void copyData(ModifierData *md, ModifierData *target)
+{
+	RTPSModifierData *smd = (RTPSModifierData*) md;
+	RTPSModifierData *tsmd = (RTPSModifierData*) target;
+
+	tsmd->system = smd->system;
+	tsmd->num = smd->num;
+	tsmd->sub_intervals = smd->sub_intervals;
+	tsmd->dt = smd->dt;
+}
+*/
 
 static void deformVerts(ModifierData *md, Object *ob, DerivedMesh *derivedData, float (*vertexCos)[3], int numVerts, int useRenderParams, int isFinalCalc)
 {
@@ -89,23 +101,26 @@ ModifierTypeInfo modifierType_RTPS = {
 	/* structName */        "RTPSModifierData",
 	/* structSize */        sizeof(RTPSModifierData),
 	/* type */              eModifierTypeType_OnlyDeform,
-	/* flags */             eModifierTypeFlag_AcceptsCVs
-							| eModifierTypeFlag_RequiresOriginalData
-							| eModifierTypeFlag_Single,
+	/* flags */             eModifierTypeFlag_AcceptsMesh,
+//                          eModifierTypeFlag_AcceptsCVs
+//							| eModifierTypeFlag_RequiresOriginalData
+//							| eModifierTypeFlag_Single,
 
-	/* copyData */          0,
+	/* copyData */          NULL,//copyData,
 	/* deformVerts */       deformVerts,
-	/* deformVertsEM */     0,
-	/* deformMatricesEM */  0,
-	/* applyModifier */     0,
-	/* applyModifierEM */   0,
+	/* deformMatrices */    NULL,
+	/* deformVertsEM */     NULL,
+	/* deformMatricesEM */  NULL,
+	/* applyModifier */     NULL,
+	/* applyModifierEM */   NULL,
 	/* initData */          initData,
-	/* requiredDataMask */  0,
-	/* freeData */          0,
-	/* isDisabled */        0,
-	/* updateDepgraph */    0,
-	/* dependsOnTime */     0,//dependsOnTime,
-	/* foreachObjectLink */ 0,
-	/* foreachIDLink */     0,
+	/* requiredDataMask */  NULL,
+	/* freeData */          NULL,
+	/* isDisabled */        NULL,
+	/* updateDepgraph */    NULL,
+	/* dependsOnTime */     NULL,//dependsOnTime,
+    /* dependsOnNormals */  NULL,
+	/* foreachObjectLink */ NULL,
+	/* foreachIDLink */     NULL,
 };
 

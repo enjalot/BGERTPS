@@ -285,7 +285,7 @@ bool BL_ModifierDeformer::Update(void)
 
                 //deal with emitters if SPH
                 //maybe this should be done with a new modifier?
-                if(rtps->settings.system == rtps::RTPSettings::SPH)
+                if(rtps->settings.system == rtps::RTPSettings::SPH || rtps->settings.system == rtps::RTPSettings::FLOCK)
                 {
                     //loop through the objects looking for objects with collider property
                     CListValue* oblist = kxs->GetObjectList();
@@ -413,7 +413,7 @@ bool BL_ModifierDeformer::Apply(RAS_IPolyMaterial *mat)
                     using namespace rtps;
                     rtps::Domain grid(float4(min.x(), min.y(), min.z(), 0), float4(max.x(), max.y(), max.z(), 0));
 
-                    if (sys == rtps::RTPSettings::SPH) 
+                    if (sys == rtps::RTPSettings::SPH || sys == rtps::RTPSettings::FLOCK) 
                     {
 						//printf("*** scale radius** = %f\n", rtmd->render_radius_scale);
 						//printf("*** dt ** = %f\n", rtmd->dt);
@@ -428,12 +428,14 @@ bool BL_ModifierDeformer::Apply(RAS_IPolyMaterial *mat)
                         (*slot)->m_pRTPS = new rtps::RTPS(settings);
         
                     }
+#if 0
                     else if (sys == rtps::RTPSettings::SimpleFlock)
                     {
                         float color[3] = {rtmd->color_r, rtmd->color_g, rtmd->color_b};
                         rtps::RTPSettings settings(rtmd->num, rtmd->maxspeed, rtmd->separationdist, rtmd->perceptionrange, color);
                         (*slot)->m_pRTPS = new rtps::RTPS(settings);
                     }
+#endif
                     else 
                     {
                         rtps::RTPSettings settings(sys, rtmd->num, rtmd->dt, grid);

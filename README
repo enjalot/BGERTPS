@@ -6,11 +6,8 @@ Build:
 right now my changes depend on my RTPS library:
 http://github.com/enjalot/EnjaParticles
     git clone git://github.com/enjalot/EnjaParticles.git
-
-check this out and switch to branch rtps
     cd EnjaParticles
-    git checkout rtps
-
+        cd rtps
 follow the README to build
 
 you will need to set an environment variable so that the Blender CMake can find the RTPS library

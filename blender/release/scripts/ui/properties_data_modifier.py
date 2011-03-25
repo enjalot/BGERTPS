@@ -562,25 +562,37 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
         layout.label(text="See Soft Body panel.")
     
     def RTPS(self, layout, ob, md):
-        #split = layout.split()
-        #col = split.column()
-        layout.label(text="System: 0: Simple, 1: SPH 2: Boids")
-        layout.prop(md, "system")
-        layout.label(text="Number of particles:")
-        layout.prop(md, "num")
-        #layout.label(text"Particle Radius:")
-        if md.system == 1:
-            layout.prop(md, "radius")
-            layout.prop(md, "collision")
-            layout.prop(md, "updates")
+        layout.row().prop(md, "system", expand=True)
+        #layout.prop(md, "system")
+        if md.system == "SIMPLE":
+            layout.label(text="Maximum number of particles:")
+            layout.prop(md, "num")
+
+        if md.system == "SPH":
+            split = layout.split()
+            col = split.column()
+
+            #col.label(text="Maximum number of particles:")
+            col.prop(md, "num")
+            col.prop(md, "dt")
+            col.prop(md, "sub_intervals")
+            col.prop(md, "collision")
+
+            col = split.column()
+            col.label(text="Rendering options")
+            #col.prop(md, "glsl")
+            col.prop(md, "blending")
+            #layout.prop(md, "radius")
+            col.prop(md, "render_type")
+            if md.render_type == "SSF":
+                col.prop(md, "render_radius_scale")
+                col.prop(md, "render_blur_scale")
+
+        elif md.system == "BOIDS":
+            layout.label(text="Maximum number of particles:")
+            layout.prop(md, "num")
             layout.prop(md, "dt")
-            layout.label(text="Rendering options")
-            layout.prop(md, "glsl")
-            layout.prop(md, "blending")
-            layout.prop(md, "render_radius_scale")
-            layout.prop(md, "render_blur_scale")
-            layout.prop(md, "render_type")
-        elif md.system == 2:
+            """
             layout.label(text="Maximum Speed of each Boid:")
             layout.prop(md, "maxspeed")
             layout.label(text="Separation Distance between Flockmates:")
@@ -603,6 +615,7 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
             col =  split.column()
             col.label(text="BLUE")
             col.prop(md, "color_b")
+            """
 
     def SOLIDIFY(self, layout, ob, md):
 
