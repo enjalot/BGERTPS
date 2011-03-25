@@ -457,15 +457,12 @@ typedef struct RTPSModifierData {
     int num;
    
     // sph attributes
-    float radius;
     short collision;
     short padding;//need this so struct is right size
-    int updates;
+    int sub_intervals;
     float dt;
-	float render_radius_scale; //GE
-	float render_blur_scale; //GE
-	int render_type; //GE should be enum (need radio box)
-
+    //sph parameters
+    
     // boids attributes
     float maxspeed;
     float separationdist;
@@ -477,7 +474,27 @@ typedef struct RTPSModifierData {
     //rendering options
     short glsl;
     short blending;
+
+    float radius; //not used
+	int render_type; //GE
+	float render_radius_scale; //GE
+	float render_blur_scale; //GE
+
 } RTPSModifierData;
+
+/* DisplaceModifierData->system */
+enum {
+	MOD_RTPS_SYS_SIMPLE,
+	MOD_RTPS_SYS_SPH,
+	MOD_RTPS_SYS_BOIDS,
+};
+
+/* DisplaceModifierData->render_type */
+enum {
+	MOD_RTPS_REND_RENDER,
+	MOD_RTPS_REND_SPRITE,
+	MOD_RTPS_REND_SSF,
+};
 
 
 

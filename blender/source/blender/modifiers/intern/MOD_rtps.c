@@ -43,12 +43,14 @@
 static void initData(ModifierData *md) 
 {
 	RTPSModifierData *rtmd = (RTPSModifierData*) md;
-	
+
+    // why are defaults required? Do not appear to be used
+    // at least not if there is no associated UI
 	rtmd->system = 1;
     rtmd->num = 1024;
-    rtmd->radius = 5.0f; // why are defaults required? Do not appear to be used
-	                     // at least not if there is no associated UI
-    rtmd->updates = 1;
+    rtmd->radius = 5.0f; 
+	                     
+    rtmd->sub_intervals= 1;
     rtmd->dt= .001f;
 
 	// GE: scale of radius used by Andrew for improved rendering
