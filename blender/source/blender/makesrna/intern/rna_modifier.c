@@ -2290,9 +2290,9 @@ static void rna_def_modifier_rtps(BlenderRNA *brna)
 	PropertyRNA *prop;
 
     static EnumPropertyItem prop_system_items[] = {
-		{MOD_RTPS_SYS_SIMPLE, "SIMPLE", 0, "Simple", ""},
 		{MOD_RTPS_SYS_SPH, "SPH", 0, "SPH Fluid", ""},
 		{MOD_RTPS_SYS_BOIDS, "BOIDS", 0, "Boids", ""},
+		{MOD_RTPS_SYS_SIMPLE, "SIMPLE", 0, "Simple", ""},
 		{0, NULL, 0, NULL, NULL}};
 
     static EnumPropertyItem prop_render_type_items[] = {
@@ -2328,18 +2328,10 @@ static void rna_def_modifier_rtps(BlenderRNA *brna)
 
     prop= RNA_def_property(srna, "num", PROP_INT, PROP_NONE);
     RNA_def_property_int_sdna(prop, NULL, "num");
-    RNA_def_property_int_default(prop, 100000);
-	RNA_def_property_ui_range(prop, 1, 20000000, 10, 0);             
+	RNA_def_property_range(prop, 1, 2000000);
+	RNA_def_property_ui_range(prop, 1, 2000000, 16384, 0);
 	// power of two
 	RNA_def_property_ui_text(prop, "Max Num", "Maximum number of particles");
-	RNA_def_property_update(prop, 0, "rna_Modifier_update");
-
-
-	// sph properties
-	//------------- //this one is not used
-	prop= RNA_def_property(srna, "radius", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_float_sdna(prop, NULL, "radius");
-	RNA_def_property_ui_text(prop, "Particle Radius", "Radius of each particle");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
 	//-------------
@@ -2350,8 +2342,8 @@ static void rna_def_modifier_rtps(BlenderRNA *brna)
 
 	//-------------
    	prop= RNA_def_property(srna, "sub_intervals", PROP_INT, PROP_NONE);
-  	RNA_def_property_int_default(prop, 1);
-	RNA_def_property_ui_range(prop, 1, 100, 1, 0);             
+  	//RNA_def_property_int_default(prop, 1);
+	RNA_def_property_ui_range(prop, 1, 100, 1, 0);
 	RNA_def_property_ui_text(prop, "Sub Intervals", "Number of particle system updates to do per frame");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
@@ -2359,8 +2351,23 @@ static void rna_def_modifier_rtps(BlenderRNA *brna)
 	prop= RNA_def_property(srna, "dt", PROP_FLOAT, PROP_NONE);
     RNA_def_property_float_sdna(prop, NULL, "dt");
 	//RNA_def_property_float_default(prop, .001f);
-	//RNA_def_property_ui_range(prop, .00001, 1.0, .01, 0);             
+	RNA_def_property_range(prop, 0, 1);             
+	RNA_def_property_ui_range(prop, .0001, 1.0, .001, 4);             
 	RNA_def_property_ui_text(prop, "Time Step", "Time step used in the particle system");
+	RNA_def_property_update(prop, 0, "rna_Modifier_update");
+
+
+    //******************** RENDER STUFF
+    prop= RNA_def_property(srna, "render_type", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_items(prop, prop_render_type_items);
+	RNA_def_property_ui_text(prop, "Render Type", "Render Type");
+	RNA_def_property_update(prop, 0, "rna_Modifier_update");
+
+    // sph properties
+	//------------- //this one is not used
+	prop= RNA_def_property(srna, "radius", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_float_sdna(prop, NULL, "radius");
+	RNA_def_property_ui_text(prop, "Particle Radius", "Radius of each particle");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
 	//-------------
@@ -2384,30 +2391,12 @@ static void rna_def_modifier_rtps(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Blur Scale", "Render blur scale");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
-	//----------------------------------
-    /*
-	prop= RNA_def_property(srna, "render_type", PROP_INT, PROP_NONE);
-	//GE  WHY IS NEXT LINE REQUIRED?
-	RNA_def_property_int_sdna(prop, NULL, "render_type");
-
-	RNA_def_property_int_default(prop, 1);
-	RNA_def_property_ui_range(prop, 0, 2, 1, 0);             
-	RNA_def_property_ui_text(prop, "Render Type", "Render Type");
-	RNA_def_property_update(prop, 0, "rna_Modifier_update");
-    */
-	//----------------------------------
-    //
-    prop= RNA_def_property(srna, "render_type", PROP_ENUM, PROP_NONE);
-	RNA_def_property_enum_items(prop, prop_render_type_items);
-	RNA_def_property_ui_text(prop, "Render Type", "Render Type");
-	RNA_def_property_update(prop, 0, "rna_Modifier_update");
-
 
 	//----------------------------------
 	//----------------------------------
 	//----------------------------------
 
-
+    //******************************* BOIDS STUFF
 
 	// boids properties
         prop= RNA_def_property(srna, "maxspeed", PROP_FLOAT, PROP_NONE);
