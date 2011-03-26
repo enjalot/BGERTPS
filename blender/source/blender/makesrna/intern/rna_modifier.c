@@ -2410,51 +2410,68 @@ static void rna_def_modifier_rtps(BlenderRNA *brna)
 
 
 	// boids properties
-        prop= RNA_def_property(srna, "maxspeed", PROP_FLOAT, PROP_NONE);
-        RNA_def_property_range(prop, 0.001f, 10.f);
+    prop= RNA_def_property(srna, "maxspeed", PROP_FLOAT, PROP_NONE);
+    RNA_def_property_range(prop, 0.001f, 100.f);
 	RNA_def_property_ui_range(prop, .001f, 10.0f, .01f, 1000);             
-        RNA_def_property_ui_text(prop, "Max Speed", "Max Speed of each Boid");
-        RNA_def_property_update(prop, 0, "rna_Modifier_update");
+    RNA_def_property_ui_text(prop, "Max Speed", "Max Speed of each Boid");
+    RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
-        prop= RNA_def_property(srna, "separationdist", PROP_FLOAT, PROP_NONE);
-        RNA_def_property_range(prop, 1.0f, 25.f);
-	RNA_def_property_ui_range(prop, 1.0f, 25.0f, .01f, 2500);             
-        RNA_def_property_ui_text(prop, "Separation Distance", "Separation Distance to determine how close of far is a flockmate");
-        RNA_def_property_update(prop, 0, "rna_Modifier_update");
+    prop= RNA_def_property(srna, "separationdist", PROP_FLOAT, PROP_NONE);
+    RNA_def_property_range(prop, 1.0f, 50.f);
+	RNA_def_property_ui_range(prop, 1.0f, 50.0f, .01f, 2500);             
+    RNA_def_property_ui_text(prop, "Separation Distance", "Separation Distance between boids");
+    RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
-        prop= RNA_def_property(srna, "searchradius", PROP_FLOAT, PROP_NONE);
-        RNA_def_property_range(prop, 1.0f, 50.f);
+    prop= RNA_def_property(srna, "searchradius", PROP_FLOAT, PROP_NONE);
+    RNA_def_property_range(prop, 1.0f, 50.f);
 	RNA_def_property_ui_range(prop, 1.0f, 50.0f, .01f, 5000);             
-        RNA_def_property_ui_text(prop, "Search Radius", "Perception Range to search for neighbors");
-        RNA_def_property_update(prop, 0, "rna_Modifier_update");
+    RNA_def_property_ui_text(prop, "Search Radius", "Perception Range to search for neighbors");
+    RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
-        prop= RNA_def_property(srna, "color_r", PROP_FLOAT, PROP_NONE);
-        RNA_def_property_range(prop, 0.f, 255.f);
+    prop= RNA_def_property(srna, "color_r", PROP_FLOAT, PROP_NONE);
+    RNA_def_property_range(prop, 0.f, 255.f);
 	RNA_def_property_ui_range(prop, 0.0f, 255.0f, .01f, 25600);             
-        RNA_def_property_ui_text(prop, "Color-Red", "Set the color for the boids");
-        RNA_def_property_update(prop, 0, "rna_Modifier_update");
+    RNA_def_property_ui_text(prop, "Color-Red", "Set the color for the boids");
+    RNA_def_property_update(prop, 0, "rna_Modifier_update");
         
 	prop= RNA_def_property(srna, "color_g", PROP_FLOAT, PROP_NONE);
-        RNA_def_property_range(prop, 0.f, 255.f);
+    RNA_def_property_range(prop, 0.f, 255.f);
 	RNA_def_property_ui_range(prop, 0.0f, 255.0f, .01f, 25600);             
-        RNA_def_property_ui_text(prop, "Color-Green", "Set the color for the boids");
-        RNA_def_property_update(prop, 0, "rna_Modifier_update");
+    RNA_def_property_ui_text(prop, "Color-Green", "Set the color for the boids");
+    RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
-        prop= RNA_def_property(srna, "color_b", PROP_FLOAT, PROP_NONE);
-        RNA_def_property_range(prop, 0.f, 255.f);
+    prop= RNA_def_property(srna, "color_b", PROP_FLOAT, PROP_NONE);
+    RNA_def_property_range(prop, 0.f, 255.f);
 	RNA_def_property_ui_range(prop, 0.0f, 255.0f, .01f, 25600);             
-        RNA_def_property_ui_text(prop, "Color-Blue", "Set the color for the boids");
-        RNA_def_property_update(prop, 0, "rna_Modifier_update");
+    RNA_def_property_ui_text(prop, "Color-Blue", "Set the color for the boids");
+    RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
-
-    	//rendering options
-		// GE: where is the title of this panel? 
+    prop= RNA_def_property(srna, "w_sep", PROP_FLOAT, PROP_NONE);
+    RNA_def_property_range(prop, 0.001f, 100.f);
+	RNA_def_property_ui_range(prop, .001f, 10.0f, .01f, 1000);             
+    RNA_def_property_ui_text(prop, "Separation", "How important is the separation rule?");
+    RNA_def_property_update(prop, 0, "rna_Modifier_update");
+    
+    prop= RNA_def_property(srna, "w_align", PROP_FLOAT, PROP_NONE);
+    RNA_def_property_range(prop, 0.001f, 100.f);
+	RNA_def_property_ui_range(prop, .001f, 10.0f, .01f, 1000);             
+    RNA_def_property_ui_text(prop, "Alignment", "How important is the alignment rule?");
+    RNA_def_property_update(prop, 0, "rna_Modifier_update");
+    
+    prop= RNA_def_property(srna, "w_coh", PROP_FLOAT, PROP_NONE);
+    RNA_def_property_range(prop, 0.001f, 100.f);
+	RNA_def_property_ui_range(prop, .001f, 10.0f, .01f, 1000);             
+    RNA_def_property_ui_text(prop, "Cohesion", "How important is the cohesion rule?");
+    RNA_def_property_update(prop, 0, "rna_Modifier_update");
+    
+    //rendering options
+    // GE: where is the title of this panel? 
 	prop= RNA_def_property(srna, "glsl", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "glsl", 0); //should have some enum?
 	RNA_def_property_ui_text(prop, "Use GLSL", "Use GLSL to render particles");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
-    	prop= RNA_def_property(srna, "blending", PROP_BOOLEAN, PROP_NONE);
+    prop= RNA_def_property(srna, "blending", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "blending", 1);
 	RNA_def_property_ui_text(prop, "Alpha Blending", "Render with alpha blending turned on");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");

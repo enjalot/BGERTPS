@@ -413,7 +413,7 @@ bool BL_ModifierDeformer::Apply(RAS_IPolyMaterial *mat)
                     using namespace rtps;
                     rtps::Domain grid(float4(min.x(), min.y(), min.z(), 0), float4(max.x(), max.y(), max.z(), 0));
 
-                    if (sys == rtps::RTPSettings::SPH || sys == rtps::RTPSettings::FLOCK) 
+                    if (sys == rtps::RTPSettings::SPH) 
                     {
 						//printf("*** scale radius** = %f\n", rtmd->render_radius_scale);
 						//printf("*** dt ** = %f\n", rtmd->dt);
@@ -428,14 +428,12 @@ bool BL_ModifierDeformer::Apply(RAS_IPolyMaterial *mat)
                         (*slot)->m_pRTPS = new rtps::RTPS(settings);
         
                     }
-#if 0
-                    else if (sys == rtps::RTPSettings::SimpleFlock)
+                    else if (sys == rtps::RTPSettings::FLOCK)
                     {
                         float color[3] = {rtmd->color_r, rtmd->color_g, rtmd->color_b};
-                        rtps::RTPSettings settings(rtmd->num, rtmd->maxspeed, rtmd->separationdist, rtmd->perceptionrange, color);
+                        rtps::RTPSettings settings(sys, rtmd->num, rtmd->dt, grid, rtmd->maxspeed, rtmd->separationdist, rtmd->searchradius, color, rtmd->w_sep, rtmd->w_align, rtmd->w_coh);
                         (*slot)->m_pRTPS = new rtps::RTPS(settings);
                     }
-#endif
                     else 
                     {
                         rtps::RTPSettings settings(sys, rtmd->num, rtmd->dt, grid);

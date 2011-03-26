@@ -592,18 +592,34 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
             layout.label(text="Maximum number of particles:")
             layout.prop(md, "num")
             layout.prop(md, "dt")
-            """
-            layout.label(text="Maximum Speed of each Boid:")
-            layout.prop(md, "maxspeed")
-            layout.label(text="Separation Distance between Flockmates:")
-            layout.prop(md, "separationdist")
-            layout.label(text="Neighbor's search radius:")
-            layout.prop(md, "perceptionrange")
             
-            layout.label(text="Set the color")
-
+            layout.label(text="Maximum Speed of each boid:")
+            layout.prop(md, "maxspeed")
+            
+            layout.label(text="Separation Distance between boids:")
+            layout.prop(md, "separationdist")
+            
+            layout.label(text="Neighbor's search radius:")
+            layout.prop(md, "searchradius")
+            
+            layout.label(text="Weight of the Rules")
             split = layout.split(percentage=0.33)
 
+            col = split.column()
+            col.label(text="Separation")
+            col.prop(md, "w_sep")
+
+            col = split.column()
+            col.label(text="Alignment")
+            col.prop(md, "w_align")
+            
+            col = split.column()
+            col.label(text="Cohesion")
+            col.prop(md, "w_coh")
+            
+            layout.label(text="Set the color")
+            split = layout.split(percentage=0.33)
+            
             col = split.column()
             col.label(text="RED")
             col.prop(md, "color_r")
@@ -615,7 +631,6 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
             col =  split.column()
             col.label(text="BLUE")
             col.prop(md, "color_b")
-            """
 
     def SOLIDIFY(self, layout, ob, md):
 

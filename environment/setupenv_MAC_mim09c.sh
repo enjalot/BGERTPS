@@ -1,3 +1,3 @@
-export RTPS_DIR="~/research/git/EnjaParticles/rtps"
+export RTPS_DIR="/Users/mymese/research/git/myrnasph/EnjaParticles/rtps"
 
 

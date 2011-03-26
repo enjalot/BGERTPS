@@ -46,7 +46,7 @@ static void initData(ModifierData *md)
 
     // why are defaults required? Do not appear to be used
     // at least not if there is no associated UI
-	rtmd->system = 1;
+	rtmd->system = 2;
     rtmd->num = 1024;
     rtmd->radius = 5.0f; 
 	                     
@@ -64,13 +64,16 @@ static void initData(ModifierData *md)
 
     //boids stuff
 	rtmd->maxspeed = 0.1f;
-	rtmd->separationdist = .1f;
-	rtmd->searchradius = .5f;
+	rtmd->separationdist = 1.f;
+	rtmd->searchradius = 5.f;
 
 	rtmd->color_r=255.0f;
 	rtmd->color_g=0.0f;
 	rtmd->color_b=0.0f;
 
+    rtmd->w_sep = 0.01f;
+    rtmd->w_align = 0.01f;
+    rtmd->w_coh = 0.005f; 
 }
 
 static void deformVerts(ModifierData *md, Object *ob, DerivedMesh *derivedData, float (*vertexCos)[3], int numVerts, int useRenderParams, int isFinalCalc)
