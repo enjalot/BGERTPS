@@ -589,47 +589,49 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
                 col.prop(md, "render_blur_scale")
 
         elif md.system == "BOIDS":
-            layout.label(text="Maximum number of particles:")
-            layout.prop(md, "num")
-            layout.prop(md, "dt")
+            layout.label(text="Simulation Parameters")
+            split = layout.split(percentage=0.50)
+
+            col = split.column()
+            col.prop(md, "num")
             
-            layout.label(text="Maximum Speed of each boid:")
-            layout.prop(md, "maxspeed")
+            col = split.column()
+            col.prop(md, "dt")
             
-            layout.label(text="Separation Distance between boids:")
-            layout.prop(md, "separationdist")
+            layout.label(text="Flock Parameters")
+            split = layout.split(percentage=0.33)
             
-            layout.label(text="Neighbor's search radius:")
-            layout.prop(md, "searchradius")
+            col = split.column()
+            col.prop(md, "maxspeed")
             
-            layout.label(text="Weight of the Rules")
+            col = split.column()
+            col.prop(md, "separationdist")
+            
+            col = split.column()
+            col.prop(md, "searchradius")
+            
+            layout.label(text="Weights of the Rules")
             split = layout.split(percentage=0.33)
 
             col = split.column()
-            col.label(text="Separation")
             col.prop(md, "w_sep")
 
             col = split.column()
-            col.label(text="Alignment")
             col.prop(md, "w_align")
             
             col = split.column()
-            col.label(text="Cohesion")
             col.prop(md, "w_coh")
             
-            layout.label(text="Set the color")
+            layout.label(text="Color of the Flock")
             split = layout.split(percentage=0.33)
             
             col = split.column()
-            col.label(text="RED")
             col.prop(md, "color_r")
 
             col =  split.column()
-            col.label(text="GREEN")
             col.prop(md, "color_g")
 
             col =  split.column()
-            col.label(text="BLUE")
             col.prop(md, "color_b")
 
     def SOLIDIFY(self, layout, ob, md):

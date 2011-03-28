@@ -51,7 +51,7 @@ static void initData(ModifierData *md)
     rtmd->radius = 5.0f; 
 	                     
     rtmd->sub_intervals= 1;
-    rtmd->dt= .001f;
+    rtmd->dt= .01f;
 
 	// GE: scale of radius used by Andrew for improved rendering
 	rtmd->render_radius_scale = 3.;
@@ -63,17 +63,17 @@ static void initData(ModifierData *md)
     rtmd->blending = 0;
 
     //boids stuff
-	rtmd->maxspeed = 0.1f;
+	rtmd->maxspeed = 100.f;
 	rtmd->separationdist = 1.f;
-	rtmd->searchradius = 5.f;
+	rtmd->searchradius = 1.f;
 
 	rtmd->color_r=255.0f;
 	rtmd->color_g=0.0f;
 	rtmd->color_b=0.0f;
 
-    rtmd->w_sep = 0.01f;
-    rtmd->w_align = 0.01f;
-    rtmd->w_coh = 0.005f; 
+    rtmd->w_sep = 1.f;
+    rtmd->w_align =1.f;
+    rtmd->w_coh = 0.3f; 
 }
 
 static void deformVerts(ModifierData *md, Object *ob, DerivedMesh *derivedData, float (*vertexCos)[3], int numVerts, int useRenderParams, int isFinalCalc)
