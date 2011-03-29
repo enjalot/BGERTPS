@@ -413,11 +413,37 @@ bool BL_ModifierDeformer::Apply(RAS_IPolyMaterial *mat)
                     using namespace rtps;
                     rtps::Domain grid(float4(min.x(), min.y(), min.z(), 0), float4(max.x(), max.y(), max.z(), 0));
 
-                    if (sys == rtps::RTPSettings::SPH || sys == rtps::RTPSettings::FLOCK) 
+                    if (sys == rtps::RTPSettings::SPH) 
+                    {
+                        //rtps::RTPSettings settings(sys, grid);
+                        rtps::RTPSettings settings(sys, rtmd->max_num, rtmd->dt, grid, rtmd->collision);
+						settings.setRadiusScale(rtmd->render_radius_scale);
+						settings.setRenderType((rtps::RTPSettings::RenderType)rtmd->render_type);
+						settings.setBlurScale(rtmd->render_blur_scale);
+						settings.setUseGLSL(rtmd->glsl);
+						settings.setUseAlphaBlending(rtmd->blending);
+
+                        rtps::RTPS* ps = new rtps::RTPS(settings);
+                        (*slot)->m_pRTPS = ps;
+
+                        //dynamic params
+                        ps->settings.SetSetting("Gas Constant", rtmd->gas_constant);
+                        ps->settings.SetSetting("Viscosity", rtmd->viscosity);
+                        ps->settings.SetSetting("Velocity Limit", rtmd->velocity_limit);
+                        ps->settings.SetSetting("XSPH Factor", rtmd->xsph_factor);
+                        ps->settings.SetSetting("Gravity", rtmd->gravity); // -9.8 m/sec^2
+
+                        ps->settings.SetSetting("Boundary Stiffness", rtmd->boundary_stiffness);
+                        ps->settings.SetSetting("Boundary Dampening", rtmd->boundary_dampening);
+                        //settings.SetSetting("Friction Kinetic", rtmd->friction_kinetic);
+                        //settings.SetSetting("Friction Static", rtmd->friction_static);
+
+                    }
+                    else if (sys == rtps::RTPSettings::FLOCK) 
                     {
 						//printf("*** scale radius** = %f\n", rtmd->render_radius_scale);
 						//printf("*** dt ** = %f\n", rtmd->dt);
-                        rtps::RTPSettings settings(sys, rtmd->num, rtmd->dt, grid, rtmd->collision);
+                        rtps::RTPSettings settings(sys, rtmd->max_num, rtmd->dt, grid, rtmd->collision);
 						//GE should automate with python
 						settings.setRadiusScale(rtmd->render_radius_scale);
 						settings.setRenderType((rtps::RTPSettings::RenderType)rtmd->render_type);
@@ -438,7 +464,7 @@ bool BL_ModifierDeformer::Apply(RAS_IPolyMaterial *mat)
 #endif
                     else 
                     {
-                        rtps::RTPSettings settings(sys, rtmd->num, rtmd->dt, grid);
+                        rtps::RTPSettings settings(sys, rtmd->max_num, rtmd->dt, grid);
                         (*slot)->m_pRTPS = new rtps::RTPS(settings);
                     }
 
