@@ -589,50 +589,62 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
                 col.prop(md, "render_blur_scale")
 
         elif md.system == "BOIDS":
-            layout.label(text="Simulation Parameters")
-            split = layout.split(percentage=0.50)
+            split = layout.split(percentage=0.33)
 
             col = split.column()
+            col.label(text="Simulation Parameters")
             col.prop(md, "num")
             
             col = split.column()
+            col.label(text="") 
             col.prop(md, "dt")
+            
+            col = split.column()
+            col.label(text="Render Type")
+            col.prop(md, "render_type", text="")
             
             layout.label(text="Flock Parameters")
             split = layout.split(percentage=0.33)
             
             col = split.column()
-            col.prop(md, "maxspeed")
+            col.label("Max Speed")
+            col.prop(md, "maxspeed", text="")
             
             col = split.column()
-            col.prop(md, "separationdist")
+            col.label("Separation Dist")
+            col.prop(md, "separationdist", text="")
             
             col = split.column()
-            col.prop(md, "searchradius")
+            col.label("Search Radius")
+            col.prop(md, "searchradius", text="")
             
             layout.label(text="Weights of the Rules")
             split = layout.split(percentage=0.33)
 
             col = split.column()
-            col.prop(md, "w_sep")
+            col.label("Separation")
+            col.prop(md, "w_sep", text="", slider=True)
 
             col = split.column()
-            col.prop(md, "w_align")
+            col.label("Alignment")
+            col.prop(md, "w_align", text="", slider=True)
             
             col = split.column()
-            col.prop(md, "w_coh")
+            col.label("Cohesion")
+            col.prop(md, "w_coh", text="", slider=True)
             
             layout.label(text="Color of the Flock")
             split = layout.split(percentage=0.33)
             
             col = split.column()
-            col.prop(md, "color_r")
+            col.prop(md, "color_r", slider=True) 
 
             col =  split.column()
-            col.prop(md, "color_g")
+            col.prop(md, "color_g", slider=True)
 
             col =  split.column()
-            col.prop(md, "color_b")
+            col.prop(md, "color_b", slider=True)
+            
 
     def SOLIDIFY(self, layout, ob, md):
 
