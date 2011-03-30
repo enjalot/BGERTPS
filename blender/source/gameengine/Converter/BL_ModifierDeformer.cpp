@@ -437,6 +437,7 @@ bool BL_ModifierDeformer::Apply(RAS_IPolyMaterial *mat)
                         ps->settings.SetSetting("Boundary Dampening", rtmd->boundary_dampening);
                         //settings.SetSetting("Friction Kinetic", rtmd->friction_kinetic);
                         //settings.SetSetting("Friction Static", rtmd->friction_static);
+                        ps->settings.SetSetting("Sub Intervals", rtmd->sub_intervals);
 
                     }
                     else if (sys == rtps::RTPSettings::FLOCK) 
