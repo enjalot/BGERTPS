@@ -69,9 +69,9 @@ static void initData(ModifierData *md)
 	rtmd->color_g=0.0f;
 	rtmd->color_b=0.0f;
 
-    rtmd->w_sep = 1.f;
-    rtmd->w_align =1.f;
-    rtmd->w_coh = 0.3f; 
+    rtmd->w_sep = 0.3f;
+    rtmd->w_align =0.1f;
+    rtmd->w_coh = 0.01f; 
 }
 /*
 static void copyData(ModifierData *md, ModifierData *target)
