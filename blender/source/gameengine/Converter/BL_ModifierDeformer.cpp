@@ -61,6 +61,7 @@
 #include "BKE_ipo.h"
 #include "MT_Point3.h"
 
+//Included by enjalot
 #include "RTPS.h"
 #include "timege.h"
 //These KX might not belong here...
@@ -71,9 +72,11 @@
 #include "KX_GameObject.h"
 #include "KX_PythonInit.h"
 #include "SG_BBox.h"
+#include "FloatValue.h"
+//end included by enjalot
 
 extern "C"{
-    #include "BKE_cdderivedmesh.h" //added by IJ for RTPS
+    #include "BKE_cdderivedmesh.h" //added by enjalot for RTPS
 	#include "BKE_customdata.h"
 	#include "BKE_DerivedMesh.h"
 	#include "BKE_lattice.h"
@@ -305,17 +308,19 @@ bool BL_ModifierDeformer::Update(void)
 
                         //Check if object is a collider
                         bool collider = false;
-                        CBoolValue* boolprop = (CBoolValue*)gobj->GetProperty("collider");
-                        if(boolprop)
+                        CBoolValue* colliderprop = (CBoolValue*)gobj->GetProperty("collider");
+                        if(colliderprop)
                         {
                             //printf("obj: %s, collider: %d\n", name.Ptr(), boolprop->GetBool());
-                            collider = boolprop->GetBool();
+                            collider = colliderprop->GetBool();
                             if(collider)
                             {
                                 getTriangles(gobj, triangles);
                                 //printf("triangles size: %d\n", triangles.size());
                             }
                         }
+
+                        
 
                         //Check if object is an emitter
                         //for now we are just doing boxes 
@@ -326,15 +331,53 @@ bool BL_ModifierDeformer::Update(void)
                             int num = (int)intprop->GetInt();
                             if (num == 0) { continue;} //out of particles
 
-                            int nn = makeEmitter(num, gobj);
-                            if( nn == 0) {continue;}
-                            //printf("obj: %s, nn: %d\n", name.Ptr(), nn);
-                            MT_Point3 bbpts[8];
-                            gobj->GetSGNode()->getAABBox(bbpts);
-     
-                            float4 min = float4(bbpts[0].x(), bbpts[0].y(), bbpts[0].z(), 0);
-                            float4 max = float4(bbpts[7].x(), bbpts[7].y(), bbpts[7].z(), 0);
-                            rtps->system->addBox(nn, min, max, false);
+
+                            //hose
+                            CBoolValue* hoseprop = (CBoolValue*)gobj->GetProperty("hose");
+                            if(hoseprop)
+                            {
+                                if(hoseprop->GetBool())
+                                {
+                                    //number of particles for hose to emit
+                                    CIntValue* numprop = (CIntValue*)gobj->GetProperty("num");
+                                    int num = (int)numprop->GetInt();
+
+                                    CFloatValue* velprop = (CFloatValue*)gobj->GetProperty("speed");
+                                    float speed = velprop->GetFloat();
+
+                                    CFloatValue* radprop = (CFloatValue*)gobj->GetProperty("radius");
+                                    float radius = radprop->GetFloat();
+
+                                    //get center and direction from world transformations
+                                    MT_Point3 gp = gobj->NodeGetWorldPosition();
+                                    MT_Matrix3x3 grot = gobj->NodeGetWorldOrientation();
+                                    //we shoot the hose in the object's Y direction
+                                    MT_Vector3 dir(0., 1., 0.);
+                                    dir = dir * grot;
+                                    float4 center(gp[0], gp[1], gp[2], 1.f); 
+                                    float4 velocity(dir[0], dir[1], dir[2], 0.);
+                                    velocity = velocity * speed;
+                                    rtps->system->addHose(num, center, velocity, radius);
+                                    //TODO: need real way of interacting with hose object
+                                    //to be able to start and stop them
+                                    //HACK:
+                                    CBoolValue setfalse(false);
+                                    hoseprop->SetValue(&setfalse);
+                                }
+
+                            }
+                            else
+                            {
+                                int nn = makeEmitter(num, gobj);
+                                if( nn == 0) {continue;}
+                                //printf("obj: %s, nn: %d\n", name.Ptr(), nn);
+                                MT_Point3 bbpts[8];
+                                gobj->GetSGNode()->getAABBox(bbpts);
+         
+                                float4 min = float4(bbpts[0].x(), bbpts[0].y(), bbpts[0].z(), 0);
+                                float4 max = float4(bbpts[7].x(), bbpts[7].y(), bbpts[7].z(), 0);
+                                rtps->system->addBox(nn, min, max, false);
+                            }
                            
                         }//if emitters
                         
