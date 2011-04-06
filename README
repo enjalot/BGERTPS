@@ -29,6 +29,7 @@ http://wiki.blender.org/index.php/Dev:2.5/Doc/Building_Blender
     cmake ../BGERTPS/blender    (Mac users may want to run ccmake ../BGERTPS/blender to configure properly)
         (make sure to check that all the libraries and dependencies are found)
     make -j8    (j8 runs make in 8 threads, if you encounter an error rerun make by itself to get sequential error output)
+    make install    (this copies the python scripts and other runtime files to the build directory)
     
     
 
