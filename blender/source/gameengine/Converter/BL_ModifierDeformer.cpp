@@ -61,6 +61,7 @@
 #include "BKE_ipo.h"
 #include "MT_Point3.h"
 
+//Included by enjalot
 #include "RTPS.h"
 #include "timege.h"
 //These KX might not belong here...
@@ -71,9 +72,11 @@
 #include "KX_GameObject.h"
 #include "KX_PythonInit.h"
 #include "SG_BBox.h"
+#include "FloatValue.h"
+//end included by enjalot
 
 extern "C"{
-    #include "BKE_cdderivedmesh.h" //added by IJ for RTPS
+    #include "BKE_cdderivedmesh.h" //added by enjalot for RTPS
 	#include "BKE_customdata.h"
 	#include "BKE_DerivedMesh.h"
 	#include "BKE_lattice.h"
@@ -305,17 +308,19 @@ bool BL_ModifierDeformer::Update(void)
 
                         //Check if object is a collider
                         bool collider = false;
-                        CBoolValue* boolprop = (CBoolValue*)gobj->GetProperty("collider");
-                        if(boolprop)
+                        CBoolValue* colliderprop = (CBoolValue*)gobj->GetProperty("collider");
+                        if(colliderprop)
                         {
                             //printf("obj: %s, collider: %d\n", name.Ptr(), boolprop->GetBool());
-                            collider = boolprop->GetBool();
+                            collider = colliderprop->GetBool();
                             if(collider)
                             {
                                 getTriangles(gobj, triangles);
                                 //printf("triangles size: %d\n", triangles.size());
                             }
                         }
+
+                        
 
                         //Check if object is an emitter
                         //for now we are just doing boxes 
@@ -326,15 +331,53 @@ bool BL_ModifierDeformer::Update(void)
                             int num = (int)intprop->GetInt();
                             if (num == 0) { continue;} //out of particles
 
-                            int nn = makeEmitter(num, gobj);
-                            if( nn == 0) {continue;}
-                            //printf("obj: %s, nn: %d\n", name.Ptr(), nn);
-                            MT_Point3 bbpts[8];
-                            gobj->GetSGNode()->getAABBox(bbpts);
-     
-                            float4 min = float4(bbpts[0].x(), bbpts[0].y(), bbpts[0].z(), 0);
-                            float4 max = float4(bbpts[7].x(), bbpts[7].y(), bbpts[7].z(), 0);
-                            rtps->system->addBox(nn, min, max, false);
+
+                            //hose
+                            CBoolValue* hoseprop = (CBoolValue*)gobj->GetProperty("hose");
+                            if(hoseprop)
+                            {
+                                if(hoseprop->GetBool())
+                                {
+                                    //number of particles for hose to emit
+                                    CIntValue* numprop = (CIntValue*)gobj->GetProperty("num");
+                                    int num = (int)numprop->GetInt();
+
+                                    CFloatValue* velprop = (CFloatValue*)gobj->GetProperty("speed");
+                                    float speed = velprop->GetFloat();
+
+                                    CFloatValue* radprop = (CFloatValue*)gobj->GetProperty("radius");
+                                    float radius = radprop->GetFloat();
+
+                                    //get center and direction from world transformations
+                                    MT_Point3 gp = gobj->NodeGetWorldPosition();
+                                    MT_Matrix3x3 grot = gobj->NodeGetWorldOrientation();
+                                    //we shoot the hose in the object's Y direction
+                                    MT_Vector3 dir(0., 1., 0.);
+                                    dir = dir * grot;
+                                    float4 center(gp[0], gp[1], gp[2], 1.f); 
+                                    float4 velocity(dir[0], dir[1], dir[2], 0.);
+                                    velocity = velocity * speed;
+                                    rtps->system->addHose(num, center, velocity, radius);
+                                    //TODO: need real way of interacting with hose object
+                                    //to be able to start and stop them
+                                    //HACK:
+                                    CBoolValue setfalse(false);
+                                    hoseprop->SetValue(&setfalse);
+                                }
+
+                            }
+                            else
+                            {
+                                int nn = makeEmitter(num, gobj);
+                                if( nn == 0) {continue;}
+                                //printf("obj: %s, nn: %d\n", name.Ptr(), nn);
+                                MT_Point3 bbpts[8];
+                                gobj->GetSGNode()->getAABBox(bbpts);
+         
+                                float4 min = float4(bbpts[0].x(), bbpts[0].y(), bbpts[0].z(), 0);
+                                float4 max = float4(bbpts[7].x(), bbpts[7].y(), bbpts[7].z(), 0);
+                                rtps->system->addBox(nn, min, max, false);
+                            }
                            
                         }//if emitters
                         
@@ -413,11 +456,49 @@ bool BL_ModifierDeformer::Apply(RAS_IPolyMaterial *mat)
                     using namespace rtps;
                     rtps::Domain grid(float4(min.x(), min.y(), min.z(), 0), float4(max.x(), max.y(), max.z(), 0));
 
-                    if (sys == rtps::RTPSettings::SPH || sys == rtps::RTPSettings::FLOCK) 
+                    if (sys == rtps::RTPSettings::SPH) 
+                    {
+                        //rtps::RTPSettings settings(sys, grid);
+                        rtps::RTPSettings settings(sys, rtmd->max_num, rtmd->dt, grid, rtmd->collision);
+						settings.setRadiusScale(rtmd->render_radius_scale);
+						settings.setRenderType((rtps::RTPSettings::RenderType)rtmd->render_type);
+						settings.setBlurScale(rtmd->render_blur_scale);
+						settings.setUseGLSL(rtmd->glsl);
+						settings.setUseAlphaBlending(rtmd->blending);
+
+
+                        settings.SetSetting("render_texture", "firejet_blast.png");
+                        settings.SetSetting("render_frag_shader", "sprite_tex_frag.glsl");
+                        settings.SetSetting("render_use_alpha", true);
+                        //settings.SetSetting("render_use_alpha", false);
+                        settings.SetSetting("render_alpha_function", "add");
+                        settings.SetSetting("lt_increment", -.00);
+                        settings.SetSetting("lt_cl", "lifetime.cl");
+
+                        
+
+                        rtps::RTPS* ps = new rtps::RTPS(settings);
+                        (*slot)->m_pRTPS = ps;
+
+                        //dynamic params
+                        ps->settings.SetSetting("Gas Constant", rtmd->gas_constant);
+                        ps->settings.SetSetting("Viscosity", rtmd->viscosity);
+                        ps->settings.SetSetting("Velocity Limit", rtmd->velocity_limit);
+                        ps->settings.SetSetting("XSPH Factor", rtmd->xsph_factor);
+                        ps->settings.SetSetting("Gravity", rtmd->gravity); // -9.8 m/sec^2
+
+                        ps->settings.SetSetting("Boundary Stiffness", rtmd->boundary_stiffness);
+                        ps->settings.SetSetting("Boundary Dampening", rtmd->boundary_dampening);
+                        //settings.SetSetting("Friction Kinetic", rtmd->friction_kinetic);
+                        //settings.SetSetting("Friction Static", rtmd->friction_static);
+                        ps->settings.SetSetting("Sub Intervals", rtmd->sub_intervals);
+
+                    }
+                    else if (sys == rtps::RTPSettings::FLOCK) 
                     {
 						//printf("*** scale radius** = %f\n", rtmd->render_radius_scale);
 						//printf("*** dt ** = %f\n", rtmd->dt);
-                        rtps::RTPSettings settings(sys, rtmd->num, rtmd->dt, grid, rtmd->collision);
+                        rtps::RTPSettings settings(sys, rtmd->max_num, rtmd->dt, grid, rtmd->collision);
 						//GE should automate with python
 						settings.setRadiusScale(rtmd->render_radius_scale);
 						settings.setRenderType((rtps::RTPSettings::RenderType)rtmd->render_type);
@@ -438,7 +519,7 @@ bool BL_ModifierDeformer::Apply(RAS_IPolyMaterial *mat)
 #endif
                     else 
                     {
-                        rtps::RTPSettings settings(sys, rtmd->num, rtmd->dt, grid);
+                        rtps::RTPSettings settings(sys, rtmd->max_num, rtmd->dt, grid);
                         (*slot)->m_pRTPS = new rtps::RTPS(settings);
                     }
 

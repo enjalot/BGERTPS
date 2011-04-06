@@ -46,10 +46,21 @@ static void initData(ModifierData *md)
     // why are defaults required? Do not appear to be used
     // at least not if there is no associated UI
 	rtmd->system = 1;
-    rtmd->num = 8192;
+    rtmd->max_num = 8192;
 	                     
     rtmd->sub_intervals= 3;
     rtmd->dt= .001f;
+
+    //sph physics parameters
+    rtmd->gravity = -9.8f;
+    rtmd->gas_constant = 15.0f;
+    rtmd->viscosity = .01f;
+    rtmd->velocity_limit = 600.0f;
+    rtmd->xsph_factor = .1f;
+    //sph simulation parameters
+    rtmd->boundary_stiffness = 20000.0f;
+    rtmd->boundary_dampening = 256.0f;
+ 
 
 	// GE: scale of radius used by Andrew for improved rendering
 	rtmd->render_radius_scale = 3.;
