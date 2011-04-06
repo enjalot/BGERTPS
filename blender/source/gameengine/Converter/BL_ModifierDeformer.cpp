@@ -466,6 +466,17 @@ bool BL_ModifierDeformer::Apply(RAS_IPolyMaterial *mat)
 						settings.setUseGLSL(rtmd->glsl);
 						settings.setUseAlphaBlending(rtmd->blending);
 
+
+                        settings.SetSetting("render_texture", "firejet_blast.png");
+                        settings.SetSetting("render_frag_shader", "sprite_tex_frag.glsl");
+                        settings.SetSetting("render_use_alpha", true);
+                        //settings.SetSetting("render_use_alpha", false);
+                        settings.SetSetting("render_alpha_function", "add");
+                        settings.SetSetting("lt_increment", -.00);
+                        settings.SetSetting("lt_cl", "lifetime.cl");
+
+                        
+
                         rtps::RTPS* ps = new rtps::RTPS(settings);
                         (*slot)->m_pRTPS = ps;
 
