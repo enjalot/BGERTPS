@@ -2,23 +2,13 @@
 enjalot's modifications to Blender, putting the RTPS library in the Game Engine
 
 Build: 
-(Sorry, only Mac and Linux are tested right now)
-right now my changes depend on my RTPS library:
-http://github.com/enjalot/EnjaParticles
-    git clone git://github.com/enjalot/EnjaParticles.git
-    cd EnjaParticles
-        cd rtps
-follow the README to build
+You will need to grab the RTPS library by using the following submodule commands:
+git submodule init
+git submodule update
 
-you will need to make a symlink (or copy the directory) so that the Blender CMake can find the RTPS library
-the RTPS library path should be something like
-~/EnjaParticles/rtps/rtpslib
-
-follow these commands on a linux/mac system
-    d blender/extern   
-    n -s  $HOME/research/sph/rtps/rtpslib rtpslib
-
-
+(this will place the EnjaParticles repository in blender/extern/rtps) URL: https://github.com/enjalot/EnjaParticles
+Make sure you have the dependencies listed in the README there
+The main one is OpenCL, you must have a fairly recent NVIDIA or AMD (ATI) Graphics Card
 
 Build Blender:
 You want to follow the CMake instructions for building blender on your platform:
