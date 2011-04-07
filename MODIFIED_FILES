@@ -62,12 +62,7 @@ intern/opencl
 intern/memutil/intern/
     MEM_CacheLimiterC-Api.cpp (had to change #include <malloc.h> to #include <stdlib.h> for mac
 
-extern/rtpslib
-    #this must be symlinked or copied from the EnjaParticles repository
-
-build_files/cmake/rtps
-    FindOpenGL.cmake
-    FindOPENCL.cmake
-    FindGLEW.cmake
-    OpenCVConfig.cmake
-    #environment.cmake #not needed anymore
+extern/rtps
+    #use the git submodule command to get this directory: (execute these commands from the base directory)
+        git submodule init
+        git submodule update
