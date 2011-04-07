@@ -54,5 +54,5 @@ if(WITH_LZMA)
 endif()
 
 if(WITH_OPENCL)
-    add_subdirectory(rtpslib)
+    add_subdirectory(rtps)
 endif()
