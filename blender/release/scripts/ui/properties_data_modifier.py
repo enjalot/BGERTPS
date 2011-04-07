@@ -602,6 +602,12 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
             col = split.column()
             col.label(text="Render Type")
             col.prop(md, "render_type", text="")
+            if md.render_type == "SSF" or md.render_type == "SPRITE":
+                col.prop(md, "render_radius_scale")
+                col.prop(md, "render_blur_scale")
+                #col.prop(md, "glsl")
+                #col.prop(md, "blending")
+
             
             layout.label(text="Flock Parameters")
             split = layout.split(percentage=0.33)

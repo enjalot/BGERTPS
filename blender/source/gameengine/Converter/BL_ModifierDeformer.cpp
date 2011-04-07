@@ -432,6 +432,25 @@ bool BL_ModifierDeformer::Apply(RAS_IPolyMaterial *mat)
                     {
                         float color[3] = {rtmd->color_r, rtmd->color_g, rtmd->color_b};
                         rtps::RTPSettings settings(sys, rtmd->num, rtmd->dt, grid, rtmd->maxspeed, rtmd->separationdist, rtmd->searchradius, color, rtmd->w_sep, rtmd->w_align, rtmd->w_coh);
+
+						//settings.setRadiusScale(1.0);
+						//settings.setBlurScale(1.0);
+						//settings.setUseGLSL(1);
+						
+                        settings.setRenderType((rtps::RTPSettings::RenderType)rtmd->render_type);
+						settings.setRadiusScale(rtmd->render_radius_scale);
+						settings.setBlurScale(rtmd->render_blur_scale);
+						//settings.setUseGLSL(rtmd->glsl);
+						//settings.setUseAlphaBlending(rtmd->blending);
+                        
+                        settings.SetSetting("render_texture", "boid3.png");
+                        settings.SetSetting("render_frag_shader", "boid_tex_frag.glsl");
+                        //settings.SetSetting("render_use_alpha", true);
+                        settings.SetSetting("render_use_alpha", false);
+                        //settings.SetSetting("render_alpha_function", "add");
+                        settings.SetSetting("lt_increment", -.00);
+                        settings.SetSetting("lt_cl", "lifetime.cl");
+
                         (*slot)->m_pRTPS = new rtps::RTPS(settings);
                     }
                     else 
