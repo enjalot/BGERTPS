@@ -224,16 +224,16 @@ IF(WITH_OPENCL)
     #SET(ENJA_INCLUDE_DIR "/Users/enjalot/code/EnjaParticles/enjacl")
     #SET(RTPS_INCLUDE_DIR $ENV{ENJA_DIR})
 
-    SET( RTPS_CMAKE_MODULE_PATH
-        ${Blender_SOURCE_DIR}/build_files/cmake/rtps
-    )
+    #SET( RTPS_CMAKE_MODULE_PATH
+    #    ${Blender_SOURCE_DIR}/build_files/cmake/rtps
+    #)
 
-    SET(RTPS_INCLUDE_DIR ${Blender_SOURCE_DIR}/extern/rtpslib)
+    SET(RTPS_INCLUDE_DIR ${Blender_SOURCE_DIR}/extern/rtps/rtpslib)
     IF(APPLE)
-        SET(RTPS_LIB_DIR extern/rtpslib/librtps.dylib)
+        SET(RTPS_LIB_DIR extern/rtps/rtpslib/librtps.dylib)
     ENDIF(APPLE)
     IF(UNIX AND NOT APPLE)
-        SET(RTPS_LIB_DIR extern/rtpslib/librtps.so)
+        SET(RTPS_LIB_DIR extern/rtps/rtpslib/librtps.so)
     ENDIF(UNIX AND NOT APPLE)
 
     message("RTPS include: ${RTPS_INCLUDE_DIR}")
