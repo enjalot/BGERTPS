@@ -10,13 +10,15 @@ http://github.com/enjalot/EnjaParticles
         cd rtps
 follow the README to build
 
-you will need to set an environment variable so that the Blender CMake can find the RTPS library
+you will need to make a symlink (or copy the directory) so that the Blender CMake can find the RTPS library
 the RTPS library path should be something like
-~/EnjaParticles/rtps/build/rtpslib/librtps.so
+~/EnjaParticles/rtps/rtpslib
 
-you need to set an environment variable like:
-    export RTPS_DIR=$HOME/EnjaParticles/rtps
-an example is given in environment/setupenv_linux_enj.sh
+follow these commands on a linux/mac system
+    d blender/extern   
+    n -s  $HOME/research/sph/rtps/rtpslib rtpslib
+
+
 
 Build Blender:
 You want to follow the CMake instructions for building blender on your platform:
@@ -24,8 +26,8 @@ http://wiki.blender.org/index.php/Dev:2.5/Doc/Building_Blender
 
 
     cd ..
-    mkdir build-b25rtps
-    cd build-b25rtps
+    mkdir build25rtps
+    cd buildb25rtps
     cmake ../BGERTPS/blender    (Mac users may want to run ccmake ../BGERTPS/blender to configure properly)
         (make sure to check that all the libraries and dependencies are found)
     make -j8    (j8 runs make in 8 threads, if you encounter an error rerun make by itself to get sequential error output)
@@ -36,7 +38,9 @@ http://wiki.blender.org/index.php/Dev:2.5/Doc/Building_Blender
 
 
 Usage:
-You can apply the RTPS modifier to an object which turns its vertices into an emitter
+You can apply the RTPS modifier to an object which turns it into a domain
+You can add particles by putting objects within the domain and giving them a 'num' integer property with the value equal to the number of particles.
+You can make colliding objects by giving an object within the domain the 'collider' boolean property and setting it to true (it must be composed of triangles, use ctrl-t in edit mode)
 
 
 

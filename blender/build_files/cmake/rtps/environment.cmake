@@ -1,7 +1,8 @@
 
 #SET(RTPS_INCLUDE_DIR "/panfs/panasas1/users/idj03/research/rtps/rtps")
-SET(RTPS_INCLUDE_DIR $ENV{RTPS_DIR}/rtpslib)
 #SET(RTPS_LIB_DIR $ENV{RTPS_DIR}/build/rtpslib)
+
+SET(RTPS_INCLUDE_DIR $ENV{RTPS_DIR}/rtpslib)
 
 #hacks, we should either do a FIND_LIBRARY properly
 #ideally we move RTPS inside blender eventually

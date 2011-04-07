@@ -57,10 +57,17 @@ release/scripts/ui/
     properties_data_modifier.py (Python UI)
 
 intern/opencl
+    #the opencl header files from khronos with slight modification
 
 intern/memutil/intern/
     MEM_CacheLimiterC-Api.cpp (had to change #include <malloc.h> to #include <stdlib.h> for mac
 
-build_files/cmake/
-    environment.cmake
-    setupenv_linux_enj.sh
+extern/rtpslib
+    #this must be symlinked or copied from the EnjaParticles repository
+
+build_files/cmake/rtps
+    FindOpenGL.cmake
+    FindOPENCL.cmake
+    FindGLEW.cmake
+    OpenCVConfig.cmake
+    #environment.cmake #not needed anymore

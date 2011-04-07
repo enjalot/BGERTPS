@@ -1,0 +1,3 @@
+[submodule "blender/extern/rtps"]
+	path = blender/extern/rtps
+	url = git@github.com:enjalot/EnjaParticles.git
