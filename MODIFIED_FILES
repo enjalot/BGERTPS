@@ -24,7 +24,6 @@ source/gameengine/
         CMakeLists.txt
     Ketsji/
         CMakeLists.txt
-        KX_Scene.cpp (check for RTPS modifier so the game engine modifier constructor knows what to do)
         KX_Dome.h (moved glew.h include above the other includes to avoid conflicts)
         KX_KetsjiEngine (moved KX_Dome.h above the other includes because it includes glew.h)
 
