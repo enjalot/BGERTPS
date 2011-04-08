@@ -42,7 +42,7 @@
 #include "BL_DeformableGameObject.h"
 #include <vector>
 
-#include "timege.h"
+//#include "timege.h"
 
 struct DerivedMesh;
 struct Object;
@@ -55,7 +55,7 @@ public:
     static bool HasRTPSDeformer(Object *ob);
 
     enum {TI_UPDATE=0, TI_EMIT, TI_RTPSUP }; //2
-    GE::Time* timers[3];
+    //GE::Time* timers[3];
 
 
 	BL_ModifierDeformer(BL_DeformableGameObject *gameobj,
@@ -73,9 +73,9 @@ public:
 		m_recalcNormal = false;
         int print_freq = 100;
         int offset = 5;
-        timers[TI_UPDATE] = new GE::Time("modifier update", offset, print_freq);
-        timers[TI_EMIT] = new GE::Time("emit", offset, print_freq);
-        timers[TI_RTPSUP] = new GE::Time("rtps update:", offset, print_freq);
+        //timers[TI_UPDATE] = new GE::Time("modifier update", offset, print_freq);
+        //timers[TI_EMIT] = new GE::Time("emit", offset, print_freq);
+        //timers[TI_RTPSUP] = new GE::Time("rtps update:", offset, print_freq);
 	};
 
 	/* this second constructor is needed for making a mesh deformable on the fly. */
@@ -96,9 +96,9 @@ public:
 	{
         int print_freq = 100;
         int offset = 5;
-        timers[TI_UPDATE] = new GE::Time("modifier update", offset, print_freq);
-        timers[TI_EMIT] = new GE::Time("emit", offset, print_freq);
-        timers[TI_RTPSUP] = new GE::Time("rtps update:", offset, print_freq);
+        //timers[TI_UPDATE] = new GE::Time("modifier update", offset, print_freq);
+        //timers[TI_EMIT] = new GE::Time("emit", offset, print_freq);
+        //timers[TI_RTPSUP] = new GE::Time("rtps update:", offset, print_freq);
 	};
 
 	virtual void ProcessReplica();

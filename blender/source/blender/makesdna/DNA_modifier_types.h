@@ -488,6 +488,7 @@ typedef struct RTPSModifierData {
 	int render_type; //GE
 	float render_radius_scale; //GE
 	float render_blur_scale; //GE
+	char pack[4];
 
 } RTPSModifierData;
 

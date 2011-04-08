@@ -63,7 +63,7 @@
 
 //Included by enjalot
 #include "RTPS.h"
-#include "timege.h"
+//#include "timege.h"
 //These KX might not belong here...
 //this should be addressed when moving away from a modifier
 #include "KX_Scene.h"   //for getting the camera
@@ -250,7 +250,7 @@ bool BL_ModifierDeformer::Update(void)
 	//----------------------------------------
     if(m_bIsRTPS)
     {
-        timers[TI_UPDATE]->start();
+        //timers[TI_UPDATE]->start();
         int nmat = m_pMeshObject->NumMaterials();
 
         for(int imat=0; imat<nmat; imat++)
@@ -296,7 +296,7 @@ bool BL_ModifierDeformer::Update(void)
 
                     std::vector<Triangle> triangles;
 
-                    timers[TI_EMIT]->start();
+                    //timers[TI_EMIT]->start();
                     
                     for(int iob = 0; iob < num_objects; iob++)
                     {
@@ -385,7 +385,7 @@ bool BL_ModifierDeformer::Update(void)
      
                     }//for loop of objects
 
-                    timers[TI_EMIT]->end();
+                    //timers[TI_EMIT]->end();
 
 
                     if(triangles.size() > 0 && rtps->settings.tri_collision)
@@ -395,9 +395,9 @@ bool BL_ModifierDeformer::Update(void)
                         rtps->system->loadTriangles(triangles);
                     }
 
-                    timers[TI_RTPSUP]->start();
+                    //timers[TI_RTPSUP]->start();
                     (*slot)->m_pRTPS->update();
-                    timers[TI_RTPSUP]->end();
+                    //timers[TI_RTPSUP]->end();
 
                 }
                 
@@ -405,7 +405,7 @@ bool BL_ModifierDeformer::Update(void)
    
 	        }
         }//for loop over materials
-        timers[TI_UPDATE]->end();
+        //timers[TI_UPDATE]->end();
 
     }//if(m_bIsRTPS)
 	//----------------------------------------
