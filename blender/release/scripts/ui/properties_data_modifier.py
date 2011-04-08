@@ -566,17 +566,26 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
         #layout.prop(md, "system")
         if md.system == "SIMPLE":
             layout.label(text="Maximum number of particles:")
-            layout.prop(md, "num")
+            layout.prop(md, "max_num")
 
         if md.system == "SPH":
             split = layout.split()
             col = split.column()
 
             #col.label(text="Maximum number of particles:")
-            col.prop(md, "num")
+            col.prop(md, "max_num")
             col.prop(md, "dt")
             col.prop(md, "sub_intervals")
             col.prop(md, "collision")
+
+            col.prop(md, "gravity")
+            col.prop(md, "gas_constant")
+            col.prop(md, "viscosity")
+            col.prop(md, "velocity_limit")
+            col.prop(md, "xsph_factor")
+            col.prop(md, "boundary_stiffness")
+            col.prop(md, "boundary_dampening")
+
 
             col = split.column()
             col.label(text="Rendering options")
@@ -588,6 +597,14 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
                 col.prop(md, "render_radius_scale")
                 col.prop(md, "render_blur_scale")
 
+            #row = split.row()
+            #col = row.col()
+            #split2 = col.split()
+            #row = split2.row()
+            #col = row.col()
+            
+
+            
         elif md.system == "BOIDS":
             split = layout.split(percentage=0.33)
 

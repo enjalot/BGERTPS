@@ -2326,8 +2326,8 @@ static void rna_def_modifier_rtps(BlenderRNA *brna)
 
 
 
-    prop= RNA_def_property(srna, "num", PROP_INT, PROP_NONE);
-    RNA_def_property_int_sdna(prop, NULL, "num");
+    prop= RNA_def_property(srna, "max_num", PROP_INT, PROP_NONE);
+    RNA_def_property_int_sdna(prop, NULL, "max_num");
 	RNA_def_property_range(prop, 1, 2000000);
 	RNA_def_property_ui_range(prop, 1, 2000000, 16384, 0);
 	// power of two
@@ -2355,6 +2355,71 @@ static void rna_def_modifier_rtps(BlenderRNA *brna)
 	RNA_def_property_ui_range(prop, .0001, 1.0, .001, 4);             
 	RNA_def_property_ui_text(prop, "Time Step", "Time step used in the particle system");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
+
+    //******************************* SPH STUFF
+
+
+    //// ---------- sph physical parameters 
+	//-------------
+	prop= RNA_def_property(srna, "gravity", PROP_FLOAT, PROP_NONE);
+    RNA_def_property_float_sdna(prop, NULL, "gravity");
+	RNA_def_property_ui_range(prop, -100.0, 100.0, 1., 3);             
+	RNA_def_property_ui_text(prop, "Gravity", "Gravity");
+	RNA_def_property_update(prop, 0, "rna_Modifier_update");
+	//-------------
+	prop= RNA_def_property(srna, "gas_constant", PROP_FLOAT, PROP_NONE);
+    RNA_def_property_float_sdna(prop, NULL, "gas_constant");
+	RNA_def_property_ui_range(prop, 0.0, 100.0, 1., 1);             
+	RNA_def_property_ui_text(prop, "Gas Constant", "Physical Gas Constant");
+	RNA_def_property_update(prop, 0, "rna_Modifier_update");
+	//-------------
+	prop= RNA_def_property(srna, "viscosity", PROP_FLOAT, PROP_NONE);
+    RNA_def_property_float_sdna(prop, NULL, "viscosity");
+	RNA_def_property_ui_range(prop, 0.0, 10.0, .0001, 4);             
+	RNA_def_property_ui_text(prop, "Viscosity", "Viscosity");
+	RNA_def_property_update(prop, 0, "rna_Modifier_update");
+	//-------------
+	prop= RNA_def_property(srna, "velocity_limit", PROP_FLOAT, PROP_NONE);
+    RNA_def_property_float_sdna(prop, NULL, "velocity_limit");
+	RNA_def_property_ui_range(prop, 1.0, 1000.0, 1., 1);             
+	RNA_def_property_ui_text(prop, "Velocity Limit", "Maximum amount by which velocity can be increased, relative to timestep");
+	RNA_def_property_update(prop, 0, "rna_Modifier_update");
+	//-------------
+	prop= RNA_def_property(srna, "xsph_factor", PROP_FLOAT, PROP_NONE);
+    RNA_def_property_float_sdna(prop, NULL, "xsph_factor");
+	RNA_def_property_ui_range(prop, 0.0, 5.0, .001, 3);             
+	RNA_def_property_ui_text(prop, "XSPH", "XSPH Smoothing factor");
+	RNA_def_property_update(prop, 0, "rna_Modifier_update");
+
+
+    //// ---------- sph simulation parameters 
+    //-------------
+	prop= RNA_def_property(srna, "boundary_stiffness", PROP_FLOAT, PROP_NONE);
+    RNA_def_property_float_sdna(prop, NULL, "boundary_stiffness");
+	RNA_def_property_ui_range(prop, 1000.0, 100000.0, 100., 0);
+	RNA_def_property_ui_text(prop, "Boundary Stiffness", "Stiffness of repulsion force on boundaries");
+	RNA_def_property_update(prop, 0, "rna_Modifier_update");
+     //-------------
+	prop= RNA_def_property(srna, "boundary_dampening", PROP_FLOAT, PROP_NONE);
+    RNA_def_property_float_sdna(prop, NULL, "boundary_dampening");
+	RNA_def_property_ui_range(prop, 0.0, 1000.0, 10., 0); 
+	RNA_def_property_ui_text(prop, "Boundary Dampening", "Dampening of repulsion force on boundaries");
+	RNA_def_property_update(prop, 0, "rna_Modifier_update");
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
     //******************** RENDER STUFF

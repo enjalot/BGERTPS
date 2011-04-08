@@ -52,3 +52,7 @@ endif()
 if(WITH_LZMA)
 	add_subdirectory(lzma)
 endif()
+
+if(WITH_OPENCL)
+    add_subdirectory(rtps)
+endif()

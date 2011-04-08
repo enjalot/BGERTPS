@@ -454,14 +454,23 @@ typedef struct SoftbodyModifierData {
 typedef struct RTPSModifierData {
     ModifierData modifier;
     int system;
-    int num;
+    int max_num;
    
-    // sph attributes
+    //system parameters
     short collision;
     short padding;//need this so struct is right size
     int sub_intervals;
     float dt;
-    //sph parameters
+
+    //sph physics parameters
+    float gravity;
+    float gas_constant;
+    float viscosity;
+    float velocity_limit;
+    float xsph_factor;
+    //sph simulation parameters
+    float boundary_stiffness;
+    float boundary_dampening;
     
     // boids attributes
     float maxspeed;
