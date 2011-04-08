@@ -239,6 +239,10 @@ IF(WITH_OPENCL)
     message("RTPS include: ${RTPS_INCLUDE_DIR}")
     message("RTPS lib: ${RTPS_LIB_DIR}")
 
+    #this is probably supposed to go in extern/rtps CMakeLists with a check if we are in blender
+    #doesn't seem to be needed on linux/mac not sure why it works without
+	set_property(GLOBAL APPEND PROPERTY BLENDER_LINK_LIBS rtps)
+
     #LINK_DIRECTORIES(${RTPS_LIB_DIR})
     #FIND_LIBRARY(RTPS_LIBRARY NAMES rtps)
     ###ADD_LIBRARY(rtps UNKNOWN IMPORTED)
