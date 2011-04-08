@@ -238,6 +238,7 @@ IF(WITH_OPENCL)
 
     message("RTPS include: ${RTPS_INCLUDE_DIR}")
     message("RTPS lib: ${RTPS_LIB_DIR}")
+    ADD_DEFINITIONS(-Drtps_EXPORTS)
 
     #this is probably supposed to go in extern/rtps CMakeLists with a check if we are in blender
     #doesn't seem to be needed on linux/mac not sure why it works without
