@@ -46,7 +46,7 @@ static void initData(ModifierData *md)
     // why are defaults required? Do not appear to be used
     // at least not if there is no associated UI
 	rtmd->system = 2;
-    rtmd->num = 8192;
+    rtmd->max_num = 8192;
 	                     
     rtmd->sub_intervals= 3;
     rtmd->dt= .001f;

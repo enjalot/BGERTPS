@@ -610,7 +610,7 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
 
             col = split.column()
             col.label(text="Simulation Parameters")
-            col.prop(md, "num")
+            col.prop(md, "max_num")
             
             col = split.column()
             col.label(text="") 

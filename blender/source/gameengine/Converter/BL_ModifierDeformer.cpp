@@ -494,7 +494,7 @@ bool BL_ModifierDeformer::Apply(RAS_IPolyMaterial *mat)
                         ps->settings.SetSetting("Sub Intervals", rtmd->sub_intervals);
 
                     }
-                    else if (sys == rtps::RTPSettings::FLOCK) 
+                   /* else if (sys == rtps::RTPSettings::FLOCK) 
                     {
 						//printf("*** scale radius** = %f\n", rtmd->render_radius_scale);
 						//printf("*** dt ** = %f\n", rtmd->dt);
@@ -508,21 +508,23 @@ bool BL_ModifierDeformer::Apply(RAS_IPolyMaterial *mat)
 
                         (*slot)->m_pRTPS = new rtps::RTPS(settings);
         
-                    }
+                    } */
                     else if (sys == rtps::RTPSettings::FLOCK)
                     {
                         float color[3] = {rtmd->color_r, rtmd->color_g, rtmd->color_b};
-                        rtps::RTPSettings settings(sys, rtmd->num, rtmd->dt, grid, rtmd->maxspeed, rtmd->separationdist, rtmd->searchradius, color, rtmd->w_sep, rtmd->w_align, rtmd->w_coh);
+                        rtps::RTPSettings settings(sys, rtmd->max_num, rtmd->dt, grid, rtmd->maxspeed, rtmd->separationdist, rtmd->searchradius, color, rtmd->w_sep, rtmd->w_align, rtmd->w_coh);
 
-						//settings.setRadiusScale(1.0);
-						//settings.setBlurScale(1.0);
-						//settings.setUseGLSL(1);
+
 						
                         settings.setRenderType((rtps::RTPSettings::RenderType)rtmd->render_type);
-						settings.setRadiusScale(rtmd->render_radius_scale);
-						settings.setBlurScale(rtmd->render_blur_scale);
+						//settings.setRadiusScale(rtmd->render_radius_scale);
+						//settings.setBlurScale(rtmd->render_blur_scale);
 						//settings.setUseGLSL(rtmd->glsl);
 						//settings.setUseAlphaBlending(rtmd->blending);
+						
+                        settings.setRadiusScale(1.0);
+						settings.setBlurScale(1.0);
+						settings.setUseGLSL(1);
                         
                         settings.SetSetting("render_texture", "boid3.png");
                         settings.SetSetting("render_frag_shader", "boid_tex_frag.glsl");
