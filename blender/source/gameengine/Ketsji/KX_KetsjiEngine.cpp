@@ -1328,7 +1328,8 @@ void KX_KetsjiEngine::RenderFonts(KX_Scene* scene)
 	list<KX_FontObject*>::iterator it = fonts->begin();
 	while(it != fonts->end())
 	{
-		(*it)->DrawText();
+        //RTPS_NOTE hacking some more shit to get things compiling in windows
+		(*it)->DrawTextA();
 		++it;
 	}
 }
