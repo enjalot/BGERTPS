@@ -88,7 +88,9 @@ int bone_autoside_name (char name[32], int strip_number, short axis, float head,
 
 struct Bone *get_named_bone (struct bArmature *arm, const char *name);
 
-float distfactor_to_bone (float vec[3], float b1[3], float b2[3], float rad1, float rad2, float rdist);
+//RTPS_NOTE: ASY this is bad.
+//float distfactor_to_bone (float vec[3], float b1[3], float b2[3], float rad1, float rad2, float rdist);
+float distfactor_to_bone (float vec_a[3], float b1_a[3], float b2_a[3], float rad1_a, float rad2_a, float rdist_a);
 
 void where_is_armature (struct bArmature *arm);
 void where_is_armature_bone(struct Bone *bone, struct Bone *prevbone);

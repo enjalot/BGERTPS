@@ -48,7 +48,9 @@ public:
 
 	virtual ~KX_FontObject();
 
-	void DrawText();
+	//RTPS_NOTE----: This should be DrawText()
+	//void DrawText();
+	void DrawTextA();
 
 	/** 
 	 * Inherited from CValue -- return a new copy of this
