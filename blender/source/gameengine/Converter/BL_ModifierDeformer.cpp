@@ -261,6 +261,11 @@ bool BL_ModifierDeformer::Update(void)
         {
             RAS_MeshMaterial *mmat = m_pMeshObject->GetMeshMaterial(imat);
             RAS_MeshSlot **slot = mmat->m_slots[(void*)m_gameobj];   
+            
+            unsigned char color[4];
+            mmat->m_bucket->GetPolyMaterial()->GetMaterialRGBAColor(color);
+            float4 col(color[0]/255.f,color[1]/255.f,color[2]/255.f,color[3]/255.f);
+            
     	    if(!slot || !*slot)
                 continue;
             //iterate through the slots until we find one with a particle system
@@ -324,6 +329,9 @@ bool BL_ModifierDeformer::Update(void)
                             }
                         }
 
+                        //float4 col((*slot)->m_RGBAcolor.x(),(*slot)->m_RGBAcolor.y(),(*slot)->m_RGBAcolor.z(),(*slot)->m_RGBAcolor.w());
+                        //float4 col;
+                        //(*slot)->m_RGBAcolor.getValue(&col);
                         
 
                         //Check if object is an emitter
@@ -361,15 +369,8 @@ bool BL_ModifierDeformer::Update(void)
                                     float4 center(gp[0], gp[1], gp[2], 1.f); 
                                     float4 velocity(dir[0], dir[1], dir[2], 0.);
                                     velocity = velocity * speed;
+                                    rtps->system->addHose(num, center, velocity, radius, col);
 
-                                    //ugly hack to get color working. will get color from material later
-                                    float r = rtps->settings->GetSettingAs<float>("color_r");
-                                    float g = rtps->settings->GetSettingAs<float>("color_g");
-                                    float b = rtps->settings->GetSettingAs<float>("color_b");
-                                    float a = rtps->settings->GetSettingAs<float>("color_a");
-                                    float4 color(r, g, b, a);
-
-                                    rtps->system->addHose(num, center, velocity, radius, color);
 									printf("hooooose\n");
                                     //TODO: need real way of interacting with hose object
                                     //to be able to start and stop them
@@ -389,15 +390,7 @@ bool BL_ModifierDeformer::Update(void)
          
                                 float4 min = float4(bbpts[0].x(), bbpts[0].y(), bbpts[0].z(), 0);
                                 float4 max = float4(bbpts[7].x(), bbpts[7].y(), bbpts[7].z(), 0);
-
-                                //ugly hack to get color working. will get color from material later
-                                float r = rtps->settings->GetSettingAs<float>("color_r");
-                                float g = rtps->settings->GetSettingAs<float>("color_g");
-                                float b = rtps->settings->GetSettingAs<float>("color_b");
-                                float a = rtps->settings->GetSettingAs<float>("color_a");
-                                float4 color(r, g, b, a);
-
-                                rtps->system->addBox(nn, min, max, false, color);
+                                rtps->system->addBox(nn, min, max, false, col);
                             }
                            
                         }//if emitters
