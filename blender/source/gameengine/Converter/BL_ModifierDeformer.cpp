@@ -370,6 +370,7 @@ bool BL_ModifierDeformer::Update(void)
                                     float4 velocity(dir[0], dir[1], dir[2], 0.);
                                     velocity = velocity * speed;
                                     rtps->system->addHose(num, center, velocity, radius, col);
+
 									printf("hooooose\n");
                                     //TODO: need real way of interacting with hose object
                                     //to be able to start and stop them
@@ -513,6 +514,13 @@ bool BL_ModifierDeformer::Apply(RAS_IPolyMaterial *mat)
                         //settings.SetSetting("Friction Kinetic", rtmd->friction_kinetic);
                         //settings.SetSetting("Friction Static", rtmd->friction_static);
                         ps->settings->SetSetting("Sub Intervals", rtmd->sub_intervals);
+
+                        //color hack for now
+                        ps->settings->SetSetting("color_r", rtmd->color_r/255.0f);
+                        ps->settings->SetSetting("color_g", rtmd->color_g/255.0f);
+                        ps->settings->SetSetting("color_b", rtmd->color_b/255.0f);
+                        ps->settings->SetSetting("color_a", rtmd->color_a/255.0f);
+
 
                     }
                     else if (sys == rtps::RTPSettings::FLOCK) 

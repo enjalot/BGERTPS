@@ -531,8 +531,8 @@ static void GetPosition(const SMikkTSpaceContext * pContext, float fPos[], const
 	//assert(vert_index>=0 && vert_index<4);
 	SRenderMeshToTangent * pMesh = (SRenderMeshToTangent *) pContext->m_pUserData;
 	VlakRen *vlr= RE_findOrAddVlak(pMesh->obr, face_num);
-	VertRen * pVerts[] = {vlr->v1, vlr->v2, vlr->v3, vlr->v4};
-	VECCOPY(fPos, pVerts[vert_index]->co);
+	const float *co= (&vlr->v1)[vert_index]->co;
+	VECCOPY(fPos, co);
 }
 
 static void GetTextureCoordinate(const SMikkTSpaceContext * pContext, float fUV[], const int face_num, const int vert_index)
@@ -541,16 +541,17 @@ static void GetTextureCoordinate(const SMikkTSpaceContext * pContext, float fUV[
 	SRenderMeshToTangent * pMesh = (SRenderMeshToTangent *) pContext->m_pUserData;
 	VlakRen *vlr= RE_findOrAddVlak(pMesh->obr, face_num);
 	MTFace *tface= RE_vlakren_get_tface(pMesh->obr, vlr, pMesh->obr->actmtface, NULL, 0);
+	const float *coord;
 	
-	if(tface!=NULL)
-	{
-		float * pTexCo = tface->uv[vert_index];
-		fUV[0]=pTexCo[0]; fUV[1]=pTexCo[1];
+	if(tface != NULL)	{
+		coord= tface->uv[vert_index];
+		fUV[0]= coord[0]; fUV[1]= coord[1];
 	}
-	else
-	{
-		VertRen * pVerts[] = {vlr->v1, vlr->v2, vlr->v3, vlr->v4};
-		map_to_sphere(&fUV[0], &fUV[1], pVerts[vert_index]->orco[0], pVerts[vert_index]->orco[1], pVerts[vert_index]->orco[2]);
+	else if((coord= (&vlr->v1)[vert_index]->orco)) {
+		map_to_sphere(&fUV[0], &fUV[1], coord[0], coord[1], coord[2]);
+	}
+	else { /* else we get un-initialized value, 0.0 ok default? */
+		fUV[0]= fUV[1]= 0.0f;
 	}
 }
 
@@ -559,8 +560,8 @@ static void GetNormal(const SMikkTSpaceContext * pContext, float fNorm[], const 
 	//assert(vert_index>=0 && vert_index<4);
 	SRenderMeshToTangent * pMesh = (SRenderMeshToTangent *) pContext->m_pUserData;
 	VlakRen *vlr= RE_findOrAddVlak(pMesh->obr, face_num);
-	VertRen * pVerts[] = {vlr->v1, vlr->v2, vlr->v3, vlr->v4};
-	VECCOPY(fNorm, pVerts[vert_index]->n);
+	const float *n= (&vlr->v1)[vert_index]->n;
+	VECCOPY(fNorm, n);
 }
 static void SetTSpace(const SMikkTSpaceContext * pContext, const float fvTangent[], const float fSign, const int face_num, const int iVert)
 {
@@ -568,8 +569,7 @@ static void SetTSpace(const SMikkTSpaceContext * pContext, const float fvTangent
 	SRenderMeshToTangent * pMesh = (SRenderMeshToTangent *) pContext->m_pUserData;
 	VlakRen *vlr= RE_findOrAddVlak(pMesh->obr, face_num);
 	float * ftang= RE_vlakren_get_nmap_tangent(pMesh->obr, vlr, 1);
-	if(ftang!=NULL)
-	{
+	if(ftang!=NULL)	{
 		VECCOPY(&ftang[iVert*4+0], fvTangent);
 		ftang[iVert*4+3]=fSign;
 	}
@@ -3195,12 +3195,14 @@ static void init_render_mesh(Render *re, ObjectRen *obr, int timeoffset)
 	int end, do_autosmooth=0, totvert = 0;
 	int use_original_normals= 0;
 	int recalc_normals = 0;	// false by default
+	int negative_scale;
 
 	me= ob->data;
 
 	mul_m4_m4m4(mat, ob->obmat, re->viewmat);
 	invert_m4_m4(ob->imat, mat);
 	copy_m3_m4(imat, ob->imat);
+	negative_scale= is_negative_m4(mat);
 
 	if(me->totvert==0)
 		return;
@@ -3282,13 +3284,13 @@ static void init_render_mesh(Render *re, ObjectRen *obr, int timeoffset)
 			ver= RE_findOrAddVert(obr, obr->totvert++);
 			VECCOPY(ver->co, mvert->co);
 			if(do_autosmooth==0) {	/* autosmooth on original unrotated data to prevent differences between frames */
-				ver->n[0]=mvert->no[0];
-				ver->n[1]=mvert->no[1];
-				ver->n[2]=mvert->no[2];
+				normal_short_to_float_v3(ver->n, mvert->no);
 				mul_m4_v3(mat, ver->co);
 				mul_transposed_m3_v3(imat, ver->n);
 				normalize_v3(ver->n);
-				negate_v3(ver->n);
+
+				if(!negative_scale)
+					negate_v3(ver->n);
 			}
   
 			if(orco) {
@@ -4634,7 +4636,10 @@ void RE_Database_Free(Render *re)
 	
 	re->totvlak=re->totvert=re->totstrand=re->totlamp=re->tothalo= 0;
 	re->i.convertdone= 0;
-	
+
+	re->backbuf= NULL;
+	re->bakebuf= NULL;
+
 	if(re->scene)
 		if(re->scene->r.scemode & R_FREE_IMAGE)
 			if((re->r.scemode & R_PREVIEWBUTS)==0)

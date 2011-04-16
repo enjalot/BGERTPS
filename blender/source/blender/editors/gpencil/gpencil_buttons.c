@@ -73,8 +73,9 @@
 /* make layer active one after being clicked on */
 static void gp_ui_activelayer_cb (bContext *C, void *gpd, void *gpl)
 {
+	/* make sure the layer we want to remove is the active one */
 	gpencil_layer_setactive(gpd, gpl);
-	
+
 	WM_event_add_notifier(C, NC_SCREEN|ND_GPENCIL|NA_EDITED, NULL); // XXX please work!
 }
 
@@ -88,10 +89,12 @@ static void gp_ui_dellayer_cb (bContext *C, void *gpd, void *gpl)
 	WM_event_add_notifier(C, NC_SCREEN|ND_GPENCIL|NA_EDITED, NULL); // XXX please work!
 }
 
+
+
 /* ------- Drawing Code ------- */
 
 /* draw the controls for a given layer */
-static void gp_drawui_layer (uiLayout *layout, bGPdata *gpd, bGPDlayer *gpl)
+static void gp_drawui_layer (uiLayout *layout, bGPdata *gpd, bGPDlayer *gpl, const short is_v3d)
 {
 	uiLayout *box=NULL, *split=NULL;
 	uiLayout *col=NULL, *subcol=NULL;
@@ -122,9 +125,11 @@ static void gp_drawui_layer (uiLayout *layout, bGPdata *gpd, bGPDlayer *gpl)
 	subrow= uiLayoutRow(row, 0);
 	
 	/* active */
+	block= uiLayoutGetBlock(subrow);
 	icon= (gpl->flag & GP_LAYER_ACTIVE) ? ICON_RADIOBUT_ON : ICON_RADIOBUT_OFF;
-	uiItemR(subrow, &ptr, "active", 0, "", icon);
-	
+	but= uiDefIconBut(block, BUT, 0, icon, 0, 0, UI_UNIT_X, UI_UNIT_Y, NULL, 0.0, 0.0, 0.0, 0.0, "Set active layer");
+	uiButSetFunc(but, gp_ui_activelayer_cb, gpd, gpl);
+
 	/* locked */
 	icon= (gpl->flag & GP_LAYER_LOCKED) ? ICON_LOCKED : ICON_UNLOCKED;
 	uiItemR(subrow, &ptr, "lock", 0, "", icon);
@@ -214,6 +219,10 @@ static void gp_drawui_layer (uiLayout *layout, bGPdata *gpd, bGPDlayer *gpl)
 		subcol= uiLayoutColumn(col, 1);
 			uiItemR(subcol, &ptr, "use_onion_skinning", 0, "Onion Skinning", ICON_NONE);
 			uiItemR(subcol, &ptr, "ghost_range_max", 0, "Frames", ICON_NONE); // XXX shorter name here? i.e. GStep
+
+		if(is_v3d) {
+			uiItemR(subcol, &ptr, "show_x_ray", 0, "X-Ray", ICON_NONE);
+		}
 		
 	}
 } 
@@ -232,6 +241,7 @@ static void draw_gpencil_panel (bContext *C, uiLayout *layout, bGPdata *gpd, Poi
 	bGPDlayer *gpl;
 	uiLayout *col, *row;
 	short v3d_stroke_opts = STROKE_OPTS_NORMAL;
+	const short is_v3d= CTX_wm_view3d(C) != NULL;
 	
 	/* make new PointerRNA for Grease Pencil block */
 	RNA_id_pointer_create((ID *)gpd, &gpd_ptr);
@@ -255,7 +265,7 @@ static void draw_gpencil_panel (bContext *C, uiLayout *layout, bGPdata *gpd, Poi
 	/* draw each layer --------------------------------------------- */
 	for (gpl= gpd->layers.first; gpl; gpl= gpl->next) {
 		col= uiLayoutColumn(layout, 1);
-			gp_drawui_layer(col, gpd, gpl);
+			gp_drawui_layer(col, gpd, gpl, is_v3d);
 	}
 	
 	/* draw gpd drawing settings first ------------------------------------- */
@@ -264,7 +274,7 @@ static void draw_gpencil_panel (bContext *C, uiLayout *layout, bGPdata *gpd, Poi
 		uiItemL(col, "Drawing Settings:", ICON_NONE);
 		
 		/* check whether advanced 3D-View drawing space options can be used */
-		if (CTX_wm_view3d(C)) {
+		if (is_v3d) {
 			if (gpd->flag & (GP_DATA_DEPTH_STROKE|GP_DATA_DEPTH_VIEW))
 				v3d_stroke_opts = STROKE_OPTS_V3D_ON;
 			else

@@ -529,9 +529,11 @@ ARegion *ui_tooltip_create(bContext *C, ARegion *butregion, uiBut *but)
 			x2= winx;
 		}
 	}
-	if(y1 < 0) {
-		y1 += 56;
-		y2 += 56;
+	/* ensure at least 5 px above screen bounds
+	 * 25 is just a guess to be above the menu item */
+	if(y1 < 5) {
+		y2 += (-y1) + 30;
+		y1 = 30;
 	}
 
 	/* widget rect, in region coords */
@@ -1091,9 +1093,17 @@ void ui_searchbox_free(bContext *C, ARegion *ar)
 /* XXX weak: search_func adds all partial matches... */
 void ui_but_search_test(uiBut *but)
 {
-	uiSearchItems *items= MEM_callocN(sizeof(uiSearchItems), "search items");
+	uiSearchItems *items;
 	int x1;
-	
+
+	/* possibly very large lists (such as ID datablocks) only
+	 * only validate string RNA buts (not pointers) */
+	if(but->rnaprop && RNA_property_type(but->rnaprop) != PROP_STRING) {
+		return;
+	}
+
+	items= MEM_callocN(sizeof(uiSearchItems), "search items");
+
 	/* setup search struct */
 	items->maxitem= 10;
 	items->maxstrlen= 256;
@@ -1185,9 +1195,9 @@ static void ui_block_position(wmWindow *window, ARegion *butregion, uiBut *but, 
 		if(block->direction & UI_CENTER) center= ysize/2;
 		else center= 0;
 
-		if( butrct.xmin-xsize > 0.0) left= 1;
+		if( butrct.xmin-xsize > 0.0f) left= 1;
 		if( butrct.xmax+xsize < winx) right= 1;
-		if( butrct.ymin-ysize+center > 0.0) down= 1;
+		if( butrct.ymin-ysize+center > 0.0f) down= 1;
 		if( butrct.ymax+ysize-center < winy) top= 1;
 		
 		dir1= block->direction & UI_DIRECTION;
@@ -1300,8 +1310,8 @@ static void ui_block_position(wmWindow *window, ARegion *butregion, uiBut *but, 
 
 	/* safety calculus */
 	if(but) {
-		float midx= (butrct.xmin+butrct.xmax)/2.0;
-		float midy= (butrct.ymin+butrct.ymax)/2.0;
+		float midx= (butrct.xmin+butrct.xmax)/2.0f;
+		float midy= (butrct.ymin+butrct.ymax)/2.0f;
 		
 		/* when you are outside parent button, safety there should be smaller */
 		

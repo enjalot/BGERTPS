@@ -79,6 +79,7 @@ static void initData(ModifierData *md)
 	rtmd->color_r=255.0f;
 	rtmd->color_g=0.0f;
 	rtmd->color_b=0.0f;
+	rtmd->color_a=255.0f;
 
 }
 /*

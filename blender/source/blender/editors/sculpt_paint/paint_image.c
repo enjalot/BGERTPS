@@ -866,7 +866,7 @@ static int line_isect_x(const float p1[2], const float p2[2], const float x_leve
 	
 	x_diff= fabsf(p1[0]-p2[0]); /* yuck, horizontal line, we cant do much here */
 	
-	if (x_diff < 0.000001) { /* yuck, vertical line, we cant do much here */
+	if (x_diff < 0.000001f) { /* yuck, vertical line, we cant do much here */
 		*y_isect = (p1[0]+p2[0]) * 0.5f;
 		return ISECT_TRUE;		
 	}
@@ -2992,6 +2992,7 @@ static void project_paint_begin(ProjPaintState *ps)
 				invert_m4_m4(viewmat, viewinv);
 
 				/* camera winmat */
+				object_camera_mode(&ps->scene->r, camera);
 				object_camera_matrix(&ps->scene->r, camera, ps->winx, ps->winy, 0,
 						winmat, &_viewplane, &ps->clipsta, &ps->clipend,
 						&_lens, &_ycor, &_viewdx, &_viewdy);

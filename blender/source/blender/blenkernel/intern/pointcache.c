@@ -1028,7 +1028,6 @@ static int ptcache_file_compressed_read(PTCacheFile *pf, unsigned char *result, 
 	size_t in_len;
 #ifdef WITH_LZO
 	size_t out_len = len;
-	size_t sizeOfIt = 5;
 #endif
 	unsigned char *in;
 	unsigned char *props = MEM_callocN(16*sizeof(char), "tmp");
@@ -1051,6 +1050,7 @@ static int ptcache_file_compressed_read(PTCacheFile *pf, unsigned char *result, 
 #ifdef WITH_LZMA
 			if(compressed == 2)
 			{
+				size_t sizeOfIt;
 				size_t leni = in_len, leno = out_len;
 				ptcache_file_read(pf, &size, 1, sizeof(unsigned int));
 				sizeOfIt = (size_t)size;
@@ -2557,7 +2557,7 @@ static void *ptcache_bake_thread(void *ptr) {
 				ptcache_dt_to_str(run, ctime-stime);
 				ptcache_dt_to_str(etd, fetd);
 
-				printf("Baked for %s, current frame: %i/%i (%.3fs), ETC: %s          \r", run, *data->cfra_ptr-sfra+1, efra-sfra+1, (float)(ctime-ptime), etd);
+				printf("Baked for %s, current frame: %i/%i (%.3fs), ETC: %s          \r", run, *data->cfra_ptr-sfra+1, efra-sfra+1, ctime-ptime, etd);
 			}
 			ptime = ctime;
 		}
