@@ -586,7 +586,6 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
             col.prop(md, "boundary_stiffness")
             col.prop(md, "boundary_dampening")
 
-
             col = split.column()
             col.label(text="Rendering options")
             #col.prop(md, "glsl")
@@ -598,11 +597,6 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
             if md.render_type == "SSF":
                 col.prop(md, "render_radius_scale")
                 col.prop(md, "render_blur_scale")
-
-            col.prop(md, "color_r")
-            col.prop(md, "color_g")
-            col.prop(md, "color_b")
-            col.prop(md, "color_a")
 
             #row = split.row()
             #col = row.col()

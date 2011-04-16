@@ -348,37 +348,44 @@ bool BL_ModifierDeformer::Update(void)
                             CBoolValue* hoseprop = (CBoolValue*)gobj->GetProperty("hose");
                             if(hoseprop)
                             {
+                                
+                                //number of particles for hose to emit
+                                CIntValue* numprop = (CIntValue*)gobj->GetProperty("num");
+                                int num = (int)numprop->GetInt();
+
+                                CFloatValue* velprop = (CFloatValue*)gobj->GetProperty("speed");
+                                float speed = velprop->GetFloat();
+
+                                CFloatValue* radprop = (CFloatValue*)gobj->GetProperty("radius");
+                                float radius = radprop->GetFloat();
+
+                                //get center and direction from world transformations
+                                MT_Point3 gp = gobj->NodeGetWorldPosition();
+                                MT_Matrix3x3 grot = gobj->NodeGetWorldOrientation();
+                                MT_Matrix3x3 lrot = gobj->NodeGetLocalOrientation();
+                                //we shoot the hose in the object's Y direction
+                                MT_Vector3 dir(0., 1., 0.);
+                                dir = grot * dir;
+                                float4 center(gp[0], gp[1], gp[2], 1.f); 
+                                float4 velocity(dir[0], dir[1], dir[2], 0.);
+                                velocity = velocity * speed;
+
+                                CIntValue* indexprop = (CIntValue*)gobj->GetProperty("index");
                                 if(hoseprop->GetBool())
                                 {
-                                    //number of particles for hose to emit
-                                    CIntValue* numprop = (CIntValue*)gobj->GetProperty("num");
-                                    int num = (int)numprop->GetInt();
+                                    int index = rtps->system->addHose(num, center, velocity, radius, col);
+                                    CIntValue* hose_index = new CIntValue(index);
+                                    gobj->SetProperty("index", hose_index);
+                                    //delete hose_index;
 
-                                    CFloatValue* velprop = (CFloatValue*)gobj->GetProperty("speed");
-                                    float speed = velprop->GetFloat();
-
-                                    CFloatValue* radprop = (CFloatValue*)gobj->GetProperty("radius");
-                                    float radius = radprop->GetFloat();
-
-                                    //get center and direction from world transformations
-                                    MT_Point3 gp = gobj->NodeGetWorldPosition();
-                                    MT_Matrix3x3 grot = gobj->NodeGetWorldOrientation();
-                                    //we shoot the hose in the object's Y direction
-                                    MT_Vector3 dir(0., 1., 0.);
-                                    dir = dir * grot;
-                                    float4 center(gp[0], gp[1], gp[2], 1.f); 
-                                    float4 velocity(dir[0], dir[1], dir[2], 0.);
-                                    velocity = velocity * speed;
-                                    rtps->system->addHose(num, center, velocity, radius, col);
-
-									printf("hooooose\n");
-                                    //TODO: need real way of interacting with hose object
-                                    //to be able to start and stop them
-                                    //HACK:
                                     CBoolValue setfalse(false);
                                     hoseprop->SetValue(&setfalse);
                                 }
-
+                                else
+                                {
+                                    int index = (int)indexprop->GetInt();
+                                    rtps->system->updateHose(index, center, velocity, radius, col);
+                                }
                             }
                             else
                             {
@@ -405,9 +412,9 @@ bool BL_ModifierDeformer::Update(void)
 					if(triangles.size() > 0 && rtps->settings->tri_collision)
                     {
                         //printf("about to load triangles\n");
-                        printf("triangles size: %d\n", triangles.size());
+                        //printf("triangles size: %d\n", triangles.size());
                         rtps->system->loadTriangles(triangles);
-						printf("after load triangles\n");
+						//printf("after load triangles\n");
                     }
 
                     //timers[TI_RTPSUP]->start();
@@ -445,10 +452,10 @@ bool BL_ModifierDeformer::Apply(RAS_IPolyMaterial *mat)
         
         if(m_bIsRTPS)
         {
-            printf("IJ: set the mesh slot m_bRTPS to true (in ModifierDeformer::Apply()\n");
+            printf("RTPS: set the mesh slot m_bRTPS to true (in ModifierDeformer::Apply()\n");
             (*slot)->m_bRTPS = true;
             //initialize the particle system
-            printf("IJ: initialize particle system\n");
+            printf("RTPS: initialize particle system\n");
             
             ModifierData* md;
             for (md = (ModifierData*)m_objMesh->modifiers.first; md; md = (ModifierData*)md->next) 
