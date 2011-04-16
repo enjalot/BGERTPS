@@ -457,10 +457,17 @@ bool BL_ModifierDeformer::Apply(RAS_IPolyMaterial *mat)
                     KX_GameObject* gobj = (KX_GameObject*)m_gameobj;
                     MT_Point3 bbpts[8];
                     gobj->GetSGNode()->getAABBox(bbpts);
-                    MT_Point3 min = bbpts[0];
-                    MT_Point3 max = bbpts[7];
+                    MT_Point3 dmin = bbpts[0];
+                    MT_Point3 dmax = bbpts[7];
+                    //apply the object's transforms so we use global coordinates
+                    MT_Matrix3x3 grot = gobj->NodeGetWorldOrientation();
+                    MT_Point3 gp = gobj->NodeGetWorldPosition();
+                    dmin = grot*dmin + gp;
+                    dmax = grot*dmax + gp;
+
+
                     using namespace rtps;
-                    rtps::Domain* grid = new Domain(float4(min.x(), min.y(), min.z(), 0), float4(max.x(), max.y(), max.z(), 0));
+                    rtps::Domain* grid = new Domain(float4(dmin.x(), dmin.y(), dmin.z(), 0), float4(dmax.x(), dmax.y(), dmax.z(), 0));
 
                     if (sys == rtps::RTPSettings::SPH) 
                     {
