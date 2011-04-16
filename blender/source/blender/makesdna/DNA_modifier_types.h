@@ -479,6 +479,7 @@ typedef struct RTPSModifierData {
     float color_r;
     float color_g;
     float color_b;
+    float color_a;
 
     //rendering options
     short glsl;

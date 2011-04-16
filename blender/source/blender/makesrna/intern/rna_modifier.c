@@ -2484,21 +2484,29 @@ static void rna_def_modifier_rtps(BlenderRNA *brna)
 
         prop= RNA_def_property(srna, "color_r", PROP_FLOAT, PROP_NONE);
         RNA_def_property_range(prop, 0.f, 255.f);
-	RNA_def_property_ui_range(prop, 0.0f, 255.0f, .01f, 25600);             
-        RNA_def_property_ui_text(prop, "Color-Red", "Set the color for the boids");
+	RNA_def_property_ui_range(prop, 0.0f, 255.0f, 5.0f, 25600);             
+        RNA_def_property_ui_text(prop, "Red", "Set the color");
         RNA_def_property_update(prop, 0, "rna_Modifier_update");
         
 	prop= RNA_def_property(srna, "color_g", PROP_FLOAT, PROP_NONE);
         RNA_def_property_range(prop, 0.f, 255.f);
-	RNA_def_property_ui_range(prop, 0.0f, 255.0f, .01f, 25600);             
-        RNA_def_property_ui_text(prop, "Color-Green", "Set the color for the boids");
+	RNA_def_property_ui_range(prop, 0.0f, 255.0f, 5.0f, 25600);             
+        RNA_def_property_ui_text(prop, "Green", "Set the color");
         RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
         prop= RNA_def_property(srna, "color_b", PROP_FLOAT, PROP_NONE);
         RNA_def_property_range(prop, 0.f, 255.f);
-	RNA_def_property_ui_range(prop, 0.0f, 255.0f, .01f, 25600);             
-        RNA_def_property_ui_text(prop, "Color-Blue", "Set the color for the boids");
+	RNA_def_property_ui_range(prop, 0.0f, 255.0f, 5.0f, 25600);             
+        RNA_def_property_ui_text(prop, "Blue", "Set the color");
         RNA_def_property_update(prop, 0, "rna_Modifier_update");
+
+        prop= RNA_def_property(srna, "color_a", PROP_FLOAT, PROP_NONE);
+        RNA_def_property_range(prop, 0.f, 255.f);
+	    RNA_def_property_ui_range(prop, 0.0f, 255.0f, 5.0f, 25600);             
+        RNA_def_property_ui_text(prop, "Alpha", "Set the color");
+        RNA_def_property_update(prop, 0, "rna_Modifier_update");
+
+
 
 
     	//rendering options
