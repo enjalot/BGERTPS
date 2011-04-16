@@ -137,7 +137,7 @@ static void v3d_editvertex_buts(uiLayout *layout, View3D *v3d, Object *ob, float
 {
 	uiBlock *block= (layout)? uiLayoutAbsoluteBlock(layout): NULL;
 	MDeformVert *dvert=NULL;
-	TransformProperties *tfp= v3d->properties_storage;
+	TransformProperties *tfp;
 	float median[6], ve_median[6];
 	int tot, totw, totweight, totedge, totradius;
 	char defstr[320];
@@ -146,6 +146,11 @@ static void v3d_editvertex_buts(uiLayout *layout, View3D *v3d, Object *ob, float
 	tot= totw= totweight= totedge= totradius= 0;
 	defstr[0]= 0;
 
+	/* make sure we got storage */
+	if(v3d->properties_storage==NULL)
+		v3d->properties_storage= MEM_callocN(sizeof(TransformProperties), "TransformProperties");
+	tfp= v3d->properties_storage;
+	
 	if(ob->type==OB_MESH) {
 		Mesh *me= ob->data;
 		EditMesh *em = BKE_mesh_get_editmesh(me);
@@ -272,8 +277,10 @@ static void v3d_editvertex_buts(uiLayout *layout, View3D *v3d, Object *ob, float
 		}
 	}
 	
-	if(tot==0) return;
-
+	if(tot==0) {
+		uiDefBut(block, LABEL, 0, "Nothing selected",0, 130, 200, 20, NULL, 0, 0, 0, 0, "");
+		return;
+	}
 	median[0] /= (float)tot;
 	median[1] /= (float)tot;
 	median[2] /= (float)tot;
@@ -383,7 +390,7 @@ static void v3d_editvertex_buts(uiLayout *layout, View3D *v3d, Object *ob, float
 			EditMesh *em = BKE_mesh_get_editmesh(me);
 
 			/* allow for some rounding error becasue of matrix transform */
-			if(len_v3(median) > 0.000001) {
+			if(len_v3(median) > 0.000001f) {
 				EditVert *eve;
 
 				for(eve= em->verts.first; eve; eve= eve->next) {
@@ -397,7 +404,7 @@ static void v3d_editvertex_buts(uiLayout *layout, View3D *v3d, Object *ob, float
 
 			if(median[3] != 0.0f) {
 				EditEdge *eed;
-				const float fixed_crease= (ve_median[3] <= 0.0f ? 0.0 : (ve_median[3] >= 1.0f ? 1.0 : FLT_MAX));
+				const float fixed_crease= (ve_median[3] <= 0.0f ? 0.0f : (ve_median[3] >= 1.0f ? 1.0f : FLT_MAX));
 				
 				if(fixed_crease != FLT_MAX) {
 					/* simple case */
@@ -414,8 +421,8 @@ static void v3d_editvertex_buts(uiLayout *layout, View3D *v3d, Object *ob, float
 					float median_orig= ve_median[3] - median[3]; /* previous median value */
 
 					/* incase of floating point error */
-					CLAMP(median_orig, 0.0, 1.0);
-					CLAMP(median_new, 0.0, 1.0);
+					CLAMP(median_orig, 0.0f, 1.0f);
+					CLAMP(median_new, 0.0f, 1.0f);
 
 					if(median_new < median_orig) {
 						/* scale down */
@@ -424,7 +431,7 @@ static void v3d_editvertex_buts(uiLayout *layout, View3D *v3d, Object *ob, float
 						for(eed= em->edges.first; eed; eed= eed->next) {
 							if(eed->f & SELECT) {
 								eed->crease *= sca;
-								CLAMP(eed->crease, 0.0, 1.0);
+								CLAMP(eed->crease, 0.0f, 1.0f);
 							}
 						}
 					}
@@ -435,7 +442,7 @@ static void v3d_editvertex_buts(uiLayout *layout, View3D *v3d, Object *ob, float
 						for(eed= em->edges.first; eed; eed= eed->next) {
 							if(eed->f & SELECT) {
 								eed->crease = 1.0f - ((1.0f - eed->crease) * sca);
-								CLAMP(eed->crease, 0.0, 1.0);
+								CLAMP(eed->crease, 0.0f, 1.0f);
 							}
 						}
 					}
@@ -1090,9 +1097,9 @@ static void do_view3d_region_buttons(bContext *C, void *UNUSED(index), int event
 			if (!pchan) return;
 			
 			/* make a copy to eul[3], to allow TAB on buttons to work */
-			eul[0]= M_PI*tfp->ob_eul[0]/180.0;
-			eul[1]= M_PI*tfp->ob_eul[1]/180.0;
-			eul[2]= M_PI*tfp->ob_eul[2]/180.0;
+			eul[0]= (float)M_PI*tfp->ob_eul[0]/180.0f;
+			eul[1]= (float)M_PI*tfp->ob_eul[1]/180.0f;
+			eul[2]= (float)M_PI*tfp->ob_eul[2]/180.0f;
 			
 			if (pchan->rotmode == ROT_MODE_AXISANGLE) {
 				float quat[4];
@@ -1214,7 +1221,7 @@ static void view3d_panel_object(const bContext *C, Panel *pa)
 	View3D *v3d= CTX_wm_view3d(C);
 	//uiBut *bt;
 	Object *ob= OBACT;
-	TransformProperties *tfp;
+	// TransformProperties *tfp; // UNUSED
 	PointerRNA obptr;
 	uiLayout *col, *row;
 	float lim;
@@ -1222,12 +1229,13 @@ static void view3d_panel_object(const bContext *C, Panel *pa)
 	if(ob==NULL) return;
 
 	/* make sure we got storage */
+	/*
 	if(v3d->properties_storage==NULL)
 		v3d->properties_storage= MEM_callocN(sizeof(TransformProperties), "TransformProperties");
 	tfp= v3d->properties_storage;
 	
 // XXX	uiSetButLock(object_is_libdata(ob), ERROR_LIBDATA_MESSAGE);
-	/*
+
 	if(ob->mode & (OB_MODE_VERTEX_PAINT|OB_MODE_WEIGHT_PAINT|OB_MODE_TEXTURE_PAINT)) {
 	}
 	else {
@@ -1237,7 +1245,7 @@ static void view3d_panel_object(const bContext *C, Panel *pa)
 	}
 	*/
 
-	lim= 10000.0f*MAX2(1.0, v3d->grid);
+	lim= 10000.0f * MAX2(1.0f, v3d->grid);
 
 	block= uiLayoutGetBlock(pa->layout);
 	uiBlockSetHandleFunc(block, do_view3d_region_buttons, NULL);

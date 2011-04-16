@@ -100,7 +100,31 @@ set(SRC
 	creator.c
 )
 
+# MSVC 2010 gives linking errors with the manifest
 if(WIN32 AND NOT UNIX)
+	string(SUBSTRING ${BLENDER_VERSION} 0 1 bver1)
+	string(SUBSTRING ${BLENDER_VERSION} 2 1 bver2)
+	string(SUBSTRING ${BLENDER_VERSION} 3 1 bver3)
+	if(MINGW)
+		add_definitions(
+			-DWINDRES
+			-DBLEN_VER_RC_STR_M=${BLENDER_VERSION}
+			-DBLEN_VER_RC_1=${bver1}
+			-DBLEN_VER_RC_2=${bver2}
+			-DBLEN_VER_RC_3=${bver3}
+			-DBLEN_VER_RC_4=0
+		)
+	else()
+		add_definitions(
+			-DBLEN_VER_RC_STR=${BLENDER_VERSION}
+			-DBLEN_VER_RC_1=${bver1}
+			-DBLEN_VER_RC_2=${bver2}
+			-DBLEN_VER_RC_3=${bver3}
+			-DBLEN_VER_RC_4=0
+		)
+	endif()
+	
+
 	list(APPEND SRC
 		../icons/winblender.rc
 	)
@@ -169,7 +193,18 @@ if(WITH_PYTHON_MODULE)
 			 PREFIX ""
 			 OUTPUT_NAME bpy
 			 LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/
+			 RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/  # only needed on windows
 	)
+	
+	if(WIN32)
+		# python modules use this
+		set_target_properties(
+			blender
+			PROPERTIES
+				 SUFFIX ".pyd"
+		)	
+	endif()
+	
 else()
 	add_executable(blender ${EXETYPE} ${SRC})
 endif()
@@ -526,6 +561,20 @@ elseif(WIN32)
 		endif()
 	endif()
 
+    if(NOT CMAKE_CL_64)
+		install(
+			FILES
+	    	${LIBDIR}/thumbhandler/lib/BlendThumb.dll
+    		DESTINATION ${TARGETDIR}/
+	    )
+    else()
+		install(
+			FILES
+	    	${LIBDIR}/thumbhandler/lib/BlendThumb64.dll
+    		DESTINATION ${TARGETDIR}/
+	    )
+    endif()
+
 elseif(APPLE)
 	set(SOURCEDIR ${CMAKE_SOURCE_DIR}/source/darwin/blender.app)
 	set(SOURCEINFO ${SOURCEDIR}/Contents/Info.plist)
@@ -741,7 +790,6 @@ endif()
 		extern_bullet
 		ge_logic_loopbacknetwork
 		bf_intern_moto
-		extern_glew
 		extern_openjpeg
 		extern_redcode
 		ge_videotex
@@ -751,6 +799,10 @@ endif()
 		bf_intern_audaspace
 		bf_intern_mikktspace
 	)
+
+    if(WITH_BUILTIN_GLEW)
+		list(APPEND BLENDER_SORTED_LIBS extern_glew)
+    endif()
 
 	if(WITH_BINRELOC)
 		list(APPEND BLENDER_SORTED_LIBS extern_binreloc)

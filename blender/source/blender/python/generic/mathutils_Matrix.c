@@ -226,8 +226,7 @@ static PyObject *C_Matrix_Rotation(PyObject *cls, PyObject *args)
 		}
 	}
 
-	/* clamp angle between -360 and 360 in radians */
-	angle= fmod(angle + M_PI*2, M_PI*4) - M_PI*2;
+	angle= angle_wrap_rad(angle);
 
 	if(matSize != 2 && matSize != 3 && matSize != 4) {
 		PyErr_SetString(PyExc_AttributeError, "mathutils.RotationMatrix(): can only return a 2x2 3x3 or 4x4 matrix");
@@ -542,7 +541,7 @@ static PyObject *C_Matrix_Shear(PyObject *cls, PyObject *args)
 	if(matSize == 2) {
 		float const factor= PyFloat_AsDouble(fac);
 
-		if(factor==-1.0 && PyErr_Occurred()) {
+		if(factor==-1.0f && PyErr_Occurred()) {
 			PyErr_SetString(PyExc_AttributeError, "mathutils.Matrix.Shear(): the factor to be a float");
 			return NULL;
 		}
@@ -1520,12 +1519,12 @@ static PyObject *Matrix_mul(PyObject * m1, PyObject * m2)
 		}
 	}
 	else if(mat2) {
-		if (((scalar= PyFloat_AsDouble(m1)) == -1.0 && PyErr_Occurred())==0) { /*FLOAT/INT * MATRIX */
+		if (((scalar= PyFloat_AsDouble(m1)) == -1.0f && PyErr_Occurred())==0) { /*FLOAT/INT * MATRIX */
 			return matrix_mul_float(mat2, scalar);
 		}
 	}
 	else if(mat1) {
-		if (((scalar= PyFloat_AsDouble(m2)) == -1.0 && PyErr_Occurred())==0) { /*FLOAT/INT * MATRIX */
+		if (((scalar= PyFloat_AsDouble(m2)) == -1.0f && PyErr_Occurred())==0) { /*FLOAT/INT * MATRIX */
 			return matrix_mul_float(mat1, scalar);
 		}
 	}

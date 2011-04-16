@@ -430,7 +430,7 @@ static int key_test_depth(PEData *data, float co[3])
 	}
 #endif
 
-	if((float)uz - 0.00001 > depth)
+	if((float)uz - 0.00001f > depth)
 		return 0;
 	else
 		return 1;
@@ -1970,6 +1970,7 @@ static void rekey_particle(PEData *data, int pa_index)
 	for(k=0, key=pa->hair; k<pa->totkey; k++, key++, ekey++) {
 		ekey->co= key->co;
 		ekey->time= &key->time;
+		ekey->flag |= PEK_SELECT;
 		if(!(psys->flag & PSYS_GLOBAL_HAIR))
 			ekey->flag |= PEK_USE_WCO;
 	}
@@ -3245,7 +3246,7 @@ static int particle_intersect_dm(Scene *scene, Object *ob, DerivedMesh *dm, floa
 			if(isect_line_tri_v3(co1, co2, v1, v2, v3, &cur_d, cur_uv)){
 				if(cur_d<*min_d){
 					*min_d=cur_d;
-					min_w[0]= 1.0 - cur_uv[0] - cur_uv[1];
+					min_w[0]= 1.0f - cur_uv[0] - cur_uv[1];
 					min_w[1]= cur_uv[0];
 					min_w[2]= cur_uv[1];
 					min_w[3]= 0.0f;
@@ -3259,7 +3260,7 @@ static int particle_intersect_dm(Scene *scene, Object *ob, DerivedMesh *dm, floa
 				if(isect_line_tri_v3(co1, co2, v1, v3, v4, &cur_d, cur_uv)){
 					if(cur_d<*min_d){
 						*min_d=cur_d;
-						min_w[0]= 1.0 - cur_uv[0] - cur_uv[1];
+						min_w[0]= 1.0f - cur_uv[0] - cur_uv[1];
 						min_w[1]= 0.0f;
 						min_w[2]= cur_uv[0];
 						min_w[3]= cur_uv[1];

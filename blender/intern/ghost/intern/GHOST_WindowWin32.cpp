@@ -105,6 +105,22 @@ static PIXELFORMATDESCRIPTOR sPreferredFormat = {
 	0, 0, 0                         /* no layer, visible, damage masks */
 };
 
+/* Intel videocards don't work fine with multiple contexts and
+   have to share the same context for all windows.
+   But if we just share context for all windows it could work incorrect
+   with multiple videocards configuration. Suppose, that Intel videocards
+   can't be in multiple-devices configuration. */
+static int is_crappy_intel_card(void)
+{
+	int crappy = 0;
+	const char *vendor = (const char*)glGetString(GL_VENDOR);
+
+	if (strstr(vendor, "Intel"))
+		crappy = 1;
+
+	return crappy;
+}
+
 GHOST_WindowWin32::GHOST_WindowWin32(
 	GHOST_SystemWin32 * system,
 	const STR_String& title,
@@ -709,18 +725,44 @@ GHOST_TSuccess GHOST_WindowWin32::installDrawingContext(GHOST_TDrawingContextTyp
 			// Create the context
 			m_hGlRc = ::wglCreateContext(m_hDC);
 			if (m_hGlRc) {
-				if (s_firsthGLRc) {
-					::wglCopyContext(s_firsthGLRc, m_hGlRc, GL_ALL_ATTRIB_BITS);
-					wglShareLists(s_firsthGLRc, m_hGlRc);
-				} else {
-					s_firsthGLRc = m_hGlRc;
-				}
+				if (::wglMakeCurrent(m_hDC, m_hGlRc) == TRUE) {
+					if (s_firsthGLRc) {
+						if (is_crappy_intel_card()) {
+							if (::wglMakeCurrent(NULL, NULL) == TRUE) {
+								::wglDeleteContext(m_hGlRc);
+								m_hGlRc = s_firsthGLRc;
+							}
+							else {
+								::wglDeleteContext(m_hGlRc);
+								m_hGlRc = NULL;
+							}
+						}
+						else {
+							::wglCopyContext(s_firsthGLRc, m_hGlRc, GL_ALL_ATTRIB_BITS);
+							::wglShareLists(s_firsthGLRc, m_hGlRc);
+						}
+					}
+					else {
+						s_firsthGLRc = m_hGlRc;
+					}
 
-				success = ::wglMakeCurrent(m_hDC, m_hGlRc) == TRUE ? GHOST_kSuccess : GHOST_kFailure;
+					if (m_hGlRc) {
+						success = ::wglMakeCurrent(m_hDC, m_hGlRc) == TRUE ? GHOST_kSuccess : GHOST_kFailure;
+					}
+					else {
+						success = GHOST_kFailure;
+					}
+				}
+				else {
+					success = GHOST_kFailure;
+				}
 			}
 			else {
-				printf("Failed to get a context....\n");
 				success = GHOST_kFailure;
+			}
+
+			if (success == GHOST_kFailure) {
+				printf("Failed to get a context....\n");
 			}
 		}
 		else
@@ -745,17 +787,43 @@ GHOST_TSuccess GHOST_WindowWin32::installDrawingContext(GHOST_TDrawingContextTyp
 			// Create the context
 			m_hGlRc = ::wglCreateContext(m_hDC);
 			if (m_hGlRc) {
-				if (s_firsthGLRc) {
-					::wglShareLists(s_firsthGLRc, m_hGlRc);
-				} else {
-					s_firsthGLRc = m_hGlRc;
-				}
+				if (::wglMakeCurrent(m_hDC, m_hGlRc) == TRUE) {
+					if (s_firsthGLRc) {
+						if (is_crappy_intel_card()) {
+							if (::wglMakeCurrent(NULL, NULL) == TRUE) {
+								::wglDeleteContext(m_hGlRc);
+								m_hGlRc = s_firsthGLRc;
+							}
+							else {
+								::wglDeleteContext(m_hGlRc);
+								m_hGlRc = NULL;
+							}
+						}
+						else {
+							::wglShareLists(s_firsthGLRc, m_hGlRc);
+						}
+					}
+					else {
+						s_firsthGLRc = m_hGlRc;
+					}
 
-				success = ::wglMakeCurrent(m_hDC, m_hGlRc) == TRUE ? GHOST_kSuccess : GHOST_kFailure;
+					if (m_hGlRc) {
+						success = ::wglMakeCurrent(m_hDC, m_hGlRc) == TRUE ? GHOST_kSuccess : GHOST_kFailure;
+					}
+					else {
+						success = GHOST_kFailure;
+					}
+				}
+				else {
+					success = GHOST_kFailure;
+				}
 			}
 			else {
-				printf("Failed to get a context....\n");
 				success = GHOST_kFailure;
+			}
+
+			if (success == GHOST_kFailure) {
+				printf("Failed to get a context....\n");
 			}
 					
 			// Attempt to enable multisample

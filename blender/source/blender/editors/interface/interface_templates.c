@@ -240,7 +240,7 @@ static void template_id_cb(bContext *C, void *arg_litem, void *arg_event)
 	switch(event) {
 		case UI_ID_BROWSE:
 		case UI_ID_PIN:
-			printf("warning, id event %d shouldnt come here\n", event);
+			RNA_warning("warning, id event %d shouldnt come here\n", event);
 			break;
 		case UI_ID_OPEN:
 		case UI_ID_ADD_NEW:
@@ -330,13 +330,13 @@ static void template_ID(bContext *C, uiLayout *layout, TemplateID *template, Str
 	uiBut *but;
 	uiBlock *block;
 	PointerRNA idptr;
-	ListBase *lb;
+	// ListBase *lb; // UNUSED
 	ID *id, *idfrom;
 
 	idptr= RNA_property_pointer_get(&template->ptr, template->prop);
 	id= idptr.data;
 	idfrom= template->ptr.id.data;
-	lb= template->idlb;
+	// lb= template->idlb;
 
 	block= uiLayoutGetBlock(layout);
 	uiBlockBeginAlign(block);
@@ -416,7 +416,7 @@ static void template_ID(bContext *C, uiLayout *layout, TemplateID *template, Str
 	
 		if(user_alert) uiButSetFlag(but, UI_BUT_REDALERT);
 		
-		if(id->lib == NULL && !(ELEM4(GS(id->name), ID_GR, ID_SCE, ID_SCR, ID_TXT))) {
+		if(id->lib == NULL && !(ELEM5(GS(id->name), ID_GR, ID_SCE, ID_SCR, ID_TXT, ID_OB))) {
 			uiDefButR(block, TOG, 0, "F", 0, 0, UI_UNIT_X, UI_UNIT_Y, &idptr, "use_fake_user", -1, 0, 0, -1, -1, NULL);
 		}
 	}
@@ -484,7 +484,7 @@ static void ui_template_id(uiLayout *layout, bContext *C, PointerRNA *ptr, const
 	prop= RNA_struct_find_property(ptr, propname);
 
 	if(!prop || RNA_property_type(prop) != PROP_POINTER) {
-		printf("uiTemplateID: pointer property not found: %s.%s\n", RNA_struct_identifier(ptr->type), propname);
+		RNA_warning("uiTemplateID: pointer property not found: %s.%s\n", RNA_struct_identifier(ptr->type), propname);
 		return;
 	}
 
@@ -545,11 +545,11 @@ void uiTemplateAnyID(uiLayout *layout, PointerRNA *ptr, const char *propname, co
 	propType= RNA_struct_find_property(ptr, proptypename);
 
 	if (!propID || RNA_property_type(propID) != PROP_POINTER) {
-		printf("uiTemplateAnyID: pointer property not found: %s.%s\n", RNA_struct_identifier(ptr->type), propname);
+		RNA_warning("uiTemplateAnyID: pointer property not found: %s.%s\n", RNA_struct_identifier(ptr->type), propname);
 		return;
 	}
 	if (!propType || RNA_property_type(propType) != PROP_ENUM) { 
-		printf("uiTemplateAnyID: pointer-type property not found: %s.%s\n", RNA_struct_identifier(ptr->type), proptypename);
+		RNA_warning("uiTemplateAnyID: pointer-type property not found: %s.%s\n", RNA_struct_identifier(ptr->type), proptypename);
 		return;
 	}
 	
@@ -588,7 +588,7 @@ void uiTemplatePathBuilder(uiLayout *layout, PointerRNA *ptr, const char *propna
 	/* check that properties are valid */
 	propPath= RNA_struct_find_property(ptr, propname);
 	if (!propPath || RNA_property_type(propPath) != PROP_STRING) {
-		printf("uiTemplatePathBuilder: path property not found: %s.%s\n", RNA_struct_identifier(ptr->type), propname);
+		RNA_warning("uiTemplatePathBuilder: path property not found: %s.%s\n", RNA_struct_identifier(ptr->type), propname);
 		return;
 	}
 	
@@ -830,7 +830,7 @@ uiLayout *uiTemplateModifier(uiLayout *layout, bContext *C, PointerRNA *ptr)
 
 	/* verify we have valid data */
 	if(!RNA_struct_is_a(ptr->type, &RNA_Modifier)) {
-		printf("uiTemplateModifier: expected modifier on object.\n");
+		RNA_warning("uiTemplateModifier: expected modifier on object.\n");
 		return NULL;
 	}
 
@@ -838,7 +838,7 @@ uiLayout *uiTemplateModifier(uiLayout *layout, bContext *C, PointerRNA *ptr)
 	md= ptr->data;
 
 	if(!ob || !(GS(ob->id.name) == ID_OB)) {
-		printf("uiTemplateModifier: expected modifier on object.\n");
+		RNA_warning("uiTemplateModifier: expected modifier on object.\n");
 		return NULL;
 	}
 	
@@ -920,7 +920,7 @@ static uiLayout *draw_constraint(uiLayout *layout, Object *ob, bConstraint *con)
 	PointerRNA ptr;
 	char typestr[32];
 	short proxy_protected, xco=0, yco=0;
-	int rb_col;
+	// int rb_col; // UNUSED
 
 	/* get constraint typeinfo */
 	cti= constraint_get_typeinfo(con);
@@ -957,7 +957,7 @@ static uiLayout *draw_constraint(uiLayout *layout, Object *ob, bConstraint *con)
 	/* Draw constraint header */
 	
 	/* rounded header */
-	rb_col= (con->flag & CONSTRAINT_ACTIVE)?50:20;
+	// rb_col= (con->flag & CONSTRAINT_ACTIVE)?50:20; // UNUSED
 
 	/* open/close */
 	uiBlockSetEmboss(block, UI_EMBOSSN);
@@ -1062,7 +1062,7 @@ uiLayout *uiTemplateConstraint(uiLayout *layout, PointerRNA *ptr)
 
 	/* verify we have valid data */
 	if(!RNA_struct_is_a(ptr->type, &RNA_Constraint)) {
-		printf("uiTemplateConstraint: expected constraint on object.\n");
+		RNA_warning("uiTemplateConstraint: expected constraint on object.\n");
 		return NULL;
 	}
 
@@ -1070,7 +1070,7 @@ uiLayout *uiTemplateConstraint(uiLayout *layout, PointerRNA *ptr)
 	con= ptr->data;
 
 	if(!ob || !(GS(ob->id.name) == ID_OB)) {
-		printf("uiTemplateConstraint: expected constraint on object.\n");
+		RNA_warning("uiTemplateConstraint: expected constraint on object.\n");
 		return NULL;
 	}
 	
@@ -1116,7 +1116,7 @@ void uiTemplatePreview(uiLayout *layout, ID *id, int show_buttons, ID *parent, M
 	PointerRNA texture_ptr;
 
 	if(id && !ELEM4(GS(id->name), ID_MA, ID_TE, ID_WO, ID_LA)) {
-		printf("uiTemplatePreview: expected ID of type material, texture, lamp or world.\n");
+		RNA_warning("uiTemplatePreview: expected ID of type material, texture, lamp or world.\n");
 		return;
 	}
 
@@ -1442,6 +1442,7 @@ void uiTemplateWaveform(uiLayout *layout, PointerRNA *ptr, const char *propname)
 	scopes->wavefrm_height= (scopes->wavefrm_height<=20)?20:scopes->wavefrm_height;
 
 	bt= uiDefBut(block, WAVEFORM, 0, "", rect.xmin, rect.ymin, rect.xmax-rect.xmin, scopes->wavefrm_height, scopes, 0, 0, 0, 0, "");
+	(void)bt; // UNUSED
 	
 	MEM_freeN(cb);
 }
@@ -1818,8 +1819,15 @@ void uiTemplateCurveMapping(uiLayout *layout, PointerRNA *ptr, const char *propn
 	PropertyRNA *prop= RNA_struct_find_property(ptr, propname);
 	PointerRNA cptr;
 
-	if(!prop || RNA_property_type(prop) != PROP_POINTER)
+	if(!prop) {
+		RNA_warning("uiTemplateCurveMapping: curve property not found: %s.%s\n", RNA_struct_identifier(ptr->type), propname);
 		return;
+	}
+
+	if(RNA_property_type(prop) != PROP_POINTER) {
+		RNA_warning("uiTemplateCurveMapping: curve is not a pointer: %s.%s\n", RNA_struct_identifier(ptr->type), propname);
+		return;
+	}
 
 	cptr= RNA_property_pointer_get(ptr, prop);
 	if(!cptr.data || !RNA_struct_is_a(cptr.type, &RNA_CurveMapping))
@@ -1847,7 +1855,7 @@ void uiTemplateColorWheel(uiLayout *layout, PointerRNA *ptr, const char *propnam
 	float softmin, softmax, step, precision;
 	
 	if (!prop) {
-		printf("uiTemplateColorWheel: property not found: %s.%s\n", RNA_struct_identifier(ptr->type), propname);
+		RNA_warning("uiTemplateColorWheel: property not found: %s.%s\n", RNA_struct_identifier(ptr->type), propname);
 		return;
 	}
 
@@ -1917,7 +1925,7 @@ void uiTemplateLayers(uiLayout *layout, PointerRNA *ptr, const char *propname,
 
 	prop= RNA_struct_find_property(ptr, propname);
 	if (!prop) {
-		printf("uiTemplateLayer: layers property not found: %s.%s\n", RNA_struct_identifier(ptr->type), propname);
+		RNA_warning("uiTemplateLayer: layers property not found: %s.%s\n", RNA_struct_identifier(ptr->type), propname);
 		return;
 	}
 	
@@ -1934,7 +1942,7 @@ void uiTemplateLayers(uiLayout *layout, PointerRNA *ptr, const char *propname,
 	if(used_ptr && used_propname) {
 		used_prop= RNA_struct_find_property(used_ptr, used_propname);
 		if (!used_prop) {
-			printf("uiTemplateLayer: used layers property not found: %s.%s\n", RNA_struct_identifier(ptr->type), used_propname);
+			RNA_warning("uiTemplateLayer: used layers property not found: %s.%s\n", RNA_struct_identifier(ptr->type), used_propname);
 			return;
 		}
 
@@ -2115,7 +2123,7 @@ void uiTemplateList(uiLayout *layout, bContext *C, PointerRNA *ptr, const char *
 	pa= block->panel;
 
 	if(!pa) {
-		printf("uiTemplateList: only works inside a panel.\n");
+		RNA_warning("uiTemplateList: only works inside a panel.\n");
 		return;
 	}
 
@@ -2125,28 +2133,28 @@ void uiTemplateList(uiLayout *layout, bContext *C, PointerRNA *ptr, const char *
 	if(ptr->data) {
 		prop= RNA_struct_find_property(ptr, propname);
 		if(!prop) {
-			printf("uiTemplateList: property not found: %s.%s\n", RNA_struct_identifier(ptr->type), propname);
+			RNA_warning("uiTemplateList: property not found: %s.%s\n", RNA_struct_identifier(ptr->type), propname);
 			return;
 		}
 	}
 
 	activeprop= RNA_struct_find_property(activeptr, activepropname);
 	if(!activeprop) {
-		printf("uiTemplateList: property not found: %s.%s\n", RNA_struct_identifier(ptr->type), activepropname);
+		RNA_warning("uiTemplateList: property not found: %s.%s\n", RNA_struct_identifier(ptr->type), activepropname);
 		return;
 	}
 
 	if(prop) {
 		type= RNA_property_type(prop);
 		if(type != PROP_COLLECTION) {
-			printf("uiTemplateList: expected collection property.\n");
+			RNA_warning("uiTemplateList: expected collection property.\n");
 			return;
 		}
 	}
 
 	activetype= RNA_property_type(activeprop);
 	if(activetype != PROP_INT) {
-		printf("uiTemplateList: expected integer property.\n");
+		RNA_warning("uiTemplateList: expected integer property.\n");
 		return;
 	}
 
@@ -2382,6 +2390,7 @@ void uiTemplateRunningJobs(uiLayout *layout, bContext *C)
 		uiLayout *ui_abs;
 		
 		ui_abs= uiLayoutAbsolute(layout, 0);
+		(void)ui_abs; // UNUSED
 		
 		uiDefIconBut(block, BUT, handle_event, ICON_PANEL_CLOSE, 
 				0, UI_UNIT_Y*0.1, UI_UNIT_X*0.8, UI_UNIT_Y*0.8, NULL, 0.0f, 0.0f, 0, 0, "Stop this job");
@@ -2416,7 +2425,7 @@ void uiTemplateReportsBanner(uiLayout *layout, bContext *C)
 	
 	rti= (ReportTimerInfo *)reports->reporttimer->customdata;
 	
-	if (!rti || rti->widthfac==0.0 || !report) return;
+	if (!rti || rti->widthfac==0.0f || !report) return;
 	
 	ui_abs= uiLayoutAbsolute(layout, 0);
 	block= uiLayoutGetBlock(ui_abs);

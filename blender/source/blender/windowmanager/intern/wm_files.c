@@ -329,7 +329,7 @@ void WM_read_file(bContext *C, const char *name, ReportList *reports)
 		CTX_wm_window_set(C, CTX_wm_manager(C)->windows.first);
 
 		ED_editors_init(C);
-		DAG_on_load_update(CTX_data_main(C), TRUE);
+		DAG_on_visible_update(CTX_data_main(C), TRUE);
 
 #ifdef WITH_PYTHON
 		/* run any texts that were loaded in and flagged as modules */
@@ -433,7 +433,7 @@ int WM_read_homefile(bContext *C, ReportList *reports, short from_memory)
 	BKE_write_undo(C, "original");	/* save current state */
 
 	ED_editors_init(C);
-	DAG_on_load_update(CTX_data_main(C), TRUE);
+	DAG_on_visible_update(CTX_data_main(C), TRUE);
 
 #ifdef WITH_PYTHON
 	if(CTX_py_init_get(C)) {
@@ -510,7 +510,7 @@ static void write_history(void)
 
 	recent = G.recent_files.first;
 	/* refresh recent-files.txt of recent opened files, when current file was changed */
-	if(!(recent) || (strcmp(recent->filepath, G.main->name)!=0)) {
+	if(!(recent) || (BLI_path_cmp(recent->filepath, G.main->name)!=0)) {
 		fp= fopen(name, "w");
 		if (fp) {
 			/* add current file to the beginning of list */
@@ -524,7 +524,7 @@ static void write_history(void)
 			/* write rest of recent opened files to recent-files.txt */
 			while((i<U.recent_files) && (recent)){
 				/* this prevents to have duplicities in list */
-				if (strcmp(recent->filepath, G.main->name)!=0) {
+				if (BLI_path_cmp(recent->filepath, G.main->name)!=0) {
 					fprintf(fp, "%s\n", recent->filepath);
 					recent = recent->next;
 				}
@@ -656,7 +656,7 @@ int WM_write_file(bContext *C, const char *target, int fileflags, ReportList *re
 	
 	/* send the OnSave event */
 	for (li= G.main->library.first; li; li= li->id.next) {
-		if (strcmp(li->filepath, di) == 0) {
+		if (BLI_path_cmp(li->filepath, di) == 0) {
 			BKE_reportf(reports, RPT_ERROR, "Can't overwrite used library '%.200s'", di);
 			return -1;
 		}

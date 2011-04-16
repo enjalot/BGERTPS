@@ -533,6 +533,7 @@ extern StructRNA RNA_ThemeView3D;
 extern StructRNA RNA_ThemeWidgetColors;
 extern StructRNA RNA_ThemeWidgetStateColors;
 extern StructRNA RNA_TimelineMarker;
+extern StructRNA RNA_Timer;
 extern StructRNA RNA_ToolSettings;
 extern StructRNA RNA_TouchSensor;
 extern StructRNA RNA_TrackToConstraint;
@@ -622,6 +623,7 @@ int RNA_struct_idprops_register_check(StructRNA *type);
 
 
 PropertyRNA *RNA_struct_find_property(PointerRNA *ptr, const char *identifier);
+int RNA_struct_contains_property(PointerRNA *ptr, PropertyRNA *prop_test);
 
 /* lower level functions for access to type properties */
 const struct ListBase *RNA_struct_type_properties(StructRNA *srna);
@@ -954,6 +956,12 @@ int RNA_function_call_direct_va_lookup(struct bContext *C, struct ReportList *re
 
 short RNA_type_to_ID_code(StructRNA *type);
 StructRNA *ID_code_to_RNA_type(short idcode);
+
+void RNA_warning(const char *format, ...)
+#ifdef __GNUC__
+__attribute__ ((format (printf, 1, 2)))
+#endif
+;
 
 #ifdef __cplusplus
 }
