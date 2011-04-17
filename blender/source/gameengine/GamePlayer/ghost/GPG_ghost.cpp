@@ -757,6 +757,7 @@ int main(int argc, char** argv)
 					}
 					
 					//::printf("game data loaded from %s\n", filename);
+                    printf("enjalot: game data loaded from %s, filename\n", filename);
 					
 					if (!bfd) {
 						usage(argv[0], isBlenderPlayer);
@@ -780,6 +781,7 @@ int main(int argc, char** argv)
 						if (firstTimeRunning)
 							G.fileflags  = bfd->fileflags;
 
+                        printf("enjalot: bke icons init\n");
 						//Seg Fault; icon.c gIcons == 0
 						BKE_icons_init(1);
 						
@@ -802,6 +804,8 @@ int main(int argc, char** argv)
 								fullScreen = false;
 								windowWidth = scene->gm.xplay;
 								windowHeight = scene->gm.yplay;
+
+                                printf("enjalot: w: %d h: %d \n", windowWidth, windowHeight);
 							}
 						}
 						
@@ -908,23 +912,28 @@ int main(int argc, char** argv)
 								else
 #endif
 								{
-																										if (parentWindow != 0)
+                                    printf("enjalot: starting app\n");
+								    if (parentWindow != 0)
 										app.startEmbeddedWindow(title, parentWindow, stereoWindow, stereomode);
 									else
 										app.startWindow(title, windowLeft, windowTop, windowWidth, windowHeight,
 										stereoWindow, stereomode);
+                                    printf("enjalot: app started?\n");
 								}
 							}
 						}
 						else
 						{
+                            printf("enjalot: starting app.StartGameEngine\n");
 							app.StartGameEngine(stereomode);
 							exitcode = KX_EXIT_REQUEST_NO_REQUEST;
 						}
 						
+                        printf("enjalot: event consumer\n");
 						// Add the application as event consumer
 						system->addEventConsumer(&app);
 						
+                        printf("enjalot: right before main loop\n");
 						// Enter main loop
 						bool run = true;
 						while (run)

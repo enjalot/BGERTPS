@@ -34,6 +34,8 @@
 #ifndef _GPC_CANVAS_H_
 #define _GPC_CANVAS_H_
 
+#include "GL/glew.h"
+
 #include "RAS_ICanvas.h"
 #include "RAS_Rect.h"
 
@@ -42,7 +44,6 @@
 	#include <windows.h>
 #endif // WIN32
 
-#include "GL/glew.h"
 
 #include <map>
 

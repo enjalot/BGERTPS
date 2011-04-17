@@ -82,4 +82,10 @@ set(SRC
 
 add_definitions(-DGLEW_STATIC)
 
+IF(WITH_OPENCL)
+	LIST(APPEND INC ${OPENCL_INCLUDE_DIR})  
+	LIST(APPEND INC ${RTPS_INCLUDE_DIR})  
+ENDIF(WITH_OPENCL)
+
+
 blender_add_lib_nolist(ge_player_common "${SRC}" "${INC}")

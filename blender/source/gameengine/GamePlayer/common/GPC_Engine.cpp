@@ -38,6 +38,11 @@
 
 #include <iostream>
 
+//RTPS_NOTE GPC_Engine.h includes GPC_Canvas.h which includes glew
+//one of the other headers includes RTPS which includes GL stuff
+//glew must come first
+#include "GPC_Engine.h"
+
 #include "BKE_blender.h"  // initglobals()
 #include "BKE_global.h"  // Global G
 #include "BKE_report.h"
@@ -60,7 +65,6 @@
 
 #include "RAS_IRenderTools.h"
 
-#include "GPC_Engine.h"
 #include "GPC_KeyboardDevice.h"
 #include "GPC_MouseDevice.h"
 #include "GPC_RawImage.h"
