@@ -1,1 +1,1 @@
-../blender/release/scripts/ui/properties_data_modifier.py
+../blender/release/scripts/startup/bl_ui/properties_data_modifier.py

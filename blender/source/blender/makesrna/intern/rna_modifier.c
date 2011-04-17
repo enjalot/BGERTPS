@@ -440,9 +440,12 @@ static void modifier_object_set(Object *self, Object **ob_p, int type, PointerRN
 {
 	Object *ob= value.data;
 
-	if(!self || ob != self)
-		if(!ob || type == OB_EMPTY || ob->type == type)
+	if(!self || ob != self) {
+		if(!ob || type == OB_EMPTY || ob->type == type) {
+			id_lib_extern((ID *)ob);
 			*ob_p= ob;
+		}
+	}
 }
 
 static void rna_LatticeModifier_object_set(PointerRNA *ptr, PointerRNA value)
@@ -800,7 +803,7 @@ static void rna_def_modifier_mirror(BlenderRNA *brna)
 	
 	prop= RNA_def_property(srna, "use_mirror_merge", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_negative_sdna(prop, NULL, "flag", MOD_MIR_NO_MERGE);
-	RNA_def_property_ui_text(prop, "Merge Verticies", "Merge vertices within the merge threshold");
+	RNA_def_property_ui_text(prop, "Merge Vertices", "Merge vertices within the merge threshold");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
 	prop= RNA_def_property(srna, "use_mirror_u", PROP_BOOLEAN, PROP_NONE);
@@ -1129,7 +1132,7 @@ static void rna_def_modifier_boolean(BlenderRNA *brna)
 
 	prop= RNA_def_property(srna, "object", PROP_POINTER, PROP_NONE);
 	RNA_def_property_ui_text(prop, "Object", "Mesh object to use for Boolean operation");
-	RNA_def_property_pointer_funcs(prop, NULL, "rna_BooleanModifier_object_set", NULL, NULL);
+	RNA_def_property_pointer_funcs(prop, NULL, "rna_BooleanModifier_object_set", NULL, "rna_Mesh_object_poll");
 	RNA_def_property_flag(prop, PROP_EDITABLE|PROP_ID_SELF_CHECK);
 	RNA_def_property_update(prop, 0, "rna_Modifier_dependency_update");
 
@@ -2484,21 +2487,29 @@ static void rna_def_modifier_rtps(BlenderRNA *brna)
 
         prop= RNA_def_property(srna, "color_r", PROP_FLOAT, PROP_NONE);
         RNA_def_property_range(prop, 0.f, 255.f);
-	RNA_def_property_ui_range(prop, 0.0f, 255.0f, .01f, 25600);             
-        RNA_def_property_ui_text(prop, "Color-Red", "Set the color for the boids");
+	RNA_def_property_ui_range(prop, 0.0f, 255.0f, 5.0f, 25600);             
+        RNA_def_property_ui_text(prop, "Red", "Set the color");
         RNA_def_property_update(prop, 0, "rna_Modifier_update");
         
 	prop= RNA_def_property(srna, "color_g", PROP_FLOAT, PROP_NONE);
         RNA_def_property_range(prop, 0.f, 255.f);
-	RNA_def_property_ui_range(prop, 0.0f, 255.0f, .01f, 25600);             
-        RNA_def_property_ui_text(prop, "Color-Green", "Set the color for the boids");
+	RNA_def_property_ui_range(prop, 0.0f, 255.0f, 5.0f, 25600);             
+        RNA_def_property_ui_text(prop, "Green", "Set the color");
         RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
         prop= RNA_def_property(srna, "color_b", PROP_FLOAT, PROP_NONE);
         RNA_def_property_range(prop, 0.f, 255.f);
-	RNA_def_property_ui_range(prop, 0.0f, 255.0f, .01f, 25600);             
-        RNA_def_property_ui_text(prop, "Color-Blue", "Set the color for the boids");
+	RNA_def_property_ui_range(prop, 0.0f, 255.0f, 5.0f, 25600);             
+        RNA_def_property_ui_text(prop, "Blue", "Set the color");
         RNA_def_property_update(prop, 0, "rna_Modifier_update");
+
+        prop= RNA_def_property(srna, "color_a", PROP_FLOAT, PROP_NONE);
+        RNA_def_property_range(prop, 0.f, 255.f);
+	    RNA_def_property_ui_range(prop, 0.0f, 255.0f, 5.0f, 25600);             
+        RNA_def_property_ui_text(prop, "Alpha", "Set the color");
+        RNA_def_property_update(prop, 0, "rna_Modifier_update");
+
+
 
 
     	//rendering options

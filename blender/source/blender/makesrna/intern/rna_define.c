@@ -395,7 +395,7 @@ static int rna_validate_identifier(const char *identifier, char *error, int prop
 		}
 
 		if (identifier[a]==' ') {
-			strcpy(error, "spaces are not ok in identifier names");
+			strcpy(error, "spaces are not okay in identifier names");
 			return 0;
 		}
 
@@ -409,6 +409,21 @@ static int rna_validate_identifier(const char *identifier, char *error, int prop
 		if (strcmp(identifier, kwlist[a]) == 0) {
 			strcpy(error, "this keyword is reserved by python");
 			return 0;
+		}
+	}
+
+	if(property) {
+		static const char *kwlist_prop[] = {
+			/* not keywords but reserved all the same because py uses */
+			"keys", "values", "items", "get",
+			NULL
+		};
+
+		for(a=0; kwlist_prop[a]; a++) {
+			if (strcmp(identifier, kwlist_prop[a]) == 0) {
+				strcpy(error, "this keyword is reserved by python");
+				return 0;
+			}
 		}
 	}
 	
@@ -2840,7 +2855,7 @@ void RNA_def_property_free_pointers(PropertyRNA *prop)
 	}
 }
 
-void RNA_def_property_free(StructOrFunctionRNA *cont_, PropertyRNA *prop)
+static void rna_def_property_free(StructOrFunctionRNA *cont_, PropertyRNA *prop)
 {
 	ContainerRNA *cont= cont_;
 	
@@ -2865,7 +2880,7 @@ int RNA_def_property_free_identifier(StructOrFunctionRNA *cont_, const char *ide
 	for(prop= cont->properties.first; prop; prop= prop->next) {
 		if(strcmp(prop->identifier, identifier)==0) {
 			if(prop->flag & PROP_RUNTIME) {
-				RNA_def_property_free(cont_, prop);
+				rna_def_property_free(cont_, prop);
 				return 1;
 			}
 			else {

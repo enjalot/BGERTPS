@@ -458,7 +458,8 @@ typedef struct RTPSModifierData {
    
     //system parameters
     short collision;
-    short padding;//need this so struct is right size
+    char pack[2];
+	//short padding;//need this so struct is right size
     int sub_intervals;
     float dt;
 
@@ -479,15 +480,18 @@ typedef struct RTPSModifierData {
     float color_r;
     float color_g;
     float color_b;
+    float color_a;
 
     //rendering options
     short glsl;
     short blending;
+	char pack2[4];
 
     float radius; //not used
 	int render_type; //GE
 	float render_radius_scale; //GE
 	float render_blur_scale; //GE
+	char pack3[4];
 
 } RTPSModifierData;
 

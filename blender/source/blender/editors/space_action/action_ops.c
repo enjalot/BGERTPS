@@ -39,8 +39,7 @@
 
 #include "BLI_blenlib.h"
 
-
-
+#include "ED_anim_api.h"
 #include "ED_transform.h"
 
 #include "action_intern.h"
@@ -98,7 +97,7 @@ void ED_operatormacros_action(void)
 	if (ot) {
 		WM_operatortype_macro_define(ot, "ACTION_OT_duplicate");
 		otmacro= WM_operatortype_macro_define(ot, "TRANSFORM_OT_transform");
-			RNA_int_set(otmacro->ptr, "mode", TFM_TIME_DUPLICATE);
+		RNA_enum_set(otmacro->ptr, "mode", TFM_TIME_DUPLICATE);
 	}
 	
 }

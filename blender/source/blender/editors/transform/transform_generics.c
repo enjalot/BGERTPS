@@ -964,7 +964,7 @@ int initTransInfo (bContext *C, TransInfo *t, wmOperator *op, wmEvent *event)
 		t->options |= CTX_EDGE;
 	}
 
-	t->spacetype = sa->spacetype;
+	t->spacetype = sa ? sa->spacetype : SPACE_EMPTY; /* background mode */
 	if(t->spacetype == SPACE_VIEW3D)
 	{
 		View3D *v3d = sa->spacedata.first;
@@ -1008,7 +1008,7 @@ int initTransInfo (bContext *C, TransInfo *t, wmOperator *op, wmEvent *event)
 		SpaceImage *sima = sa->spacedata.first;
 		// XXX for now, get View2D  from the active region
 		t->view = &ar->v2d;
-		t->around = sima->around;
+		t->around = (sima ? sima->around : 0);
 	}
 	else if(t->spacetype==SPACE_IPO) 
 	{

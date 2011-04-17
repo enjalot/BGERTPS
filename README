@@ -2,21 +2,13 @@
 enjalot's modifications to Blender, putting the RTPS library in the Game Engine
 
 Build: 
-(Sorry, only Mac and Linux are tested right now)
-right now my changes depend on my RTPS library:
-http://github.com/enjalot/EnjaParticles
-    git clone git://github.com/enjalot/EnjaParticles.git
-    cd EnjaParticles
-        cd rtps
-follow the README to build
+You will need to grab the RTPS library by using the following submodule commands:
+git submodule init
+git submodule update
 
-you will need to set an environment variable so that the Blender CMake can find the RTPS library
-the RTPS library path should be something like
-~/EnjaParticles/rtps/build/rtpslib/librtps.so
-
-you need to set an environment variable like:
-    export RTPS_DIR=$HOME/EnjaParticles/rtps
-an example is given in environment/setupenv_linux_enj.sh
+(this will place the EnjaParticles repository in blender/extern/rtps) URL: https://github.com/enjalot/EnjaParticles
+Make sure you have the dependencies listed in the README there
+The main one is OpenCL, you must have a fairly recent NVIDIA or AMD (ATI) Graphics Card
 
 Build Blender:
 You want to follow the CMake instructions for building blender on your platform:
@@ -24,8 +16,8 @@ http://wiki.blender.org/index.php/Dev:2.5/Doc/Building_Blender
 
 
     cd ..
-    mkdir build-b25rtps
-    cd build-b25rtps
+    mkdir build25rtps
+    cd buildb25rtps
     cmake ../BGERTPS/blender    (Mac users may want to run ccmake ../BGERTPS/blender to configure properly)
         (make sure to check that all the libraries and dependencies are found)
     make -j8    (j8 runs make in 8 threads, if you encounter an error rerun make by itself to get sequential error output)
@@ -36,7 +28,9 @@ http://wiki.blender.org/index.php/Dev:2.5/Doc/Building_Blender
 
 
 Usage:
-You can apply the RTPS modifier to an object which turns its vertices into an emitter
+You can apply the RTPS modifier to an object which turns it into a domain
+You can add particles by putting objects within the domain and giving them a 'num' integer property with the value equal to the number of particles.
+You can make colliding objects by giving an object within the domain the 'collider' boolean property and setting it to true (it must be composed of triangles, use ctrl-t in edit mode)
 
 
 

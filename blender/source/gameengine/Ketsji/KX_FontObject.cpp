@@ -95,7 +95,9 @@ void KX_FontObject::ProcessReplica()
 	KX_GetActiveScene()->AddFont(this);
 }
 
-void KX_FontObject::DrawText()
+//void KX_FontObject::DrawText()
+//RTPS_NOTE-----: This should be DrawText()
+void KX_FontObject::DrawTextA()
 {
 	/* only draws the text if visible */
 	if(this->GetVisible() == 0) return;

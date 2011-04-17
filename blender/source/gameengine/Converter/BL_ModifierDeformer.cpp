@@ -63,7 +63,7 @@
 
 //Included by enjalot
 #include "RTPS.h"
-#include "timege.h"
+//#include "timege.h"
 //These KX might not belong here...
 //this should be addressed when moving away from a modifier
 #include "KX_Scene.h"   //for getting the camera
@@ -109,6 +109,10 @@ BL_ModifierDeformer::~BL_ModifierDeformer()
 			m_dm->release(m_dm);
 		}
 	}
+	//RTPS_NOTE seriously wtf can't i destruct any objects from rtps?
+	//printf("deleting settings\n");
+	//delete m_RTPS_settings;
+	printf("is it them?\n");
 };
 
 RAS_Deformer *BL_ModifierDeformer::GetReplica()
@@ -250,13 +254,18 @@ bool BL_ModifierDeformer::Update(void)
 	//----------------------------------------
     if(m_bIsRTPS)
     {
-        timers[TI_UPDATE]->start();
+        //timers[TI_UPDATE]->start();
         int nmat = m_pMeshObject->NumMaterials();
 
         for(int imat=0; imat<nmat; imat++)
         {
             RAS_MeshMaterial *mmat = m_pMeshObject->GetMeshMaterial(imat);
             RAS_MeshSlot **slot = mmat->m_slots[(void*)m_gameobj];   
+            
+            unsigned char color[4];
+            mmat->m_bucket->GetPolyMaterial()->GetMaterialRGBAColor(color);
+            float4 col(color[0]/255.f,color[1]/255.f,color[2]/255.f,color[3]/255.f);
+            
     	    if(!slot || !*slot)
                 continue;
             //iterate through the slots until we find one with a particle system
@@ -288,7 +297,7 @@ bool BL_ModifierDeformer::Update(void)
 
                 //deal with emitters if SPH
                 //maybe this should be done with a new modifier?
-                if(rtps->settings.system == rtps::RTPSettings::SPH || rtps->settings.system == rtps::RTPSettings::FLOCK)
+                if(rtps->settings->system == rtps::RTPSettings::SPH || rtps->settings->system == rtps::RTPSettings::FLOCK)
                 {
                     //loop through the objects looking for objects with collider property
                     CListValue* oblist = kxs->GetObjectList();
@@ -296,7 +305,7 @@ bool BL_ModifierDeformer::Update(void)
 
                     std::vector<Triangle> triangles;
 
-                    timers[TI_EMIT]->start();
+                    //timers[TI_EMIT]->start();
                     
                     for(int iob = 0; iob < num_objects; iob++)
                     {
@@ -320,6 +329,9 @@ bool BL_ModifierDeformer::Update(void)
                             }
                         }
 
+                        //float4 col((*slot)->m_RGBAcolor.x(),(*slot)->m_RGBAcolor.y(),(*slot)->m_RGBAcolor.z(),(*slot)->m_RGBAcolor.w());
+                        //float4 col;
+                        //(*slot)->m_RGBAcolor.getValue(&col);
                         
 
                         //Check if object is an emitter
@@ -336,35 +348,44 @@ bool BL_ModifierDeformer::Update(void)
                             CBoolValue* hoseprop = (CBoolValue*)gobj->GetProperty("hose");
                             if(hoseprop)
                             {
+                                
+                                //number of particles for hose to emit
+                                CIntValue* numprop = (CIntValue*)gobj->GetProperty("num");
+                                int num = (int)numprop->GetInt();
+
+                                CFloatValue* velprop = (CFloatValue*)gobj->GetProperty("speed");
+                                float speed = velprop->GetFloat();
+
+                                CFloatValue* radprop = (CFloatValue*)gobj->GetProperty("radius");
+                                float radius = radprop->GetFloat();
+
+                                //get center and direction from world transformations
+                                MT_Point3 gp = gobj->NodeGetWorldPosition();
+                                MT_Matrix3x3 grot = gobj->NodeGetWorldOrientation();
+                                MT_Matrix3x3 lrot = gobj->NodeGetLocalOrientation();
+                                //we shoot the hose in the object's Y direction
+                                MT_Vector3 dir(0., 1., 0.);
+                                dir = grot * dir;
+                                float4 center(gp[0], gp[1], gp[2], 1.f); 
+                                float4 velocity(dir[0], dir[1], dir[2], 0.);
+                                velocity = velocity * speed;
+
+                                CIntValue* indexprop = (CIntValue*)gobj->GetProperty("index");
                                 if(hoseprop->GetBool())
                                 {
-                                    //number of particles for hose to emit
-                                    CIntValue* numprop = (CIntValue*)gobj->GetProperty("num");
-                                    int num = (int)numprop->GetInt();
+                                    int index = rtps->system->addHose(num, center, velocity, radius, col);
+                                    CIntValue* hose_index = new CIntValue(index);
+                                    gobj->SetProperty("index", hose_index);
+                                    //delete hose_index;
 
-                                    CFloatValue* velprop = (CFloatValue*)gobj->GetProperty("speed");
-                                    float speed = velprop->GetFloat();
-
-                                    CFloatValue* radprop = (CFloatValue*)gobj->GetProperty("radius");
-                                    float radius = radprop->GetFloat();
-
-                                    //get center and direction from world transformations
-                                    MT_Point3 gp = gobj->NodeGetWorldPosition();
-                                    MT_Matrix3x3 grot = gobj->NodeGetWorldOrientation();
-                                    //we shoot the hose in the object's Y direction
-                                    MT_Vector3 dir(0., 1., 0.);
-                                    dir = dir * grot;
-                                    float4 center(gp[0], gp[1], gp[2], 1.f); 
-                                    float4 velocity(dir[0], dir[1], dir[2], 0.);
-                                    velocity = velocity * speed;
-                                    rtps->system->addHose(num, center, velocity, radius);
-                                    //TODO: need real way of interacting with hose object
-                                    //to be able to start and stop them
-                                    //HACK:
                                     CBoolValue setfalse(false);
                                     hoseprop->SetValue(&setfalse);
                                 }
-
+                                else
+                                {
+                                    int index = (int)indexprop->GetInt();
+                                    rtps->system->updateHose(index, center, velocity, radius, col);
+                                }
                             }
                             else
                             {
@@ -376,7 +397,7 @@ bool BL_ModifierDeformer::Update(void)
          
                                 float4 min = float4(bbpts[0].x(), bbpts[0].y(), bbpts[0].z(), 0);
                                 float4 max = float4(bbpts[7].x(), bbpts[7].y(), bbpts[7].z(), 0);
-                                rtps->system->addBox(nn, min, max, false);
+                                rtps->system->addBox(nn, min, max, false, col);
                             }
                            
                         }//if emitters
@@ -385,19 +406,20 @@ bool BL_ModifierDeformer::Update(void)
      
                     }//for loop of objects
 
-                    timers[TI_EMIT]->end();
+                    //timers[TI_EMIT]->end();
 
 
-                    if(triangles.size() > 0 && rtps->settings.tri_collision)
+					if(triangles.size() > 0 && rtps->settings->tri_collision)
                     {
                         //printf("about to load triangles\n");
                         //printf("triangles size: %d\n", triangles.size());
                         rtps->system->loadTriangles(triangles);
+						//printf("after load triangles\n");
                     }
 
-                    timers[TI_RTPSUP]->start();
+                    //timers[TI_RTPSUP]->start();
                     (*slot)->m_pRTPS->update();
-                    timers[TI_RTPSUP]->end();
+                    //timers[TI_RTPSUP]->end();
 
                 }
                 
@@ -405,7 +427,7 @@ bool BL_ModifierDeformer::Update(void)
    
 	        }
         }//for loop over materials
-        timers[TI_UPDATE]->end();
+        //timers[TI_UPDATE]->end();
 
     }//if(m_bIsRTPS)
 	//----------------------------------------
@@ -430,10 +452,10 @@ bool BL_ModifierDeformer::Apply(RAS_IPolyMaterial *mat)
         
         if(m_bIsRTPS)
         {
-            printf("IJ: set the mesh slot m_bRTPS to true (in ModifierDeformer::Apply()\n");
+            printf("RTPS: set the mesh slot m_bRTPS to true (in ModifierDeformer::Apply()\n");
             (*slot)->m_bRTPS = true;
             //initialize the particle system
-            printf("IJ: initialize particle system\n");
+            printf("RTPS: initialize particle system\n");
             
             ModifierData* md;
             for (md = (ModifierData*)m_objMesh->modifiers.first; md; md = (ModifierData*)md->next) 
@@ -451,62 +473,76 @@ bool BL_ModifierDeformer::Apply(RAS_IPolyMaterial *mat)
                     KX_GameObject* gobj = (KX_GameObject*)m_gameobj;
                     MT_Point3 bbpts[8];
                     gobj->GetSGNode()->getAABBox(bbpts);
-                    MT_Point3 min = bbpts[0];
-                    MT_Point3 max = bbpts[7];
+                    MT_Point3 dmin = bbpts[0];
+                    MT_Point3 dmax = bbpts[7];
+                    //apply the object's transforms so we use global coordinates
+                    MT_Matrix3x3 grot = gobj->NodeGetWorldOrientation();
+                    MT_Point3 gp = gobj->NodeGetWorldPosition();
+                    dmin = grot*dmin + gp;
+                    dmax = grot*dmax + gp;
+
+
                     using namespace rtps;
-                    rtps::Domain grid(float4(min.x(), min.y(), min.z(), 0), float4(max.x(), max.y(), max.z(), 0));
+                    rtps::Domain* grid = new Domain(float4(dmin.x(), dmin.y(), dmin.z(), 0), float4(dmax.x(), dmax.y(), dmax.z(), 0));
 
                     if (sys == rtps::RTPSettings::SPH) 
                     {
                         //rtps::RTPSettings settings(sys, grid);
-                        rtps::RTPSettings settings(sys, rtmd->max_num, rtmd->dt, grid, rtmd->collision);
-						settings.setRadiusScale(rtmd->render_radius_scale);
-						settings.setRenderType((rtps::RTPSettings::RenderType)rtmd->render_type);
-						settings.setBlurScale(rtmd->render_blur_scale);
-						settings.setUseGLSL(rtmd->glsl);
-						settings.setUseAlphaBlending(rtmd->blending);
+						m_RTPS_settings = new rtps::RTPSettings(sys, rtmd->max_num, rtmd->dt, grid, rtmd->collision);
+						m_RTPS_settings->setRadiusScale(rtmd->render_radius_scale);
+						m_RTPS_settings->setRenderType((rtps::RTPSettings::RenderType)rtmd->render_type);
+						m_RTPS_settings->setBlurScale(rtmd->render_blur_scale);
+						m_RTPS_settings->setUseGLSL(rtmd->glsl);
+						m_RTPS_settings->setUseAlphaBlending(rtmd->blending);
 
 
-                        settings.SetSetting("render_texture", "firejet_blast.png");
-                        settings.SetSetting("render_frag_shader", "sprite_tex_frag.glsl");
-                        settings.SetSetting("render_use_alpha", true);
+                        m_RTPS_settings->SetSetting("render_texture", "firejet_blast.png");
+                        m_RTPS_settings->SetSetting("render_frag_shader", "sprite_tex_frag.glsl");
+                        m_RTPS_settings->SetSetting("render_use_alpha", true);
                         //settings.SetSetting("render_use_alpha", false);
-                        settings.SetSetting("render_alpha_function", "add");
-                        settings.SetSetting("lt_increment", -.00);
-                        settings.SetSetting("lt_cl", "lifetime.cl");
+                        m_RTPS_settings->SetSetting("render_alpha_function", "add");
+                        m_RTPS_settings->SetSetting("lt_increment", -.00);
+                        m_RTPS_settings->SetSetting("lt_cl", "lifetime.cl");
 
                         
 
-                        rtps::RTPS* ps = new rtps::RTPS(settings);
+                        rtps::RTPS* ps = new rtps::RTPS(m_RTPS_settings);
                         (*slot)->m_pRTPS = ps;
 
                         //dynamic params
-                        ps->settings.SetSetting("Gas Constant", rtmd->gas_constant);
-                        ps->settings.SetSetting("Viscosity", rtmd->viscosity);
-                        ps->settings.SetSetting("Velocity Limit", rtmd->velocity_limit);
-                        ps->settings.SetSetting("XSPH Factor", rtmd->xsph_factor);
-                        ps->settings.SetSetting("Gravity", rtmd->gravity); // -9.8 m/sec^2
+                        ps->settings->SetSetting("Gas Constant", rtmd->gas_constant);
+                        ps->settings->SetSetting("Viscosity", rtmd->viscosity);
+                        ps->settings->SetSetting("Velocity Limit", rtmd->velocity_limit);
+                        ps->settings->SetSetting("XSPH Factor", rtmd->xsph_factor);
+                        ps->settings->SetSetting("Gravity", rtmd->gravity); // -9.8 m/sec^2
 
-                        ps->settings.SetSetting("Boundary Stiffness", rtmd->boundary_stiffness);
-                        ps->settings.SetSetting("Boundary Dampening", rtmd->boundary_dampening);
+                        ps->settings->SetSetting("Boundary Stiffness", rtmd->boundary_stiffness);
+                        ps->settings->SetSetting("Boundary Dampening", rtmd->boundary_dampening);
                         //settings.SetSetting("Friction Kinetic", rtmd->friction_kinetic);
                         //settings.SetSetting("Friction Static", rtmd->friction_static);
-                        ps->settings.SetSetting("Sub Intervals", rtmd->sub_intervals);
+                        ps->settings->SetSetting("Sub Intervals", rtmd->sub_intervals);
+
+                        //color hack for now
+                        ps->settings->SetSetting("color_r", rtmd->color_r/255.0f);
+                        ps->settings->SetSetting("color_g", rtmd->color_g/255.0f);
+                        ps->settings->SetSetting("color_b", rtmd->color_b/255.0f);
+                        ps->settings->SetSetting("color_a", rtmd->color_a/255.0f);
+
 
                     }
                     else if (sys == rtps::RTPSettings::FLOCK) 
                     {
 						//printf("*** scale radius** = %f\n", rtmd->render_radius_scale);
 						//printf("*** dt ** = %f\n", rtmd->dt);
-                        rtps::RTPSettings settings(sys, rtmd->max_num, rtmd->dt, grid, rtmd->collision);
+						m_RTPS_settings = new rtps::RTPSettings(sys, rtmd->max_num, rtmd->dt, grid, rtmd->collision);
 						//GE should automate with python
-						settings.setRadiusScale(rtmd->render_radius_scale);
-						settings.setRenderType((rtps::RTPSettings::RenderType)rtmd->render_type);
-						settings.setBlurScale(rtmd->render_blur_scale);
-						settings.setUseGLSL(rtmd->glsl);
-						settings.setUseAlphaBlending(rtmd->blending);
+						m_RTPS_settings->setRadiusScale(rtmd->render_radius_scale);
+						m_RTPS_settings->setRenderType((rtps::RTPSettings::RenderType)rtmd->render_type);
+						m_RTPS_settings->setBlurScale(rtmd->render_blur_scale);
+						m_RTPS_settings->setUseGLSL(rtmd->glsl);
+						m_RTPS_settings->setUseAlphaBlending(rtmd->blending);
 
-                        (*slot)->m_pRTPS = new rtps::RTPS(settings);
+                        (*slot)->m_pRTPS = new rtps::RTPS(m_RTPS_settings);
         
                     }
 #if 0
@@ -519,8 +555,8 @@ bool BL_ModifierDeformer::Apply(RAS_IPolyMaterial *mat)
 #endif
                     else 
                     {
-                        rtps::RTPSettings settings(sys, rtmd->max_num, rtmd->dt, grid);
-                        (*slot)->m_pRTPS = new rtps::RTPS(settings);
+						m_RTPS_settings = new rtps::RTPSettings(sys, rtmd->max_num, rtmd->dt, grid);
+                        (*slot)->m_pRTPS = new rtps::RTPS(m_RTPS_settings);
                     }
 
                 }

@@ -61,10 +61,12 @@ release/scripts/ui/
     properties_data_modifier.py (Python UI)
 
 intern/opencl
+    #the opencl header files from khronos with slight modification
 
 intern/memutil/intern/
     MEM_CacheLimiterC-Api.cpp (had to change #include <malloc.h> to #include <stdlib.h> for mac
 
-build_files/cmake/
-    environment.cmake
-    setupenv_linux_enj.sh
+extern/rtps
+    #use the git submodule command to get this directory: (execute these commands from the base directory)
+        git submodule init
+        git submodule update

@@ -1084,10 +1084,14 @@ void KX_KetsjiEngine::SetCameraOverrideViewMatrix(const MT_CmMatrix4x4& mat)
 	m_overrideCamViewMat = mat;
 }
 
-void KX_KetsjiEngine::SetCameraOverrideClipping(float near, float far)
+void KX_KetsjiEngine::SetCameraOverrideClipping(float near_a, float far_a)
 {
-	m_overrideCamNear = near;
-	m_overrideCamFar = far;
+	//RTPS_NOTE-----------------: This should not be commented out
+	//Whats with variables being predefined or something?
+	//m_overrideCamNear = near;
+	//m_overrideCamFar = far;
+	m_overrideCamNear = near_a;
+	m_overrideCamFar = far_a;
 }
 
 void KX_KetsjiEngine::SetCameraOverrideLens(float lens)
@@ -1324,7 +1328,8 @@ void KX_KetsjiEngine::RenderFonts(KX_Scene* scene)
 	list<KX_FontObject*>::iterator it = fonts->begin();
 	while(it != fonts->end())
 	{
-		(*it)->DrawText();
+        //RTPS_NOTE hacking some more shit to get things compiling in windows
+		(*it)->DrawTextA();
 		++it;
 	}
 }
