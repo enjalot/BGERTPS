@@ -63,7 +63,7 @@
 
 //Included by enjalot
 #include "RTPS.h"
-#include "timege.h"
+//#include "timege.h"
 //These KX might not belong here...
 //this should be addressed when moving away from a modifier
 #include "KX_Scene.h"   //for getting the camera
@@ -250,7 +250,7 @@ bool BL_ModifierDeformer::Update(void)
 	//----------------------------------------
     if(m_bIsRTPS)
     {
-        timers[TI_UPDATE]->start();
+        //timers[TI_UPDATE]->start();
         int nmat = m_pMeshObject->NumMaterials();
 
         for(int imat=0; imat<nmat; imat++)
@@ -288,7 +288,7 @@ bool BL_ModifierDeformer::Update(void)
 
                 //deal with emitters if SPH
                 //maybe this should be done with a new modifier?
-                if(rtps->settings.system == rtps::RTPSettings::SPH || rtps->settings.system == rtps::RTPSettings::FLOCK)
+                if(rtps->settings->system == rtps::RTPSettings::SPH || rtps->settings->system == rtps::RTPSettings::FLOCK)
                 {
                     //loop through the objects looking for objects with collider property
                     CListValue* oblist = kxs->GetObjectList();
@@ -296,7 +296,7 @@ bool BL_ModifierDeformer::Update(void)
 
                     std::vector<Triangle> triangles;
 
-                    timers[TI_EMIT]->start();
+                    //timers[TI_EMIT]->start();
                     
                     for(int iob = 0; iob < num_objects; iob++)
                     {
@@ -385,19 +385,19 @@ bool BL_ModifierDeformer::Update(void)
      
                     }//for loop of objects
 
-                    timers[TI_EMIT]->end();
+                    //timers[TI_EMIT]->end();
 
 
-                    if(triangles.size() > 0 && rtps->settings.tri_collision)
+                    if(triangles.size() > 0 && rtps->settings->tri_collision)
                     {
                         //printf("about to load triangles\n");
                         //printf("triangles size: %d\n", triangles.size());
                         rtps->system->loadTriangles(triangles);
                     }
 
-                    timers[TI_RTPSUP]->start();
+                    //timers[TI_RTPSUP]->start();
                     (*slot)->m_pRTPS->update();
-                    timers[TI_RTPSUP]->end();
+                    //timers[TI_RTPSUP]->end();
 
                 }
                 
@@ -405,7 +405,7 @@ bool BL_ModifierDeformer::Update(void)
    
 	        }
         }//for loop over materials
-        timers[TI_UPDATE]->end();
+        //timers[TI_UPDATE]->end();
 
     }//if(m_bIsRTPS)
 	//----------------------------------------
@@ -453,45 +453,44 @@ bool BL_ModifierDeformer::Apply(RAS_IPolyMaterial *mat)
                     gobj->GetSGNode()->getAABBox(bbpts);
                     MT_Point3 min = bbpts[0];
                     MT_Point3 max = bbpts[7];
+                    
                     using namespace rtps;
-                    rtps::Domain grid(float4(min.x(), min.y(), min.z(), 0), float4(max.x(), max.y(), max.z(), 0));
+                    
+                    rtps::Domain *grid = new Domain(float4(min.x(), min.y(), min.z(), 0), float4(max.x(), max.y(), max.z(), 0));
 
                     if (sys == rtps::RTPSettings::SPH) 
                     {
                         //rtps::RTPSettings settings(sys, grid);
-                        rtps::RTPSettings settings(sys, rtmd->max_num, rtmd->dt, grid, rtmd->collision);
-						settings.setRadiusScale(rtmd->render_radius_scale);
-						settings.setRenderType((rtps::RTPSettings::RenderType)rtmd->render_type);
-						settings.setBlurScale(rtmd->render_blur_scale);
-						settings.setUseGLSL(rtmd->glsl);
-						settings.setUseAlphaBlending(rtmd->blending);
+                        rtps::RTPSettings* settings = new rtps::RTPSettings(sys, rtmd->max_num, rtmd->dt, grid, rtmd->collision);
+						settings->setRadiusScale(rtmd->render_radius_scale);
+						settings->setRenderType((rtps::RTPSettings::RenderType)rtmd->render_type);
+						settings->setBlurScale(rtmd->render_blur_scale);
+						settings->setUseGLSL(rtmd->glsl);
+						settings->setUseAlphaBlending(rtmd->blending);
 
-
-                        settings.SetSetting("render_texture", "firejet_blast.png");
-                        settings.SetSetting("render_frag_shader", "sprite_tex_frag.glsl");
-                        settings.SetSetting("render_use_alpha", true);
-                        //settings.SetSetting("render_use_alpha", false);
-                        settings.SetSetting("render_alpha_function", "add");
-                        settings.SetSetting("lt_increment", -.00);
-                        settings.SetSetting("lt_cl", "lifetime.cl");
-
-                        
+                        settings->SetSetting("render_texture", "firejet_blast.png");
+                        settings->SetSetting("render_frag_shader", "sprite_tex_frag.glsl");
+                        settings->SetSetting("render_use_alpha", true);
+                        //settings->SetSetting("render_use_alpha", false);
+                        settings->SetSetting("render_alpha_function", "add");
+                        settings->SetSetting("lt_increment", -.00);
+                        settings->SetSetting("lt_cl", "lifetime.cl");
 
                         rtps::RTPS* ps = new rtps::RTPS(settings);
                         (*slot)->m_pRTPS = ps;
 
                         //dynamic params
-                        ps->settings.SetSetting("Gas Constant", rtmd->gas_constant);
-                        ps->settings.SetSetting("Viscosity", rtmd->viscosity);
-                        ps->settings.SetSetting("Velocity Limit", rtmd->velocity_limit);
-                        ps->settings.SetSetting("XSPH Factor", rtmd->xsph_factor);
-                        ps->settings.SetSetting("Gravity", rtmd->gravity); // -9.8 m/sec^2
+                        ps->settings->SetSetting("Gas Constant", rtmd->gas_constant);
+                        ps->settings->SetSetting("Viscosity", rtmd->viscosity);
+                        ps->settings->SetSetting("Velocity Limit", rtmd->velocity_limit);
+                        ps->settings->SetSetting("XSPH Factor", rtmd->xsph_factor);
+                        ps->settings->SetSetting("Gravity", rtmd->gravity); // -9.8 m/sec^2
 
-                        ps->settings.SetSetting("Boundary Stiffness", rtmd->boundary_stiffness);
-                        ps->settings.SetSetting("Boundary Dampening", rtmd->boundary_dampening);
-                        //settings.SetSetting("Friction Kinetic", rtmd->friction_kinetic);
-                        //settings.SetSetting("Friction Static", rtmd->friction_static);
-                        ps->settings.SetSetting("Sub Intervals", rtmd->sub_intervals);
+                        ps->settings->SetSetting("Boundary Stiffness", rtmd->boundary_stiffness);
+                        ps->settings->SetSetting("Boundary Dampening", rtmd->boundary_dampening);
+                        //settings->SetSetting("Friction Kinetic", rtmd->friction_kinetic);
+                        //settings->SetSetting("Friction Static", rtmd->friction_static);
+                        ps->settings->SetSetting("Sub Intervals", rtmd->sub_intervals);
 
                     }
                    /* else if (sys == rtps::RTPSettings::FLOCK) 
@@ -512,33 +511,41 @@ bool BL_ModifierDeformer::Apply(RAS_IPolyMaterial *mat)
                     else if (sys == rtps::RTPSettings::FLOCK)
                     {
                         float color[3] = {rtmd->color_r, rtmd->color_g, rtmd->color_b};
-                        rtps::RTPSettings settings(sys, rtmd->max_num, rtmd->dt, grid, rtmd->maxspeed, rtmd->separationdist, rtmd->searchradius, color, rtmd->w_sep, rtmd->w_align, rtmd->w_coh);
+                        //rtps::RTPSettings settings(sys, rtmd->max_num, rtmd->dt, grid, rtmd->maxspeed, rtmd->separationdist, rtmd->searchradius, color, rtmd->w_sep, rtmd->w_align, rtmd->w_coh);
+                        rtps::RTPSettings* settings = new rtps::RTPSettings(sys, rtmd->max_num, rtmd->dt, grid, rtmd->collision);
 
-
-						
-                        settings.setRenderType((rtps::RTPSettings::RenderType)rtmd->render_type);
-						//settings.setRadiusScale(rtmd->render_radius_scale);
-						//settings.setBlurScale(rtmd->render_blur_scale);
+                        settings->setRenderType((rtps::RTPSettings::RenderType)rtmd->render_type);
+						settings->setRadiusScale(rtmd->render_radius_scale);
+						settings->setBlurScale(rtmd->render_blur_scale);
 						//settings.setUseGLSL(rtmd->glsl);
 						//settings.setUseAlphaBlending(rtmd->blending);
 						
-                        settings.setRadiusScale(1.0);
-						settings.setBlurScale(1.0);
-						settings.setUseGLSL(1);
+                        //settings.setRadiusScale(1.0);
+						//settings.setBlurScale(1.0);
+						//settings.setUseGLSL(1);
                         
-                        settings.SetSetting("render_texture", "boid3.png");
-                        settings.SetSetting("render_frag_shader", "boid_tex_frag.glsl");
-                        //settings.SetSetting("render_use_alpha", true);
-                        settings.SetSetting("render_use_alpha", false);
-                        //settings.SetSetting("render_alpha_function", "add");
-                        settings.SetSetting("lt_increment", -.00);
-                        settings.SetSetting("lt_cl", "lifetime.cl");
+                        settings->SetSetting("render_texture", "boid3.png");
+                        settings->SetSetting("render_frag_shader", "boid_tex_frag.glsl");
+                        //settings->SetSetting("render_texture", "fsu_seal.jpg");
+                        //settings->SetSetting("render_frag_shader", "sprite_tex_frag.glsl");
+                        //settings->SetSetting("render_use_alpha", true);
+                        settings->SetSetting("render_use_alpha", false);
+                        //settings->SetSetting("render_alpha_function", "add");
+                        settings->SetSetting("lt_increment", -.00);
+                        settings->SetSetting("lt_cl", "lifetime.cl");
 
                         (*slot)->m_pRTPS = new rtps::RTPS(settings);
+
+                        settings->SetSetting("Max Speed", rtmd->maxspeed);
+                        settings->SetSetting("Min Separation Distance", rtmd->separationdist);
+                        settings->SetSetting("Searching Radius", rtmd->searchradius);
+                        settings->SetSetting("Separation Weight", rtmd->w_sep);
+                        settings->SetSetting("Alignment Weight", rtmd->w_align);
+                        settings->SetSetting("Cohesion Weight", rtmd->w_coh);
                     }
                     else 
                     {
-                        rtps::RTPSettings settings(sys, rtmd->max_num, rtmd->dt, grid);
+                        rtps::RTPSettings* settings = new rtps::RTPSettings(sys, rtmd->max_num, rtmd->dt, grid);
                         (*slot)->m_pRTPS = new rtps::RTPS(settings);
                     }
 

@@ -238,6 +238,7 @@ IF(WITH_OPENCL)
 
     message("RTPS include: ${RTPS_INCLUDE_DIR}")
     message("RTPS lib: ${RTPS_LIB_DIR}")
+    ADD_DEFINITIONS(-Drtps_EXPORTS)
 
     #LINK_DIRECTORIES(${RTPS_LIB_DIR})
     #FIND_LIBRARY(RTPS_LIBRARY NAMES rtps)
