@@ -72,6 +72,8 @@ char *BLI_get_folder_version(const int id, const int ver, const int do_check);
 
 #define BLENDER_TEMP				80
 
+#define BLENDER_RTPS                91
+
 #define BLENDER_USERFOLDER(id) (id >= BLENDER_USER_CONFIG && id <= BLENDER_USER_PLUGINS)
 
 /* for BLI_get_folder_version only */

@@ -1081,6 +1081,12 @@ char *BLI_get_folder(int folder_id, const char *subfolder)
 			if (get_path_local(path, "python", subfolder, ver)) break;
 			if (get_path_system(path, "python", subfolder, "BLENDER_SYSTEM_PYTHON", ver)) break;
 			return NULL;
+
+        case BLENDER_RTPS:
+			if (get_path_local(path, "rtps", subfolder, ver)) break;
+			if (get_path_system(path, "rtps", subfolder, "BLENDER_RTPS", ver)) break;
+			return NULL;
+
 	}
 	
 	return path;
