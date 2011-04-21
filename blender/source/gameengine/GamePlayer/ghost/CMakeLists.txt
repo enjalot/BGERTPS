@@ -53,7 +53,7 @@ set(INC
 	../../../../source/gameengine/GamePlayer/common
 	../../../../source/blender/blenloader
 	../../../../source/blender/gpu
-	../../../../extern/glew/include
+	${GLEW_INCLUDE_PATH}
 	${PYTHON_INCLUDE_DIRS}
 )
 
@@ -75,5 +75,11 @@ add_definitions(-DGLEW_STATIC)
 if(WITH_CODEC_FFMPEG)
 	add_definitions(-DWITH_FFMPEG)
 endif()
+
+IF(WITH_OPENCL)
+	LIST(APPEND INC ${OPENCL_INCLUDE_DIR})  
+	LIST(APPEND INC ${RTPS_INCLUDE_DIR})  
+ENDIF(WITH_OPENCL)
+
 
 blender_add_lib_nolist(ge_player_ghost "${SRC}" "${INC}")

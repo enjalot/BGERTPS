@@ -176,6 +176,7 @@ int space_image_main_area_poll(bContext *C)
 typedef struct ViewPanData {
 	float x, y;
 	float xof, yof;
+	int event_type;
 } ViewPanData;
 
 static void view_pan_init(bContext *C, wmOperator *op, wmEvent *event)
@@ -190,6 +191,7 @@ static void view_pan_init(bContext *C, wmOperator *op, wmEvent *event)
 	vpd->y= event->y;
 	vpd->xof= sima->xof;
 	vpd->yof= sima->yof;
+	vpd->event_type= event->type;
 
 	WM_event_add_modal_handler(C, op);
 }
@@ -266,9 +268,8 @@ static int view_pan_modal(bContext *C, wmOperator *op, wmEvent *event)
 			RNA_float_set_array(op->ptr, "offset", offset);
 			view_pan_exec(C, op);
 			break;
-		case MIDDLEMOUSE:
-		case LEFTMOUSE:
-			if(event->val==KM_RELEASE) {
+		default:
+			if(event->type==vpd->event_type &&  event->val==KM_RELEASE) {
 				view_pan_exit(C, op, 0);
 				return OPERATOR_FINISHED;
 			}
@@ -310,6 +311,7 @@ void IMAGE_OT_view_pan(wmOperatorType *ot)
 typedef struct ViewZoomData {
 	float x, y;
 	float zoom;
+	int event_type;
 } ViewZoomData;
 
 static void view_zoom_init(bContext *C, wmOperator *op, wmEvent *event)
@@ -323,7 +325,8 @@ static void view_zoom_init(bContext *C, wmOperator *op, wmEvent *event)
 	vpd->x= event->x;
 	vpd->y= event->y;
 	vpd->zoom= sima->zoom;
-
+	vpd->event_type= event->type;
+	
 	WM_event_add_modal_handler(C, op);
 }
 
@@ -369,7 +372,7 @@ static int view_zoom_invoke(bContext *C, wmOperator *op, wmEvent *event)
 		ARegion *ar= CTX_wm_region(C);
 		float factor;
 		
-		factor= 1.0 + (event->x-event->prevx+event->y-event->prevy)/300.0f;
+		factor= 1.0f + (event->x-event->prevx+event->y-event->prevy)/300.0f;
 		RNA_float_set(op->ptr, "factor", factor);
 		sima_zoom_set(sima, ar, sima->zoom*factor);
 		ED_region_tag_redraw(CTX_wm_region(C));
@@ -391,14 +394,13 @@ static int view_zoom_modal(bContext *C, wmOperator *op, wmEvent *event)
 
 	switch(event->type) {
 		case MOUSEMOVE:
-			factor= 1.0 + (vpd->x-event->x+vpd->y-event->y)/300.0f;
+			factor= 1.0f + (vpd->x-event->x+vpd->y-event->y)/300.0f;
 			RNA_float_set(op->ptr, "factor", factor);
 			sima_zoom_set(sima, ar, vpd->zoom*factor);
 			ED_region_tag_redraw(CTX_wm_region(C));
 			break;
-		case MIDDLEMOUSE:
-		case LEFTMOUSE:
-			if(event->val==KM_RELEASE) {
+		default:
+			if(event->type==vpd->event_type && event->val==KM_RELEASE) {
 				view_zoom_exit(C, op, 0);
 				return OPERATOR_FINISHED;
 			}
@@ -520,10 +522,10 @@ static int view_selected_exec(bContext *C, wmOperator *UNUSED(op))
 
 	d[0]= max[0] - min[0];
 	d[1]= max[1] - min[1];
-	size= 0.5*MAX2(d[0], d[1])*MAX2(width, height)/256.0f;
+	size= 0.5f*MAX2(d[0], d[1])*MAX2(width, height)/256.0f;
 	
-	if(size<=0.01) size= 0.01;
-	sima_zoom_set(sima, ar, 0.7/size);
+	if(size<=0.01f) size= 0.01f;
+	sima_zoom_set(sima, ar, 0.7f/size);
 
 	ED_region_tag_redraw(CTX_wm_region(C));
 	
@@ -796,7 +798,7 @@ static int open_invoke(bContext *C, wmOperator *op, wmEvent *UNUSED(event))
 void IMAGE_OT_open(wmOperatorType *ot)
 {
 	/* identifiers */
-	ot->name= "Open";
+	ot->name= "Open Image";
 	ot->idname= "IMAGE_OT_open";
 	
 	/* api callbacks */
@@ -854,7 +856,7 @@ static int replace_invoke(bContext *C, wmOperator *op, wmEvent *UNUSED(event))
 void IMAGE_OT_replace(wmOperatorType *ot)
 {
 	/* identifiers */
-	ot->name= "Replace";
+	ot->name= "Replace Image";
 	ot->idname= "IMAGE_OT_replace";
 	
 	/* api callbacks */
@@ -1074,7 +1076,7 @@ static int save_as_invoke(bContext *C, wmOperator *op, wmEvent *UNUSED(event))
 void IMAGE_OT_save_as(wmOperatorType *ot)
 {
 	/* identifiers */
-	ot->name= "Save As";
+	ot->name= "Save As Image";
 	ot->idname= "IMAGE_OT_save_as";
 	
 	/* api callbacks */
@@ -1145,7 +1147,7 @@ static int save_exec(bContext *C, wmOperator *op)
 void IMAGE_OT_save(wmOperatorType *ot)
 {
 	/* identifiers */
-	ot->name= "Save";
+	ot->name= "Save Image";
 	ot->idname= "IMAGE_OT_save";
 	
 	/* api callbacks */
@@ -1257,7 +1259,7 @@ static int reload_exec(bContext *C, wmOperator *UNUSED(op))
 void IMAGE_OT_reload(wmOperatorType *ot)
 {
 	/* identifiers */
-	ot->name= "Reload";
+	ot->name= "Reload Image";
 	ot->idname= "IMAGE_OT_reload";
 	
 	/* api callbacks */
@@ -1339,7 +1341,7 @@ void IMAGE_OT_new(wmOperatorType *ot)
 	static float default_color[4]= {0.0f, 0.0f, 0.0f, 1.0f};
 	
 	/* identifiers */
-	ot->name= "New";
+	ot->name= "New Image";
 	ot->idname= "IMAGE_OT_new";
 	
 	/* api callbacks */
@@ -1347,7 +1349,7 @@ void IMAGE_OT_new(wmOperatorType *ot)
 	ot->invoke= image_new_invoke;
 	
 	/* flags */
-	ot->flag= OPTYPE_REGISTER|OPTYPE_UNDO;
+	ot->flag= OPTYPE_UNDO;
 
 	/* properties */
 	RNA_def_string(ot->srna, "name", "untitled", 21, "Name", "Image datablock name.");
@@ -1512,7 +1514,7 @@ static int pack_invoke(bContext *C, wmOperator *op, wmEvent *UNUSED(event))
 void IMAGE_OT_pack(wmOperatorType *ot)
 {
 	/* identifiers */
-	ot->name= "Pack";
+	ot->name= "Pack Image";
 	ot->description= "Pack an image as embedded data into the .blend file"; 
 	ot->idname= "IMAGE_OT_pack";
 	
@@ -1589,7 +1591,7 @@ static int image_unpack_invoke(bContext *C, wmOperator *op, wmEvent *UNUSED(even
 void IMAGE_OT_unpack(wmOperatorType *ot)
 {
 	/* identifiers */
-	ot->name= "Unpack";
+	ot->name= "Unpack Image";
 	ot->description= "Save an image packed in the .blend file to disk"; 
 	ot->idname= "IMAGE_OT_unpack";
 	
@@ -1653,7 +1655,7 @@ static void sample_apply(bContext *C, wmOperator *op, wmEvent *event)
 	my= event->y - ar->winrct.ymin;
 	UI_view2d_region_to_view(&ar->v2d, mx, my, &fx, &fy);
 
-	if(fx>=0.0 && fy>=0.0 && fx<1.0 && fy<1.0) {
+	if(fx>=0.0f && fy>=0.0f && fx<1.0f && fy<1.0f) {
 		float *fp;
 		char *cp;
 		int x= (int)(fx*ibuf->x), y= (int)(fy*ibuf->y);
@@ -1801,7 +1803,7 @@ static int sample_cancel(bContext *C, wmOperator *op)
 void IMAGE_OT_sample(wmOperatorType *ot)
 {
 	/* identifiers */
-	ot->name= "Sample";
+	ot->name= "Sample Color";
 	ot->idname= "IMAGE_OT_sample";
 	
 	/* api callbacks */

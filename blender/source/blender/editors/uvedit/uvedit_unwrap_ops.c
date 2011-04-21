@@ -431,12 +431,19 @@ void UV_OT_minimize_stretch(wmOperatorType *ot)
 
 /* ******************** Pack Islands operator **************** */
 
-static int pack_islands_exec(bContext *C, wmOperator *UNUSED(op))
+static int pack_islands_exec(bContext *C, wmOperator *op)
 {
 	Scene *scene= CTX_data_scene(C);
 	Object *obedit= CTX_data_edit_object(C);
 	EditMesh *em= BKE_mesh_get_editmesh((Mesh*)obedit->data);
 	ParamHandle *handle;
+
+	if(RNA_property_is_set(op->ptr, "margin")) {
+		scene->toolsettings->uvcalc_margin= RNA_float_get(op->ptr, "margin");
+	}
+	else {
+		RNA_float_set(op->ptr, "margin", scene->toolsettings->uvcalc_margin);
+	}
 
 	handle = construct_param_handle(scene, em, 1, 0, 1, 1);
 	param_pack(handle, scene->toolsettings->uvcalc_margin);
@@ -460,6 +467,9 @@ void UV_OT_pack_islands(wmOperatorType *ot)
 	/* api callbacks */
 	ot->exec= pack_islands_exec;
 	ot->poll= ED_operator_uvedit;
+
+	/* properties */
+	RNA_def_float_factor(ot->srna, "margin", 0.0f, 0.0f, 1.0f, "Margin", "Space between islands", 0.0f, 1.0f);
 }
 
 /* ******************** Average Islands Scale operator **************** */
@@ -707,11 +717,11 @@ static void correct_uv_aspect(EditMesh *em)
 			if(efa->f & SELECT) {
 				tf= CustomData_em_get(&em->fdata, efa->data, CD_MTFACE);
 
-				tf->uv[0][0]= ((tf->uv[0][0]-0.5)*scale)+0.5;
-				tf->uv[1][0]= ((tf->uv[1][0]-0.5)*scale)+0.5;
-				tf->uv[2][0]= ((tf->uv[2][0]-0.5)*scale)+0.5;
+				tf->uv[0][0]= ((tf->uv[0][0]-0.5f)*scale)+0.5f;
+				tf->uv[1][0]= ((tf->uv[1][0]-0.5f)*scale)+0.5f;
+				tf->uv[2][0]= ((tf->uv[2][0]-0.5f)*scale)+0.5f;
 				if(efa->v4)
-					tf->uv[3][0]= ((tf->uv[3][0]-0.5)*scale)+0.5;
+					tf->uv[3][0]= ((tf->uv[3][0]-0.5f)*scale)+0.5f;
 			}
 		}
 	}
@@ -722,11 +732,11 @@ static void correct_uv_aspect(EditMesh *em)
 			if(efa->f & SELECT) {
 				tf= CustomData_em_get(&em->fdata, efa->data, CD_MTFACE);
 
-				tf->uv[0][1]= ((tf->uv[0][1]-0.5)*scale)+0.5;
-				tf->uv[1][1]= ((tf->uv[1][1]-0.5)*scale)+0.5;
-				tf->uv[2][1]= ((tf->uv[2][1]-0.5)*scale)+0.5;
+				tf->uv[0][1]= ((tf->uv[0][1]-0.5f)*scale)+0.5f;
+				tf->uv[1][1]= ((tf->uv[1][1]-0.5f)*scale)+0.5f;
+				tf->uv[2][1]= ((tf->uv[2][1]-0.5f)*scale)+0.5f;
 				if(efa->v4)
-					tf->uv[3][1]= ((tf->uv[3][1]-0.5)*scale)+0.5;
+					tf->uv[3][1]= ((tf->uv[3][1]-0.5f)*scale)+0.5f;
 			}
 		}
 	}
@@ -802,8 +812,8 @@ static void uv_map_clip_correct(EditMesh *em, wmOperator *op)
 				nverts= (efa->v4)? 4: 3;
 
 				for(b=0; b<nverts; b++) {
-					CLAMP(tf->uv[b][0], 0.0, 1.0);
-					CLAMP(tf->uv[b][1], 0.0, 1.0);
+					CLAMP(tf->uv[b][0], 0.0f, 1.0f);
+					CLAMP(tf->uv[b][1], 0.0f, 1.0f);
 				}
 			}
 		}
@@ -1082,7 +1092,7 @@ static void uv_map_mirror(EditFace *efa, MTFace *tf)
 	for(i=0; i<nverts; i++) {
 		if(i != mi) {
 			dx = tf->uv[mi][0] - tf->uv[i][0];
-			if(dx > 0.5) tf->uv[i][0] += 1.0;
+			if(dx > 0.5f) tf->uv[i][0] += 1.0f;
 		} 
 	} 
 }
@@ -1253,24 +1263,24 @@ static int cube_project_exec(bContext *C, wmOperator *op)
 			else if(no[1]>=no[0] && no[1]>=no[2]) coy= 2;
 			else { cox= 1; coy= 2; }
 			
-			tf->uv[0][0]= 0.5+0.5*cube_size*(loc[cox] + efa->v1->co[cox]);
-			tf->uv[0][1]= 0.5+0.5*cube_size*(loc[coy] + efa->v1->co[coy]);
+			tf->uv[0][0]= 0.5f+0.5f*cube_size*(loc[cox] + efa->v1->co[cox]);
+			tf->uv[0][1]= 0.5f+0.5f*cube_size*(loc[coy] + efa->v1->co[coy]);
 			dx = floor(tf->uv[0][0]);
 			dy = floor(tf->uv[0][1]);
 			tf->uv[0][0] -= dx;
 			tf->uv[0][1] -= dy;
-			tf->uv[1][0]= 0.5+0.5*cube_size*(loc[cox] + efa->v2->co[cox]);
-			tf->uv[1][1]= 0.5+0.5*cube_size*(loc[coy] + efa->v2->co[coy]);
+			tf->uv[1][0]= 0.5f+0.5f*cube_size*(loc[cox] + efa->v2->co[cox]);
+			tf->uv[1][1]= 0.5f+0.5f*cube_size*(loc[coy] + efa->v2->co[coy]);
 			tf->uv[1][0] -= dx;
 			tf->uv[1][1] -= dy;
-			tf->uv[2][0]= 0.5+0.5*cube_size*(loc[cox] + efa->v3->co[cox]);
-			tf->uv[2][1]= 0.5+0.5*cube_size*(loc[coy] + efa->v3->co[coy]);
+			tf->uv[2][0]= 0.5f+0.5f*cube_size*(loc[cox] + efa->v3->co[cox]);
+			tf->uv[2][1]= 0.5f+0.5f*cube_size*(loc[coy] + efa->v3->co[coy]);
 			tf->uv[2][0] -= dx;
 			tf->uv[2][1] -= dy;
 
 			if(efa->v4) {
-				tf->uv[3][0]= 0.5+0.5*cube_size*(loc[cox] + efa->v4->co[cox]);
-				tf->uv[3][1]= 0.5+0.5*cube_size*(loc[coy] + efa->v4->co[coy]);
+				tf->uv[3][0]= 0.5f+0.5f*cube_size*(loc[cox] + efa->v4->co[cox]);
+				tf->uv[3][1]= 0.5f+0.5f*cube_size*(loc[coy] + efa->v4->co[coy]);
 				tf->uv[3][0] -= dx;
 				tf->uv[3][1] -= dy;
 			}

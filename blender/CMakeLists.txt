@@ -44,10 +44,39 @@ endif()
 
 cmake_minimum_required(VERSION 2.8)
 
+# this starts out unset
+set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/build_files/cmake/Modules/")
+
 # quiet output for Makefiles, 'make -s' helps too
 # set_property(GLOBAL PROPERTY RULE_MESSAGES OFF)
 
+# ignore system set flag, use our own
+# must be before project(...)
+# if the user wants to add their own its ok after first run.
+if(DEFINED CMAKE_C_STANDARD_LIBRARIES)
+	set(_reset_standard_libraries OFF)
+else()
+	set(_reset_standard_libraries ON)
+endif()
+
+
 project(Blender)
+
+
+if (_reset_standard_libraries)
+	# Must come after project(...)
+	#
+	# MINGW workaround for -ladvapi32 being included which surprisingly causes
+	# string formatting of floats, eg: printf("%.*f", 3, value). to crash blender
+	# with a meaningless stack trace. by overriding this flag we ensure we only
+	# have libs we define and that cmake & scons builds match.
+	set(CMAKE_C_STANDARD_LIBRARIES "" CACHE STRING "" FORCE)
+	set(CMAKE_CXX_STANDARD_LIBRARIES "" CACHE STRING "" FORCE)
+	mark_as_advanced(CMAKE_C_STANDARD_LIBRARIES)
+	mark_as_advanced(CMAKE_CXX_STANDARD_LIBRARIES)
+endif()
+unset(_reset_standard_libraries)
+
 
 enable_testing()
 
@@ -69,6 +98,7 @@ get_blender_version()
 # Blender internal features
 option(WITH_INTERNATIONAL "Enable I18N (International fonts and text)" ON)
 option(WITH_PYTHON        "Enable Embedded Python API  (only disable for development)" ON)
+mark_as_advanced(WITH_PYTHON)  # dont want people disabling this unless they really know what they are doing.
 option(WITH_PYTHON_SAFETY "Enable internal API error checking to track invalid data to prevent crash on access (at the expense of some effeciency, only enable for development)." OFF)
 option(WITH_PYTHON_MODULE "Enable building as a python module (experemental, only enable for development)" OFF)
 option(WITH_BUILDINFO     "Include extra build details (only disable for development & faster builds)" ON)
@@ -84,10 +114,20 @@ else()
 	option(WITH_OPENMP        "Enable OpenMP (has to be supported by the compiler)" OFF)
 endif()
 
+if(UNIX AND NOT APPLE)
+	option(WITH_X11_XINPUT "Enable X11 Xinput (tablet support)"	ON)
+	option(WITH_BUILTIN_GLEW "Use GLEW OpenGL wrapper library bundled with blender" ON)
+else()
+	# not an option for other OS's
+	set(WITH_BUILTIN_GLEW ON)
+endif()
+
 # Modifiers
 option(WITH_MOD_FLUID        	"Enable Elbeem Modifier (Fluid Simulation)" ON)
 option(WITH_MOD_DECIMATE       	"Enable Decimate Modifier" ON)
 option(WITH_MOD_BOOLEAN        	"Enable Boolean Modifier" ON)
+option(WITH_MOD_CLOTH_ELTOPO   	"Enable Experemental cloth solver" OFF)
+mark_as_advanced(WITH_MOD_CLOTH_ELTOPO)
 
 # Image format support
 option(WITH_IMAGE_OPENEXR       "Enable OpenEXR Support (http://www.openexr.com)" ON)
@@ -107,11 +147,7 @@ endif()
 
 # 3D format support
 # disable opencollada on non-apple unix because opencollada has no package for debian
-if(UNIX AND NOT APPLE)
-	option(WITH_OPENCOLLADA		"Enable OpenCollada Support (http://www.opencollada.org)"	OFF)
-else()
-	option(WITH_OPENCOLLADA		"Enable OpenCollada Support (http://www.opencollada.org)"	OFF)
-endif()
+option(WITH_OPENCOLLADA		"Enable OpenCollada Support (http://www.opencollada.org)"	OFF)
 
 # Sound output
 option(WITH_SDL           "Enable SDL for sound and joystick support" ON)
@@ -230,15 +266,33 @@ IF(WITH_OPENCL)
 
     SET(RTPS_INCLUDE_DIR ${Blender_SOURCE_DIR}/extern/rtps/rtpslib)
     IF(APPLE)
-        SET(RTPS_LIB_DIR extern/rtps/rtpslib/librtps.dylib)
+        #SET(RTPS_LIB_DIR extern/rtps/rtpslib/librtps.dylib)
+        #this should be more readily available from cmake somewhere
+        #SET(RTPS_INSTALL_DIR ${Blender_BINARY_DIR}/bin/blender.app/Contents/MacOS/2.57/rtps)
+        #blender cmake is overwriting my stuff >:(
+        SET(RTPS_INSTALL_DIR ${Blender_BINARY_DIR}/rtps_install)
+        #this doesn't work when you launch an app by double clicking
+        SET(RTPS_INSTALL_DIR_REL ./blender.app/Contents/MacOS/2.57/rtps)
     ENDIF(APPLE)
     IF(UNIX AND NOT APPLE)
-        SET(RTPS_LIB_DIR extern/rtps/rtpslib/librtps.so)
+        #SET(RTPS_LIB_DIR extern/rtps/rtpslib/librtps.so)
+        #SET(RTPS_INSTALL_DIR ${Blender_BINARY_DIR}/bin/blender/2.57/rtps)
+        SET(RTPS_INSTALL_DIR ${Blender_BINARY_DIR}/rtps_install)
+        SET(RTPS_INSTALL_DIR_REL ./2.57/rtps)
     ENDIF(UNIX AND NOT APPLE)
+    IF(WIN32)
+        #SET(RTPS_INSTALL_DIR ${Blender_BINARY_DIR}/bin/Release/2.57/rtps)
+        SET(RTPS_INSTALL_DIR ${Blender_BINARY_DIR}/rtps_install)
+        SET(RTPS_INSTALL_DIR_REL ./2.57/rtps)
+    ENDIF(WIN32)
 
     message("RTPS include: ${RTPS_INCLUDE_DIR}")
     message("RTPS lib: ${RTPS_LIB_DIR}")
     ADD_DEFINITIONS(-Drtps_EXPORTS)
+
+    #this is probably supposed to go in extern/rtps CMakeLists with a check if we are in blender
+    #doesn't seem to be needed on linux/mac not sure why it works without
+	set_property(GLOBAL APPEND PROPERTY BLENDER_LINK_LIBS rtps)
 
     #LINK_DIRECTORIES(${RTPS_LIB_DIR})
     #FIND_LIBRARY(RTPS_LIBRARY NAMES rtps)
@@ -457,7 +511,11 @@ if(UNIX AND NOT APPLE)
 	mark_as_advanced(X11_XF86keysym_INCLUDE_PATH)
 
 	# OpenSuse needs lutil, ArchLinux not, for now keep, can avoid by using --as-needed
-	set(LLIBS "-lutil -lc -lm -lpthread -lstdc++ ${X11_X11_LIB} ${X11_Xinput_LIB}")
+	set(LLIBS "-lutil -lc -lm -lpthread -lstdc++ ${X11_X11_LIB}")
+
+	if(WITH_X11_XINPUT)
+		list(APPEND LLIBS ${X11_Xinput_LIB})
+	endif()
 
 	if(CMAKE_SYSTEM_NAME MATCHES "Linux")
 		if(NOT WITH_PYTHON_MODULE)
@@ -575,7 +633,7 @@ elseif(WIN32)
 
 	if(MSVC)
 		if(CMAKE_CL_64)
-			set(LLIBS kernel32 user32 vfw32 winmm ws2_32 )
+			set(LLIBS ws2_32 vfw32 winmm kernel32 user32 gdi32 comdlg32 advapi32 shfolder shell32 ole32 oleaut32 uuid )
 		else()
 			set(LLIBS kernel32 user32 gdi32 comdlg32 advapi32 shell32 ole32 oleaut32 uuid ws2_32 vfw32 winmm)
 		endif()
@@ -1090,6 +1148,30 @@ if(WITH_OPENMP)
 endif() 
 
 #-----------------------------------------------------------------------------
+# Configure GLEW
+
+if(WITH_BUILTIN_GLEW)
+	# set(GLEW_LIBRARY "")  # unused
+	set(GLEW_INCLUDE_PATH "${CMAKE_SOURCE_DIR}/extern/glew/include")
+else()
+	find_package(GLEW)
+
+	if(NOT GLEW_FOUND)
+		message(FATAL_ERROR "GLEW is required to build blender, install it or use WITH_BUILTIN_GLEW")
+	endif()
+
+	mark_as_advanced(GLEW_LIBRARY)
+	mark_as_advanced(GLEW_INCLUDE_PATH)
+endif()
+
+#-----------------------------------------------------------------------------
+# Configure Python.
+
+if(WITH_PYTHON_MODULE)
+	add_definitions(-DPy_ENABLE_SHARED)
+endif() 
+
+#-----------------------------------------------------------------------------
 # Extra compile flags
 
 if((NOT WIN32) AND (NOT MSVC))
@@ -1115,12 +1197,15 @@ if(CMAKE_COMPILER_IS_GNUCC)
 	ADD_CHECK_C_COMPILER_FLAG(C_WARNINGS C_WARN_ERROR_IMPLICIT_FUNCTION_DECLARATION -Werror=implicit-function-declaration)
 	ADD_CHECK_C_COMPILER_FLAG(C_WARNINGS C_WARN_ERROR_RETURN_TYPE -Werror=return-type)
 	# system headers sometimes do this, disable for now, was: -Werror=strict-prototypes
-	ADD_CHECK_C_COMPILER_FLAG(C_WARNINGS C_WARN_ERROR_STRICT_PROTOTYPES -Wstrict-prototypes)
+	ADD_CHECK_C_COMPILER_FLAG(C_WARNINGS C_WARN_STRICT_PROTOTYPES -Wstrict-prototypes)
 	ADD_CHECK_C_COMPILER_FLAG(C_WARNINGS C_WARN_NO_CHAR_SUBSCRIPTS -Wno-char-subscripts)
 	ADD_CHECK_C_COMPILER_FLAG(C_WARNINGS C_WARN_NO_UNKNOWN_PRAGMAS -Wno-unknown-pragmas)
 	ADD_CHECK_C_COMPILER_FLAG(C_WARNINGS C_WARN_POINTER_ARITH -Wpointer-arith)
 	ADD_CHECK_C_COMPILER_FLAG(C_WARNINGS C_WARN_UNUSED_PARAMETER -Wunused-parameter)
 	ADD_CHECK_C_COMPILER_FLAG(C_WARNINGS C_WARN_WRITE_STRINGS -Wwrite-strings)
+	# disable because it gives warnings for printf() & friends.
+	# ADD_CHECK_C_COMPILER_FLAG(C_WARNINGS C_WARN_DOUBLE_PROMOTION -Wdouble-promotion -Wno-error=double-promotion)
+	ADD_CHECK_C_COMPILER_FLAG(C_WARNINGS C_WARN_NO_ERROR_UNUSED_BUT_SET_VARIABLE -Wno-error=unused-but-set-variable)
 
 	ADD_CHECK_CXX_COMPILER_FLAG(CXX_WARNINGS CXX_WARN_ALL -Wall)
 	ADD_CHECK_CXX_COMPILER_FLAG(CXX_WARNINGS CXX_WARN_NO_INVALID_OFFSETOF -Wno-invalid-offsetof)

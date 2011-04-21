@@ -138,13 +138,13 @@ static void rna_Lamp_sky_update(Main *bmain, Scene *scene, PointerRNA *ptr)
 static float rna_Lamp_spot_size_get(PointerRNA *ptr)
 {
 	Lamp *la= ptr->id.data;
-	return la->spotsize * (M_PI / 180.0);
+	return DEG2RADF(la->spotsize);
 }
 
 static void rna_Lamp_spot_size_set(PointerRNA *ptr, float value)
 {
 	Lamp *la= ptr->id.data;
-	la->spotsize= value * (180.0 / M_PI);
+	la->spotsize= RAD2DEGF(value);
 }
 
 
@@ -575,7 +575,7 @@ static void rna_def_spot_lamp(BlenderRNA *brna)
 
 	static EnumPropertyItem prop_shadbuftype_items[] = {
 		{LA_SHADBUF_REGULAR	, "REGULAR", 0, "Classical", "Classic shadow buffer"},
-		{LA_SHADBUF_HALFWAY, "HALFWAY", 0, "Classic-Halfway", "Regular buffer, averaging the closest and 2nd closest Z value to reducing bias artifaces"},
+		{LA_SHADBUF_HALFWAY, "HALFWAY", 0, "Classic-Halfway", "Regular buffer, averaging the closest and 2nd closest Z value to reducing bias artifacts"},
 		{LA_SHADBUF_IRREGULAR, "IRREGULAR", 0, "Irregular", "Irregular buffer produces sharp shadow always, but it doesn't show up for raytracing"},
 		{LA_SHADBUF_DEEP, "DEEP", 0, "Deep", "Deep shadow buffer supports transparency and better filtering, at the cost of more memory usage and processing time"},
 		{0, NULL, 0, NULL, NULL}};
@@ -649,7 +649,7 @@ static void rna_def_spot_lamp(BlenderRNA *brna)
 
 	prop= RNA_def_property(srna, "spot_size", PROP_FLOAT, PROP_ANGLE);
 	// RNA_def_property_float_sdna(prop, NULL, "spotsize");
-	RNA_def_property_range(prop, M_PI/180.0f, M_PI);
+	RNA_def_property_range(prop, M_PI/180.0, M_PI);
 	RNA_def_property_ui_text(prop, "Spot Size", "Angle of the spotlight beam in degrees");
 	RNA_def_property_float_funcs(prop, "rna_Lamp_spot_size_get", "rna_Lamp_spot_size_set", NULL); /* only for deg/rad conversion */
 	RNA_def_property_update(prop, 0, "rna_Lamp_draw_update");

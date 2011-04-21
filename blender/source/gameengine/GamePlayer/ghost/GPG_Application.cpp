@@ -314,6 +314,7 @@ bool GPG_Application::startWindow(STR_String& title,
 	const int stereoMode)
 {
 	bool success;
+    printf("enjalot: create main window\n");
 	// Create the main window
 	//STR_String title ("Blender Player - GHOST");
 	m_mainWindow = fSystem->createWindow(title, windowLeft, windowTop, windowWidth, windowHeight, GHOST_kWindowStateNormal,
@@ -323,12 +324,14 @@ bool GPG_Application::startWindow(STR_String& title,
 		exit(-1);
 	}
 
+    printf("enjalot: set window size and cursor\n");
 	/* Check the size of the client rectangle of the window and resize the window
 	 * so that the client rectangle has the size requested.
 	 */
 	m_mainWindow->setClientSize(windowWidth, windowHeight);
 	m_mainWindow->setCursorVisibility(false);
 
+    printf("enjalot: initEngine\n");
 	success = initEngine(m_mainWindow, stereoMode);
 	if (success) {
 		success = startEngine();
@@ -546,19 +549,24 @@ bool GPG_Application::initEngine(GHOST_IWindow* window, const int stereoMode)
 		else if(gm->matmode == GAME_MAT_GLSL)
 			m_blendermat = false;
 
+        printf("enjalot: instantiate canvas\n");
 		// create the canvas, rasterizer and rendertools
 		m_canvas = new GPG_Canvas(window);
 		if (!m_canvas)
 			return false;
-				
+#if 1				
+        printf("enjalot: init canvas\n");
 		m_canvas->Init();
 		if (gm->flag & GAME_SHOW_MOUSE)
 			m_canvas->SetMouseState(RAS_ICanvas::MOUSE_NORMAL);				
 
+        printf("enjalot: rendertools\n");
 		m_rendertools = new GPC_RenderTools();
 		if (!m_rendertools)
 			goto initFailed;
-		
+#endif	
+        printf("enjalot: rasterizer\n");
+#if 1
 		if(useLists) {
 			if(GLEW_VERSION_1_1)
 				m_rasterizer = new RAS_ListRasterizer(m_canvas, true);
@@ -576,7 +584,7 @@ bool GPG_Application::initEngine(GHOST_IWindow* window, const int stereoMode)
 		
 		if (!m_rasterizer)
 			goto initFailed;
-						
+#endif					
 		// create the inputdevices
 		m_keyboard = new GPG_KeyboardDevice();
 		if (!m_keyboard)
@@ -598,6 +606,7 @@ bool GPG_Application::initEngine(GHOST_IWindow* window, const int stereoMode)
 		if (!m_kxsystem)
 			goto initFailed;
 		
+        printf("enjalot: ketsji engine\n");
 		// create the ketsjiengine
 		m_ketsjiengine = new KX_KetsjiEngine(m_kxsystem);
 		
@@ -621,6 +630,7 @@ bool GPG_Application::initEngine(GHOST_IWindow* window, const int stereoMode)
 		m_ketsjiengine->SetTimingDisplay(frameRate, profile, properties);
 
 		m_engineInitialized = true;
+        printf("enjalot: end of init\n");
 	}
 
 	return m_engineInitialized;

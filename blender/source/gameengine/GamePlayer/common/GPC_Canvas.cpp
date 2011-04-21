@@ -40,8 +40,8 @@
 #endif
 #endif // NOPNG
 
-#include "RAS_IPolygonMaterial.h"
 #include "GPC_Canvas.h"
+#include "RAS_IPolygonMaterial.h"
 
 GPC_Canvas::TBannerId GPC_Canvas::s_bannerId = 0;
 

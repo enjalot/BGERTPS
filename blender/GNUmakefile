@@ -90,9 +90,23 @@ package_debian:
 package_pacman:
 	cd build_files/package_spec/pacman ; MAKEFLAGS="-j$(NPROCS)" makepkg --asroot
 
+package_archive:
+	cd $(BUILD_DIR) ; make -s package_archive
+	@echo archive in "$(BUILD_DIR)/release"
+
 # forward build targets
 test:
 	cd $(BUILD_DIR) ; ctest . --output-on-failure
+
+# run pep8 check check on scripts we distribute.
+test_pep8:
+	python source/tests/pep8.py > test_pep8.log 2>&1
+	@echo "written: test_pep8.log"
+
+# run some checks on our cmakefiles.
+test_cmake:
+	python build_files/cmake/cmake_consistency_check.py > test_cmake_consistency.log 2>&1
+	@echo "written: test_cmake_consistency.log"
 
 clean:
 	cd $(BUILD_DIR) ; make clean

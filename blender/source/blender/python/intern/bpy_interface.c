@@ -170,9 +170,13 @@ static void bpy_python_start_path(void)
 {
 	char *py_path_bundle= BLI_get_folder(BLENDER_PYTHON, NULL);
 
-	if(py_path_bundle==NULL)
+	if(py_path_bundle==NULL) {
+		/* Common enough to have bundled *nix python but complain on OSX/Win */
+#if defined(__APPLE__) || defined(_WIN32)
+		fprintf(stderr, "Warning! bundled python not found and is expected on this platform. (if you built with CMake: 'install' target may have not been built)\n");
+#endif
 		return;
-
+	}
 	/* set the environment path */
 	printf("found bundled python: %s\n", py_path_bundle);
 
@@ -235,12 +239,12 @@ void BPY_python_start(int argc, const char **argv)
 	utf8towchar(bprogname_wchar, bprogname);
 	Py_SetProgramName(bprogname_wchar);
 
-	/* builtin modules */
+	/* must run before python initializes */
 	PyImport_ExtendInittab(bpy_internal_modules);
 
 	bpy_python_start_path(); /* allow to use our own included python */
 
-	/* Python 3.2 now looks for '2.56/python/include/python3.2d/pyconfig.h' to parse
+	/* Python 3.2 now looks for '2.57/python/include/python3.2d/pyconfig.h' to parse
 	 * from the 'sysconfig' module which is used by 'site', so for now disable site.
 	 * alternatively we could copy the file. */
 	Py_NoSiteFlag= 1;
@@ -264,34 +268,15 @@ void BPY_python_start(int argc, const char **argv)
 #else
 	(void)argc;
 	(void)argv;
-	
+
+	/* must run before python initializes */
 	PyImport_ExtendInittab(bpy_internal_modules);
 #endif
 
 	/* bpy.* and lets us import it */
 	BPy_init_modules();
 
-	{ /* our own import and reload functions */
-		PyObject *item;
-		PyObject *mod;
-		//PyObject *m= PyImport_AddModule("__builtin__");
-		//PyObject *d= PyModule_GetDict(m);
-		PyObject *d= PyEval_GetBuiltins();
-//		PyDict_SetItemString(d, "reload",		item=PyCFunction_New(&bpy_reload_meth, NULL));	Py_DECREF(item);
-		PyDict_SetItemString(d, "__import__",	item=PyCFunction_New(&bpy_import_meth, NULL));	Py_DECREF(item);
-
-		/* move reload here
-		 * XXX, use import hooks */
-		mod= PyImport_ImportModuleLevel((char *)"imp", NULL, NULL, NULL, 0);
-		if(mod) {
-			PyDict_SetItemString(PyModule_GetDict(mod), "reload",		item=PyCFunction_New(&bpy_reload_meth, NULL));	Py_DECREF(item);
-			Py_DECREF(mod);
-		}
-		else {
-			BLI_assert(!"unable to load 'imp' module.");
-		}
-
-	}
+	bpy_import_init(PyEval_GetBuiltins());
 	
 	pyrna_alloc_types();
 
@@ -567,6 +552,7 @@ int BPY_string_exec(bContext *C, const char *expr)
 	PyObject *main_mod= NULL;
 	PyObject *py_dict, *retval;
 	int error_ret= 0;
+	Main *bmain_back; /* XXX, quick fix for release (Copy Settings crash), needs further investigation */
 
 	if (!expr) return -1;
 
@@ -580,7 +566,12 @@ int BPY_string_exec(bContext *C, const char *expr)
 
 	py_dict= PyC_DefaultNameSpace("<blender string>");
 
+	bmain_back= bpy_import_main_get();
+	bpy_import_main_set(CTX_data_main(C));
+
 	retval= PyRun_String(expr, Py_eval_input, py_dict, py_dict);
+
+	bpy_import_main_set(bmain_back);
 
 	if (retval == NULL) {
 		error_ret= -1;
@@ -685,11 +676,13 @@ int BPY_context_member_get(bContext *C, const char *member, bContextDataResult *
 	}
 
 	if(done==0) {
-		if (item)	printf("Context '%s' not a valid type\n", member);
-		else		printf("Context '%s' not found\n", member);
+		if (item)	printf("PyContext '%s' not a valid type\n", member);
+		else		printf("PyContext '%s' not found\n", member);
 	}
 	else {
-		printf("Context '%s' found\n", member);
+		if(G.f & G_DEBUG) {
+			printf("PyContext '%s' found\n", member);
+		}
 	}
 
 	return done;

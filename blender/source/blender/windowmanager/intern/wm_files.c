@@ -33,7 +33,7 @@
 	/* placed up here because of crappy
 	 * winsock stuff.
 	 */
-#include <stdio.h>
+#include <stddef.h>
 #include <string.h>
 #include <errno.h>
 
@@ -95,6 +95,8 @@
 #include "ED_sculpt.h"
 #include "ED_view3d.h"
 #include "ED_util.h"
+
+#include "RE_pipeline.h" /* only to report missing engine */
 
 #include "GHOST_C-api.h"
 #include "GHOST_Path-api.h"
@@ -329,7 +331,7 @@ void WM_read_file(bContext *C, const char *name, ReportList *reports)
 		CTX_wm_window_set(C, CTX_wm_manager(C)->windows.first);
 
 		ED_editors_init(C);
-		DAG_on_load_update(CTX_data_main(C), TRUE);
+		DAG_on_visible_update(CTX_data_main(C), TRUE);
 
 #ifdef WITH_PYTHON
 		/* run any texts that were loaded in and flagged as modules */
@@ -337,6 +339,18 @@ void WM_read_file(bContext *C, const char *name, ReportList *reports)
 		BPY_modules_load_user(C);
 #endif
 		CTX_wm_window_set(C, NULL); /* exits queues */
+
+#if 0	/* gives popups on windows but not linux, bug in report API but disable for now to stop users getting annoyed  */
+		/* TODO, make this show in header info window */
+		{
+			Scene *sce;
+			for(sce= G.main->scene.first; sce; sce= sce->id.next) {
+				if(sce->r.engine[0] && BLI_findstring(&R_engines, sce->r.engine, offsetof(RenderEngineType, idname)) == NULL) {
+					BKE_reportf(reports, RPT_WARNING, "Engine not available: '%s' for scene: %s, an addon may need to be installed or enabled", sce->r.engine, sce->id.name+2);
+				}
+			}
+		}
+#endif
 
 		// XXX		undo_editmode_clear();
 		BKE_reset_undo();
@@ -433,7 +447,7 @@ int WM_read_homefile(bContext *C, ReportList *reports, short from_memory)
 	BKE_write_undo(C, "original");	/* save current state */
 
 	ED_editors_init(C);
-	DAG_on_load_update(CTX_data_main(C), TRUE);
+	DAG_on_visible_update(CTX_data_main(C), TRUE);
 
 #ifdef WITH_PYTHON
 	if(CTX_py_init_get(C)) {
@@ -510,7 +524,7 @@ static void write_history(void)
 
 	recent = G.recent_files.first;
 	/* refresh recent-files.txt of recent opened files, when current file was changed */
-	if(!(recent) || (strcmp(recent->filepath, G.main->name)!=0)) {
+	if(!(recent) || (BLI_path_cmp(recent->filepath, G.main->name)!=0)) {
 		fp= fopen(name, "w");
 		if (fp) {
 			/* add current file to the beginning of list */
@@ -524,7 +538,7 @@ static void write_history(void)
 			/* write rest of recent opened files to recent-files.txt */
 			while((i<U.recent_files) && (recent)){
 				/* this prevents to have duplicities in list */
-				if (strcmp(recent->filepath, G.main->name)!=0) {
+				if (BLI_path_cmp(recent->filepath, G.main->name)!=0) {
 					fprintf(fp, "%s\n", recent->filepath);
 					recent = recent->next;
 				}
@@ -656,7 +670,7 @@ int WM_write_file(bContext *C, const char *target, int fileflags, ReportList *re
 	
 	/* send the OnSave event */
 	for (li= G.main->library.first; li; li= li->id.next) {
-		if (strcmp(li->filepath, di) == 0) {
+		if (BLI_path_cmp(li->filepath, di) == 0) {
 			BKE_reportf(reports, RPT_ERROR, "Can't overwrite used library '%.200s'", di);
 			return -1;
 		}

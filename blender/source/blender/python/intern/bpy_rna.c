@@ -95,11 +95,13 @@ int pyrna_prop_validity_check(BPy_PropertyRNA *self)
 	return -1;
 }
 
+#if defined(USE_PYRNA_INVALIDATE_GC) || defined(USE_PYRNA_INVALIDATE_WEAKREF)
 static void pyrna_invalidate(BPy_DummyPointerRNA *self)
 {
 	self->ptr.type= NULL; /* this is checked for validity */
 	self->ptr.id.data= NULL; /* should not be needed but prevent bad pointer access, just incase */
 }
+#endif
 
 #ifdef USE_PYRNA_INVALIDATE_GC
 #define FROM_GC(g) ((PyObject *)(((PyGC_Head *)g)+1))
@@ -223,18 +225,18 @@ static void id_release_weakref_list(struct ID *id, GHash *weakinfo_hash)
 
 	BLI_ghashIterator_init(&weakinfo_hash_iter, weakinfo_hash);
 
-	#ifdef DEBUG_RNA_WEAKREF
+#ifdef DEBUG_RNA_WEAKREF
 	fprintf(stdout, "id_release_weakref: '%s', %d items\n", id->name, BLI_ghash_size(weakinfo_hash));
-	#endif
+#endif
 
 	while (!BLI_ghashIterator_isDone(&weakinfo_hash_iter)) {
 		PyObject *weakref= (PyObject *)BLI_ghashIterator_getKey(&weakinfo_hash_iter);
 		PyObject *item= PyWeakref_GET_OBJECT(weakref);
 		if(item != Py_None) {
 
-	#ifdef DEBUG_RNA_WEAKREF
+#ifdef DEBUG_RNA_WEAKREF
 			PyC_ObSpit("id_release_weakref item ", item);
-	#endif
+#endif
 
 			pyrna_invalidate((BPy_DummyPointerRNA *)item);
 		}
@@ -250,9 +252,9 @@ static void id_release_weakref_list(struct ID *id, GHash *weakinfo_hash)
 	if(BLI_ghash_size(id_weakref_pool) == 0) {
 		BLI_ghash_free(id_weakref_pool, NULL, NULL);
 		id_weakref_pool= NULL;
-	#ifdef DEBUG_RNA_WEAKREF
+#ifdef DEBUG_RNA_WEAKREF
 		printf("id_release_weakref freeing pool\n");
-	#endif
+#endif
 	}
 }
 
@@ -273,11 +275,13 @@ void BPY_id_release(struct ID *id)
 #endif
 
 #ifdef USE_PYRNA_INVALIDATE_WEAKREF
-	PyGILState_STATE gilstate= PyGILState_Ensure();
+	if(id_weakref_pool) {
+		PyGILState_STATE gilstate= PyGILState_Ensure();
 
-	id_release_weakref(id);
+		id_release_weakref(id);
 
-	PyGILState_Release(gilstate);
+		PyGILState_Release(gilstate);
+	}
 #endif /* USE_PYRNA_INVALIDATE_WEAKREF */
 
 	(void)id;
@@ -543,7 +547,9 @@ static short pyrna_rotation_euler_order_get(PointerRNA *ptr, PropertyRNA **prop_
 
 #endif // USE_MATHUTILS
 
-#define PROP_ALL_VECTOR_SUBTYPES PROP_TRANSLATION: case PROP_DIRECTION: case PROP_VELOCITY: case PROP_ACCELERATION: case PROP_XYZ: case PROP_XYZ_LENGTH
+/* note that PROP_NONE is included as a vector subtype. this is because its handy to
+ * have x/y access to fcurve keyframes and other fixed size float arrayas of length 2-4. */
+#define PROP_ALL_VECTOR_SUBTYPES PROP_COORDS: case PROP_TRANSLATION: case PROP_DIRECTION: case PROP_VELOCITY: case PROP_ACCELERATION: case PROP_XYZ: case PROP_XYZ_LENGTH
 
 PyObject *pyrna_math_object_from_array(PointerRNA *ptr, PropertyRNA *prop)
 {
@@ -638,6 +644,7 @@ PyObject *pyrna_math_object_from_array(PointerRNA *ptr, PropertyRNA *prop)
 			}
 			break;
 		case PROP_COLOR:
+		case PROP_COLOR_GAMMA:
 			if(len==3) { /* color */
 				if(is_thick) {
 					ret= newColorObject(NULL, Py_NEW, NULL); // TODO, get order from RNA
@@ -2991,11 +2998,13 @@ static int pyrna_struct_meta_idprop_setattro(PyObject *cls, PyObject *attr, PyOb
 	}
 
 	if(srna == NULL) {
+		/* allow setting on unregistered classes which can be registered later on */
+		/*
 		if(value && is_deferred_prop) {
 			PyErr_Format(PyExc_AttributeError, "pyrna_struct_meta_idprop_setattro() unable to get srna from class '%.200s'", ((PyTypeObject *)cls)->tp_name);
 			return -1;
 		}
-
+		*/
 		/* srna_from_self may set an error */
 		PyErr_Clear();
 		return PyType_Type.tp_setattro(cls, attr, value);
@@ -3292,6 +3301,14 @@ static PyGetSetDef pyrna_struct_getseters[]= {
 	{NULL, NULL, NULL, NULL, NULL} /* Sentinel */
 };
 
+static char pyrna_prop_collection_keys_doc[] =
+".. method:: keys()\n"
+"\n"
+"   Return the identifiers of collection members (matching pythons dict.keys() functionality).\n"
+"\n"
+"   :return: the identifiers for each member of this collection.\n"
+"   :rtype: list of stings\n"
+;
 static PyObject *pyrna_prop_collection_keys(BPy_PropertyRNA *self)
 {
 	PyObject *ret= PyList_New(0);
@@ -3317,6 +3334,14 @@ static PyObject *pyrna_prop_collection_keys(BPy_PropertyRNA *self)
 	return ret;
 }
 
+static char pyrna_prop_collection_items_doc[] =
+".. method:: items()\n"
+"\n"
+"   Return the identifiers of collection members (matching pythons dict.items() functionality).\n"
+"\n"
+"   :return: (key, value) pairs for each member of this collection.\n"
+"   :rtype: list of tuples\n"
+;
 static PyObject *pyrna_prop_collection_items(BPy_PropertyRNA *self)
 {
 	PyObject *ret= PyList_New(0);
@@ -3350,6 +3375,14 @@ static PyObject *pyrna_prop_collection_items(BPy_PropertyRNA *self)
 	return ret;
 }
 
+static char pyrna_prop_collection_values_doc[] =
+".. method:: values()\n"
+"\n"
+"   Return the values of collection (matching pythons dict.values() functionality).\n"
+"\n"
+"   :return: the members of this collection.\n"
+"   :rtype: list\n"
+;
 static PyObject *pyrna_prop_collection_values(BPy_PropertyRNA *self)
 {
 	/* re-use slice*/
@@ -3412,6 +3445,16 @@ static PyObject *pyrna_struct_as_pointer(BPy_StructRNA *self)
 	return PyLong_FromVoidPtr(self->ptr.data);
 }
 
+static char pyrna_prop_collection_get_doc[] =
+".. method:: get(key, default=None)\n"
+"\n"
+"   Returns the value of the item assigned to key or default when not found (matches pythons dictionary function of the same name).\n"
+"\n"
+"   :arg key: The identifier for the collection member.\n"
+"   :type key: string\n"
+"   :arg default: Optional argument for the value to return if *key* is not found.\n"
+"   :type default: Undefined\n"
+;
 static PyObject *pyrna_prop_collection_get(BPy_PropertyRNA *self, PyObject *args)
 {
 	PointerRNA newptr;
@@ -3802,11 +3845,11 @@ static struct PyMethodDef pyrna_prop_collection_methods[]= {
 	{"foreach_get", (PyCFunction)pyrna_prop_collection_foreach_get, METH_VARARGS, pyrna_prop_collection_foreach_get_doc},
 	{"foreach_set", (PyCFunction)pyrna_prop_collection_foreach_set, METH_VARARGS, pyrna_prop_collection_foreach_set_doc},
 
-	{"keys", (PyCFunction)pyrna_prop_collection_keys, METH_NOARGS, NULL},
-	{"items", (PyCFunction)pyrna_prop_collection_items, METH_NOARGS, NULL},
-	{"values", (PyCFunction)pyrna_prop_collection_values, METH_NOARGS, NULL},
+	{"keys", (PyCFunction)pyrna_prop_collection_keys, METH_NOARGS, pyrna_prop_collection_keys_doc},
+	{"items", (PyCFunction)pyrna_prop_collection_items, METH_NOARGS, pyrna_prop_collection_items_doc},
+	{"values", (PyCFunction)pyrna_prop_collection_values, METH_NOARGS, pyrna_prop_collection_values_doc},
 
-	{"get", (PyCFunction)pyrna_prop_collection_get, METH_VARARGS, NULL},
+	{"get", (PyCFunction)pyrna_prop_collection_get, METH_VARARGS, pyrna_prop_collection_get_doc},
 	{NULL, NULL, 0, NULL}
 };
 
@@ -3823,11 +3866,11 @@ static PyObject *pyrna_struct_new(PyTypeObject *type, PyObject *args, PyObject *
 {
 	if(PyTuple_GET_SIZE(args) == 1) {
 		BPy_StructRNA *base= (BPy_StructRNA *)PyTuple_GET_ITEM(args, 0);
-		if (type == Py_TYPE(base)) {
+		if (Py_TYPE(base) == type) {
 			Py_INCREF(base);
 			return (PyObject *)base;
 		}
-		else if (PyType_IsSubtype(type, &pyrna_struct_Type)) {
+		else if (PyType_IsSubtype(Py_TYPE(base), &pyrna_struct_Type)) {
 			/* this almost never runs, only when using user defined subclasses of built-in object.
 			 * this isnt common since its NOT related to registerable subclasses. eg:
 
@@ -6106,6 +6149,8 @@ static char pyrna_register_class_doc[] =
 "\n"
 "   Register a subclass of a blender type in (:class:`Panel`, :class:`Menu`, :class:`Header`, :class:`Operator`, :class:`KeyingSetInfo`, :class:`RenderEngine`).\n"
 "\n"
+"   If the class has a *register* class method it will be called before registration.\n"
+"\n"
 "   .. note:: :exc:`ValueError` exception is raised if the class is not a subclass of a registerable blender class.\n"
 "\n"
 ;
@@ -6118,6 +6163,7 @@ static PyObject *pyrna_register_class(PyObject *UNUSED(self), PyObject *py_class
 	StructRNA *srna;
 	StructRNA *srna_new;
 	const char *identifier;
+	PyObject *py_cls_meth;
 
 	if(PyDict_GetItemString(((PyTypeObject*)py_class)->tp_dict, "bl_rna")) {
 		PyErr_SetString(PyExc_AttributeError, "register_class(...): already registered as a subclass");
@@ -6178,6 +6224,21 @@ static PyObject *pyrna_register_class(PyObject *UNUSED(self), PyObject *py_class
 	if(pyrna_deferred_register_class(srna_new, py_class)!=0)
 		return NULL;
 
+	/* call classed register method () */
+	py_cls_meth= PyObject_GetAttrString(py_class, "register");
+	if(py_cls_meth == NULL) {
+		PyErr_Clear();
+	}
+	else {
+		PyObject *ret= PyObject_CallObject(py_cls_meth, NULL);
+		if(ret) {
+			Py_DECREF(ret);
+		}
+		else {
+			return NULL;
+		}
+	}
+
 	Py_RETURN_NONE;
 }
 
@@ -6210,6 +6271,8 @@ static char pyrna_unregister_class_doc[] =
 ".. method:: unregister_class(cls)\n"
 "\n"
 "   Unload the python class from blender.\n"
+"\n"
+"   If the class has an *unregister* class method it will be called before unregistering.\n"
 ;
 PyMethodDef meth_bpy_unregister_class= {"unregister_class", pyrna_unregister_class, METH_O, pyrna_unregister_class_doc};
 static PyObject *pyrna_unregister_class(PyObject *UNUSED(self), PyObject *py_class)
@@ -6217,6 +6280,7 @@ static PyObject *pyrna_unregister_class(PyObject *UNUSED(self), PyObject *py_cla
 	bContext *C= NULL;
 	StructUnregisterFunc unreg;
 	StructRNA *srna;
+	PyObject *py_cls_meth;
 
 	/*if(PyDict_GetItemString(((PyTypeObject*)py_class)->tp_dict, "bl_rna")==NULL) {
 		PWM_cursor_wait(0);
@@ -6234,6 +6298,21 @@ static PyObject *pyrna_unregister_class(PyObject *UNUSED(self), PyObject *py_cla
 	if(!unreg) {
 		PyErr_SetString(PyExc_ValueError, "unregister_class(...): expected a Type subclassed from a registerable rna type (no unregister supported)");
 		return NULL;
+	}
+
+	/* call classed unregister method */
+	py_cls_meth= PyObject_GetAttrString(py_class, "unregister");
+	if(py_cls_meth == NULL) {
+		PyErr_Clear();
+	}
+	else {
+		PyObject *ret= PyObject_CallObject(py_cls_meth, NULL);
+		if(ret) {
+			Py_DECREF(ret);
+		}
+		else {
+			return NULL;
+		}
 	}
 
 	/* should happen all the time but very slow */

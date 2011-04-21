@@ -115,6 +115,12 @@ const int kMinWindowHeight = 100;
 
 char bprogname[FILE_MAX];
 
+static void mem_error_cb(const char *errorStr)
+{
+	fprintf(stderr, "%s", errorStr);
+	fflush(stderr);
+}
+
 #ifdef WIN32
 typedef enum 
 {
@@ -751,6 +757,7 @@ int main(int argc, char** argv)
 					}
 					
 					//::printf("game data loaded from %s\n", filename);
+                    printf("enjalot: game data loaded from %s, filename\n", filename);
 					
 					if (!bfd) {
 						usage(argv[0], isBlenderPlayer);
@@ -774,6 +781,7 @@ int main(int argc, char** argv)
 						if (firstTimeRunning)
 							G.fileflags  = bfd->fileflags;
 
+                        printf("enjalot: bke icons init\n");
 						//Seg Fault; icon.c gIcons == 0
 						BKE_icons_init(1);
 						
@@ -796,6 +804,8 @@ int main(int argc, char** argv)
 								fullScreen = false;
 								windowWidth = scene->gm.xplay;
 								windowHeight = scene->gm.yplay;
+
+                                printf("enjalot: w: %d h: %d \n", windowWidth, windowHeight);
 							}
 						}
 						
@@ -834,9 +844,10 @@ int main(int argc, char** argv)
 						
 						//					GPG_Application app (system, maggie, startscenename);
 						app.SetGameEngineData(maggie, scene, argc, argv); /* this argc cant be argc_py_clamped, since python uses it */
-						
 						BLI_strncpy(pathname, maggie->name, sizeof(pathname));
-						BLI_strncpy(G.main->name, maggie->name, sizeof(G.main->name));
+						if(G.main != maggie) {
+							BLI_strncpy(G.main->name, maggie->name, sizeof(G.main->name));
+						}
 #ifdef WITH_PYTHON
 						setGamePythonPath(G.main->name);
 #endif
@@ -901,23 +912,28 @@ int main(int argc, char** argv)
 								else
 #endif
 								{
-																										if (parentWindow != 0)
+                                    printf("enjalot: starting app\n");
+								    if (parentWindow != 0)
 										app.startEmbeddedWindow(title, parentWindow, stereoWindow, stereomode);
 									else
 										app.startWindow(title, windowLeft, windowTop, windowWidth, windowHeight,
 										stereoWindow, stereomode);
+                                    printf("enjalot: app started?\n");
 								}
 							}
 						}
 						else
 						{
+                            printf("enjalot: starting app.StartGameEngine\n");
 							app.StartGameEngine(stereomode);
 							exitcode = KX_EXIT_REQUEST_NO_REQUEST;
 						}
 						
+                        printf("enjalot: event consumer\n");
 						// Add the application as event consumer
 						system->addEventConsumer(&app);
 						
+                        printf("enjalot: right before main loop\n");
 						// Enter main loop
 						bool run = true;
 						while (run)
@@ -931,6 +947,10 @@ int main(int argc, char** argv)
 							}
 						}
 						app.StopGameEngine();
+
+						/* 'app' is freed automatic when out of scope. 
+						 * removal is needed else the system will free an already freed value */
+						system->removeEventConsumer(&app);
 
 						BLO_blendfiledata_free(bfd);
 					}
@@ -955,6 +975,13 @@ int main(int argc, char** argv)
 	free_nodesystem();
 
 	SYS_DeleteSystem(syshandle);
+
+	int totblock= MEM_get_memory_blocks_in_use();
+	if(totblock!=0) {
+		printf("Error Totblock: %d\n",totblock);
+		MEM_set_error_callback(mem_error_cb);
+		MEM_printmemlist();
+	}
 
 	return error ? -1 : 0;
 }

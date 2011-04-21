@@ -41,6 +41,7 @@
 #include "BL_ShapeDeformer.h"
 #include "BL_DeformableGameObject.h"
 #include <vector>
+#include <RTPSettings.h>
 
 //#include "timege.h"
 
@@ -128,6 +129,7 @@ protected:
 	Scene					*m_scene;
 	DerivedMesh				*m_dm;
     bool                     m_bIsRTPS; //different from the RAS_MaterialBucket flag but used to set it.
+	rtps::RTPSettings		*m_RTPS_settings;
 
 
 #ifdef WITH_CXX_GUARDEDALLOC
