@@ -56,6 +56,10 @@ source/blender/
         intern/
             MOD_rtps.c
             MOD_util.c
+    
+    blenlib/
+        BLI_path_util.h     (add BLENDER_RTPS constant as a runtime path)
+        intern/path_util.c
 
 release/scripts/ui/
     properties_data_modifier.py (Python UI)

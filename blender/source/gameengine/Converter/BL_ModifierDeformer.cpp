@@ -61,7 +61,7 @@
 #include "BKE_ipo.h"
 #include "MT_Point3.h"
 
-//Included by enjalot
+// ==== begin: Included by enjalot
 #include "RTPS.h"
 //#include "timege.h"
 //These KX might not belong here...
@@ -73,7 +73,8 @@
 #include "KX_PythonInit.h"
 #include "SG_BBox.h"
 #include "FloatValue.h"
-//end included by enjalot
+#include "BLI_path_util.h"
+// ==== end included by enjalot
 
 extern "C"{
     #include "BKE_cdderivedmesh.h" //added by enjalot for RTPS
@@ -456,6 +457,8 @@ bool BL_ModifierDeformer::Apply(RAS_IPolyMaterial *mat)
             (*slot)->m_bRTPS = true;
             //initialize the particle system
             printf("RTPS: initialize particle system\n");
+            //printf("blender user path system: %s\n", BLI_get_folder_version(BLENDER_RESOURCE_PATH_SYSTEM, BLENDER_VERSION, FALSE));
+
             
             ModifierData* md;
             for (md = (ModifierData*)m_objMesh->modifiers.first; md; md = (ModifierData*)md->next) 
@@ -482,6 +485,9 @@ bool BL_ModifierDeformer::Apply(RAS_IPolyMaterial *mat)
                     dmax = grot*dmax + gp;
 
 
+                    //printf("blender rtps dir: %s\n", BLI_get_folder(BLENDER_RTPS, NULL));
+                    std::string rtps_path( BLI_get_folder(BLENDER_RTPS, NULL) );
+
                     using namespace rtps;
                     rtps::Domain* grid = new Domain(float4(dmin.x(), dmin.y(), dmin.z(), 0), float4(dmax.x(), dmax.y(), dmax.z(), 0));
 
@@ -489,6 +495,11 @@ bool BL_ModifierDeformer::Apply(RAS_IPolyMaterial *mat)
                     {
                         //rtps::RTPSettings settings(sys, grid);
 						m_RTPS_settings = new rtps::RTPSettings(sys, rtmd->max_num, rtmd->dt, grid, rtmd->collision);
+                        
+                        //this path gives the location of the opencl and shader source files
+                        m_RTPS_settings->SetSetting("rtps_path", rtps_path);
+
+
 						m_RTPS_settings->setRadiusScale(rtmd->render_radius_scale);
 						m_RTPS_settings->setRenderType((rtps::RTPSettings::RenderType)rtmd->render_type);
 						m_RTPS_settings->setBlurScale(rtmd->render_blur_scale);
