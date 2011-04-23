@@ -459,7 +459,6 @@ bool BL_ModifierDeformer::Apply(RAS_IPolyMaterial *mat)
             printf("RTPS: initialize particle system\n");
             //printf("blender user path system: %s\n", BLI_get_folder_version(BLENDER_RESOURCE_PATH_SYSTEM, BLENDER_VERSION, FALSE));
 
-            
             ModifierData* md;
             for (md = (ModifierData*)m_objMesh->modifiers.first; md; md = (ModifierData*)md->next) 
             {
@@ -497,6 +496,7 @@ bool BL_ModifierDeformer::Apply(RAS_IPolyMaterial *mat)
 						m_RTPS_settings = new rtps::RTPSettings(sys, rtmd->max_num, rtmd->dt, grid, rtmd->collision);
                         
                         //this path gives the location of the opencl and shader source files
+                        printf("rtps path: %s\n", rtps_path.c_str());
                         m_RTPS_settings->SetSetting("rtps_path", rtps_path);
 
 
