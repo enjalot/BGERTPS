@@ -317,7 +317,7 @@ if(UNIX AND NOT APPLE)
         message("WITH_OPENCL in creator")
         install(  # same as linux!, deduplicate
             DIRECTORY ${RTPS_INSTALL_DIR}
-            DESTINATION ${TARGETDIR_VER}/rtps
+            DESTINATION ${TARGETDIR_VER}
             PATTERN ".svn" EXCLUDE
         )
     endif()
@@ -431,7 +431,7 @@ elseif(WIN32)
         message("WITH_OPENCL in creator")
         install(  # same as linux!, deduplicate
             DIRECTORY ${RTPS_INSTALL_DIR}
-            DESTINATION ${TARGETDIR_VER}/rtps
+            DESTINATION ${TARGETDIR_VER}
             PATTERN ".svn" EXCLUDE
         )
     endif()
