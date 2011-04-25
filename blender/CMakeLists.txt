@@ -265,6 +265,7 @@ IF(WITH_OPENCL)
     #)
 
     SET(RTPS_INCLUDE_DIR ${Blender_SOURCE_DIR}/extern/rtps/rtpslib)
+    #These should be able to be cleaned up by using blender/creator/CMakeLists.txt more effectively
     IF(APPLE)
         #SET(RTPS_LIB_DIR extern/rtps/rtpslib/librtps.dylib)
         #this should be more readily available from cmake somewhere
