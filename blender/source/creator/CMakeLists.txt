@@ -313,6 +313,16 @@ if(UNIX AND NOT APPLE)
 		DESTINATION ${TARGETDIR_VER}/config
 	)
 
+    if(WITH_OPENCL)
+        message("WITH_OPENCL in creator")
+        install(  # same as linux!, deduplicate
+            DIRECTORY ${RTPS_INSTALL_DIR}
+            DESTINATION ${TARGETDIR_VER}
+            PATTERN ".svn" EXCLUDE
+        )
+    endif()
+
+
 	if(WITH_INTERNATIONAL)
 		install(
 			FILES ${CMAKE_SOURCE_DIR}/release/bin/.blender/.Blanguages
@@ -417,6 +427,17 @@ elseif(WIN32)
 		PATTERN ".svn" EXCLUDE
 	)
 
+    if(WITH_OPENCL)
+        message("WITH_OPENCL in creator")
+        install(  # same as linux!, deduplicate
+            DIRECTORY ${RTPS_INSTALL_DIR}
+            DESTINATION ${TARGETDIR_VER}
+            PATTERN ".svn" EXCLUDE
+        )
+    endif()
+
+
+    
 	# plugins in blender 2.5 don't work at the moment.
 	#
 	# install(
@@ -492,6 +513,7 @@ elseif(WIN32)
 			# doesnt work, todo
 			# install(CODE "execute_process(COMMAND find ${TARGETDIR}/${BLENDER_VERSION}/python/lib/ -name '*.so' -exec strip -s {} '\;')")
 		endif()
+
 	endif()
 
 	if(CMAKE_CL_64)

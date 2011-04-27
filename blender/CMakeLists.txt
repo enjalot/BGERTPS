@@ -265,24 +265,25 @@ IF(WITH_OPENCL)
     #)
 
     SET(RTPS_INCLUDE_DIR ${Blender_SOURCE_DIR}/extern/rtps/rtpslib)
+    #These should be able to be cleaned up by using blender/creator/CMakeLists.txt more effectively
     IF(APPLE)
         #SET(RTPS_LIB_DIR extern/rtps/rtpslib/librtps.dylib)
         #this should be more readily available from cmake somewhere
         #SET(RTPS_INSTALL_DIR ${Blender_BINARY_DIR}/bin/blender.app/Contents/MacOS/2.57/rtps)
         #blender cmake is overwriting my stuff >:(
-        SET(RTPS_INSTALL_DIR ${Blender_BINARY_DIR}/rtps_install)
+        SET(RTPS_INSTALL_DIR ${Blender_BINARY_DIR}/rtps)
         #this doesn't work when you launch an app by double clicking
         SET(RTPS_INSTALL_DIR_REL ./blender.app/Contents/MacOS/2.57/rtps)
     ENDIF(APPLE)
     IF(UNIX AND NOT APPLE)
         #SET(RTPS_LIB_DIR extern/rtps/rtpslib/librtps.so)
         #SET(RTPS_INSTALL_DIR ${Blender_BINARY_DIR}/bin/blender/2.57/rtps)
-        SET(RTPS_INSTALL_DIR ${Blender_BINARY_DIR}/rtps_install)
+        SET(RTPS_INSTALL_DIR ${Blender_BINARY_DIR}/rtps)
         SET(RTPS_INSTALL_DIR_REL ./2.57/rtps)
     ENDIF(UNIX AND NOT APPLE)
     IF(WIN32)
         #SET(RTPS_INSTALL_DIR ${Blender_BINARY_DIR}/bin/Release/2.57/rtps)
-        SET(RTPS_INSTALL_DIR ${Blender_BINARY_DIR}/rtps_install)
+        SET(RTPS_INSTALL_DIR ${Blender_BINARY_DIR}/rtps)
         SET(RTPS_INSTALL_DIR_REL ./2.57/rtps)
     ENDIF(WIN32)
 

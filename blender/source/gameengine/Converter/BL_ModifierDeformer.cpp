@@ -61,7 +61,7 @@
 #include "BKE_ipo.h"
 #include "MT_Point3.h"
 
-//Included by enjalot
+// ==== begin: Included by enjalot
 #include "RTPS.h"
 //#include "timege.h"
 //These KX might not belong here...
@@ -73,7 +73,8 @@
 #include "KX_PythonInit.h"
 #include "SG_BBox.h"
 #include "FloatValue.h"
-//end included by enjalot
+#include "BLI_path_util.h"
+// ==== end included by enjalot
 
 extern "C"{
     #include "BKE_cdderivedmesh.h" //added by enjalot for RTPS
@@ -456,7 +457,8 @@ bool BL_ModifierDeformer::Apply(RAS_IPolyMaterial *mat)
             (*slot)->m_bRTPS = true;
             //initialize the particle system
             printf("RTPS: initialize particle system\n");
-            
+            //printf("blender user path system: %s\n", BLI_get_folder_version(BLENDER_RESOURCE_PATH_SYSTEM, BLENDER_VERSION, FALSE));
+
             ModifierData* md;
             for (md = (ModifierData*)m_objMesh->modifiers.first; md; md = (ModifierData*)md->next) 
             {
@@ -481,14 +483,25 @@ bool BL_ModifierDeformer::Apply(RAS_IPolyMaterial *mat)
                     dmin = grot*dmin + gp;
                     dmax = grot*dmax + gp;
 
+                    printf("RTPS: declaring the path\n");
+                    //printf("blender rtps dir: %s\n", BLI_get_folder(BLENDER_RTPS, NULL));
+                    std::string rtps_path( BLI_get_folder(BLENDER_RTPS, NULL) );
 
                     using namespace rtps;
+                    printf("RTPS: created the domain\n");
                     rtps::Domain* grid = new Domain(float4(dmin.x(), dmin.y(), dmin.z(), 0), float4(dmax.x(), dmax.y(), dmax.z(), 0));
 
                     if (sys == rtps::RTPSettings::SPH) 
                     {
+                        printf("RTPS: inside SPH system\n");
                         //rtps::RTPSettings settings(sys, grid);
 						m_RTPS_settings = new rtps::RTPSettings(sys, rtmd->max_num, rtmd->dt, grid, rtmd->collision);
+                        
+                        //this path gives the location of the opencl and shader source files
+                        printf("rtps path: %s\n", rtps_path.c_str());
+                        m_RTPS_settings->SetSetting("rtps_path", rtps_path);
+
+
 						m_RTPS_settings->setRadiusScale(rtmd->render_radius_scale);
 						m_RTPS_settings->setRenderType((rtps::RTPSettings::RenderType)rtmd->render_type);
 						m_RTPS_settings->setBlurScale(rtmd->render_blur_scale);
@@ -547,13 +560,21 @@ bool BL_ModifierDeformer::Apply(RAS_IPolyMaterial *mat)
                     } */
                     else if (sys == rtps::RTPSettings::FLOCK)
                     {
+                        printf("RTPS: inside FLOCK system\n");
                         float color[3] = {rtmd->color_r, rtmd->color_g, rtmd->color_b};
                         //rtps::RTPSettings settings(sys, rtmd->max_num, rtmd->dt, grid, rtmd->maxspeed, rtmd->separationdist, rtmd->searchradius, color, rtmd->w_sep, rtmd->w_align, rtmd->w_coh);
-                        rtps::RTPSettings* settings = new rtps::RTPSettings(sys, rtmd->max_num, rtmd->dt, grid, rtmd->collision);
+                        //rtps::RTPSettings* settings = new rtps::RTPSettings(sys, rtmd->max_num, rtmd->dt, grid, rtmd->collision);
+						m_RTPS_settings = new rtps::RTPSettings(sys, rtmd->max_num, rtmd->dt, grid);
+                       
+                        printf("RTPS: about to print the path\n");
 
-                        settings->setRenderType((rtps::RTPSettings::RenderType)rtmd->render_type);
-						settings->setRadiusScale(rtmd->render_radius_scale);
-						settings->setBlurScale(rtmd->render_blur_scale);
+                        //this path gives the location of the opencl and shader source files
+                        printf("rtps path: %s\n", rtps_path.c_str());
+                        m_RTPS_settings->SetSetting("rtps_path", rtps_path);
+
+                        m_RTPS_settings->setRenderType((rtps::RTPSettings::RenderType)rtmd->render_type);
+						m_RTPS_settings->setRadiusScale(rtmd->render_radius_scale);
+						m_RTPS_settings->setBlurScale(rtmd->render_blur_scale);
 						//settings.setUseGLSL(rtmd->glsl);
 						//settings.setUseAlphaBlending(rtmd->blending);
 						
@@ -561,24 +582,25 @@ bool BL_ModifierDeformer::Apply(RAS_IPolyMaterial *mat)
 						//settings.setBlurScale(1.0);
 						//settings.setUseGLSL(1);
                         
-                        settings->SetSetting("render_texture", "boid3.png");
-                        settings->SetSetting("render_frag_shader", "boid_tex_frag.glsl");
+                        m_RTPS_settings->SetSetting("render_texture", "nemo.png");
+                        m_RTPS_settings->SetSetting("render_frag_shader", "boid_tex_frag.glsl");
                         //settings->SetSetting("render_texture", "fsu_seal.jpg");
                         //settings->SetSetting("render_frag_shader", "sprite_tex_frag.glsl");
                         //settings->SetSetting("render_use_alpha", true);
-                        settings->SetSetting("render_use_alpha", false);
+                        m_RTPS_settings->SetSetting("render_use_alpha", false);
                         //settings->SetSetting("render_alpha_function", "add");
-                        settings->SetSetting("lt_increment", -.00);
-                        settings->SetSetting("lt_cl", "lifetime.cl");
+                        m_RTPS_settings->SetSetting("lt_increment", -.00);
+                        m_RTPS_settings->SetSetting("lt_cl", "lifetime.cl");
 
-                        (*slot)->m_pRTPS = new rtps::RTPS(settings);
+                        rtps::RTPS* ps = new rtps::RTPS(m_RTPS_settings);
+                        (*slot)->m_pRTPS = ps;
 
-                        settings->SetSetting("Max Speed", rtmd->maxspeed);
-                        settings->SetSetting("Min Separation Distance", rtmd->separationdist);
-                        settings->SetSetting("Searching Radius", rtmd->searchradius);
-                        settings->SetSetting("Separation Weight", rtmd->w_sep);
-                        settings->SetSetting("Alignment Weight", rtmd->w_align);
-                        settings->SetSetting("Cohesion Weight", rtmd->w_coh);
+                        ps->settings->SetSetting("Max Speed", rtmd->maxspeed);
+                        ps->settings->SetSetting("Min Separation Distance", rtmd->separationdist);
+                        ps->settings->SetSetting("Searching Radius", rtmd->searchradius);
+                        ps->settings->SetSetting("Separation Weight", rtmd->w_sep);
+                        ps->settings->SetSetting("Alignment Weight", rtmd->w_align);
+                        ps->settings->SetSetting("Cohesion Weight", rtmd->w_coh);
                     }
                     else 
                     {
