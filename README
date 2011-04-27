@@ -23,12 +23,11 @@ http://wiki.blender.org/index.php/Dev:2.5/Doc/Building_Blender
     make -j8    (j8 runs make in 8 threads, if you encounter an error rerun make by itself to get sequential error output)
     make install    (this copies the python scripts and other runtime files to the build directory)
 
-(NOTE: make install does not work 100% right now, you need to move rtps_install to bin/2.57/rtps 
-or on the Mac: 
-mv rtps_install bin/blender.app/Contents/MacOS/2.57/rtps
+Note: on Linux if python3.2-dev is not available one can download and install python3.2 with one line in bash:
+wget http://www.python.org/ftp/python/3.2/Python-3.2.tar.bz2 ; tar -jxpf Python-3.2.tar.bz2 ; cd Python-3.2 ; ./configure --prefix=$HOME/py32 ; make ; make install
 
-this will be fixed as soon as i figure out a little more cmake magic)
-    
+
+Note: For OpenCL you will need either the ATI APP SDK or NVIDIA CUDA SDK along with sufficiently uptodate drivers. for more details please see the INSTALL files for each platform
     
 
 
