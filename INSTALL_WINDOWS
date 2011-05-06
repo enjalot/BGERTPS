@@ -1,0 +1,70 @@
+
+NVIDIA
+Install CUDA toolkit for windows. (for the OpenCL Lib) http://www.nvidia.com/object/thankyou.html?url=/compute/cuda/3_2_prod/toolkit/cudatoolkit_3.2.16_win_64.msi\
+
+this automatically sets the CUDA_PATH environment variable (used by cmake)
+e.g. C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v3.2
+
+
+Download and install Nvidias code samples (this comes prepackaged with glut glew and other utility libraries) http://developer.download.nvidia.com/compute/cuda/3_2_prod/sdk/gpucomputingsdk_3.2.16_win_64.exe
+This automatically sets the NVSDKCOMPUTE_ROOT variable (used by cmake
+e.g. C:\ProgramData\NVIDIA Corporation\NVIDIA GPU Computing SDK 3.2
+
+
+
+#Download and install visual studio 10 express edition.
+#http://go.microsoft.com/?linkid=9709949
+Download and install visual studio 8 express edition
+http://www.microsoft.com/express/Downloads/#2008-Visual-CPP
+
+Download Windows SDK
+http://www.microsoft.com/downloads/dlx/en-us/listdetailsview.aspx?FamilyID=6b6c21d2-2006-4afa-9702-529fa782d63b
+
+
+Download git/cmake for windows.
+
+clone enjaparticles from git terminal
+    create a build directory
+    run cmake
+    point source directory to rtps
+    point build directory to your build directory
+    press configure
+    press generate
+    navigate to build directory
+    double-click on rtpssuite.sln
+    when visual studio opens.
+    right-click on sph.x in the left panel and select build
+    right-click INSTALL in the left panel and select build
+    check in the build/bin directory and execute sph.x
+
+
+Compiling blender
+http://wiki.blender.org/index.php/Dev:2.5/Doc/Building_Blender/Windows/msvc/CMake
+
+
+    cd ..
+    mkdir build25rtps
+    run cmake
+    point source directory to BGERTPS/blender
+    point build directory to your build25rtps directory
+    press configure
+    press generate
+
+    navigate to build directory
+    double-click on Blender.sln
+    when visual studio opens.
+        right-click INSTALL in the left panel and select build
+    
+    check in the build/bin directory and execute blender.exe
+
+
+
+
+
+AMD APP SDK
+c:\AMD\SUPPORT\streamsdk_2-4_win764
+
+install shit from the command line
+http://forums.amd.com/game/messageview.cfm?catid=279&threadid=130410
+cd C:\AMD\path\to\driver\Bin64
+ATISetup.exe -install -output screen
