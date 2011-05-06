@@ -410,7 +410,7 @@ bool BL_ModifierDeformer::Update(void)
                     //timers[TI_EMIT]->end();
 
 
-					if(triangles.size() > 0 && rtps->settings->tri_collision)
+                    if(triangles.size() > 0 && rtps->settings->tri_collision)
                     {
                         //printf("about to load triangles\n");
                         //printf("triangles size: %d\n", triangles.size());
@@ -483,15 +483,17 @@ bool BL_ModifierDeformer::Apply(RAS_IPolyMaterial *mat)
                     dmin = grot*dmin + gp;
                     dmax = grot*dmax + gp;
 
-
+                    printf("RTPS: declaring the path\n");
                     //printf("blender rtps dir: %s\n", BLI_get_folder(BLENDER_RTPS, NULL));
                     std::string rtps_path( BLI_get_folder(BLENDER_RTPS, NULL) );
 
                     using namespace rtps;
+                    printf("RTPS: created the domain\n");
                     rtps::Domain* grid = new Domain(float4(dmin.x(), dmin.y(), dmin.z(), 0), float4(dmax.x(), dmax.y(), dmax.z(), 0));
 
                     if (sys == rtps::RTPSettings::SPH) 
                     {
+                        printf("RTPS: inside SPH system\n");
                         //rtps::RTPSettings settings(sys, grid);
 						m_RTPS_settings = new rtps::RTPSettings(sys, rtmd->max_num, rtmd->dt, grid, rtmd->collision);
                         
@@ -541,7 +543,7 @@ bool BL_ModifierDeformer::Apply(RAS_IPolyMaterial *mat)
 
 
                     }
-                    else if (sys == rtps::RTPSettings::FLOCK) 
+                   /* else if (sys == rtps::RTPSettings::FLOCK) 
                     {
 						//printf("*** scale radius** = %f\n", rtmd->render_radius_scale);
 						//printf("*** dt ** = %f\n", rtmd->dt);
@@ -555,15 +557,51 @@ bool BL_ModifierDeformer::Apply(RAS_IPolyMaterial *mat)
 
                         (*slot)->m_pRTPS = new rtps::RTPS(m_RTPS_settings);
         
-                    }
-#if 0
-                    else if (sys == rtps::RTPSettings::SimpleFlock)
+                    } */
+                    else if (sys == rtps::RTPSettings::FLOCK)
                     {
+                        printf("RTPS: inside FLOCK system\n");
                         float color[3] = {rtmd->color_r, rtmd->color_g, rtmd->color_b};
-                        rtps::RTPSettings settings(rtmd->num, rtmd->maxspeed, rtmd->separationdist, rtmd->perceptionrange, color);
-                        (*slot)->m_pRTPS = new rtps::RTPS(settings);
+                        //rtps::RTPSettings settings(sys, rtmd->max_num, rtmd->dt, grid, rtmd->maxspeed, rtmd->separationdist, rtmd->searchradius, color, rtmd->w_sep, rtmd->w_align, rtmd->w_coh);
+                        //rtps::RTPSettings* settings = new rtps::RTPSettings(sys, rtmd->max_num, rtmd->dt, grid, rtmd->collision);
+						m_RTPS_settings = new rtps::RTPSettings(sys, rtmd->max_num, rtmd->dt, grid);
+                       
+                        printf("RTPS: about to print the path\n");
+
+                        //this path gives the location of the opencl and shader source files
+                        printf("rtps path: %s\n", rtps_path.c_str());
+                        m_RTPS_settings->SetSetting("rtps_path", rtps_path);
+
+                        m_RTPS_settings->setRenderType((rtps::RTPSettings::RenderType)rtmd->render_type);
+						m_RTPS_settings->setRadiusScale(rtmd->render_radius_scale);
+						m_RTPS_settings->setBlurScale(rtmd->render_blur_scale);
+						//settings.setUseGLSL(rtmd->glsl);
+						//settings.setUseAlphaBlending(rtmd->blending);
+						
+                        //settings.setRadiusScale(1.0);
+						//settings.setBlurScale(1.0);
+						//settings.setUseGLSL(1);
+                        
+                        m_RTPS_settings->SetSetting("render_texture", "nemo.png");
+                        m_RTPS_settings->SetSetting("render_frag_shader", "boid_tex_frag.glsl");
+                        //settings->SetSetting("render_texture", "fsu_seal.jpg");
+                        //settings->SetSetting("render_frag_shader", "sprite_tex_frag.glsl");
+                        //settings->SetSetting("render_use_alpha", true);
+                        m_RTPS_settings->SetSetting("render_use_alpha", false);
+                        //settings->SetSetting("render_alpha_function", "add");
+                        m_RTPS_settings->SetSetting("lt_increment", -.00);
+                        m_RTPS_settings->SetSetting("lt_cl", "lifetime.cl");
+
+                        rtps::RTPS* ps = new rtps::RTPS(m_RTPS_settings);
+                        (*slot)->m_pRTPS = ps;
+
+                        ps->settings->SetSetting("Max Speed", rtmd->maxspeed);
+                        ps->settings->SetSetting("Min Separation Distance", rtmd->separationdist);
+                        ps->settings->SetSetting("Searching Radius", rtmd->searchradius);
+                        ps->settings->SetSetting("Separation Weight", rtmd->w_sep);
+                        ps->settings->SetSetting("Alignment Weight", rtmd->w_align);
+                        ps->settings->SetSetting("Cohesion Weight", rtmd->w_coh);
                     }
-#endif
                     else 
                     {
 						m_RTPS_settings = new rtps::RTPSettings(sys, rtmd->max_num, rtmd->dt, grid);

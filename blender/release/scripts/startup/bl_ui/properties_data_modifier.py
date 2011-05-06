@@ -607,33 +607,68 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
 
             
         elif md.system == "BOIDS":
-            layout.label(text="Maximum number of particles:")
-            layout.prop(md, "max_num")
-            layout.prop(md, "dt")
-            """
-            layout.label(text="Maximum Speed of each Boid:")
-            layout.prop(md, "maxspeed")
-            layout.label(text="Separation Distance between Flockmates:")
-            layout.prop(md, "separationdist")
-            layout.label(text="Neighbor's search radius:")
-            layout.prop(md, "perceptionrange")
-            
-            layout.label(text="Set the color")
-
             split = layout.split(percentage=0.33)
 
             col = split.column()
-            col.label(text="RED")
-            col.prop(md, "color_r")
+            col.label(text="Simulation Parameters")
+            col.prop(md, "max_num")
+            
+            col = split.column()
+            col.label(text="") 
+            col.prop(md, "dt")
+            
+            col = split.column()
+            col.label(text="Render Type")
+            col.prop(md, "render_type", text="")
+            if md.render_type == "SSF" or md.render_type == "SPRITE":
+                col.prop(md, "render_radius_scale")
+                col.prop(md, "render_blur_scale")
+                #col.prop(md, "glsl")
+                #col.prop(md, "blending")
+
+            
+            layout.label(text="Flock Parameters")
+            split = layout.split(percentage=0.33)
+            
+            col = split.column()
+            col.label("Max Speed")
+            col.prop(md, "maxspeed", text="")
+            
+            col = split.column()
+            col.label("Separation Dist")
+            col.prop(md, "separationdist", text="")
+            
+            col = split.column()
+            col.label("Search Radius")
+            col.prop(md, "searchradius", text="")
+            
+            layout.label(text="Weights of the Rules")
+            split = layout.split(percentage=0.33)
+
+            col = split.column()
+            col.label("Separation")
+            col.prop(md, "w_sep", text="", slider=True)
+
+            col = split.column()
+            col.label("Alignment")
+            col.prop(md, "w_align", text="", slider=True)
+            
+            col = split.column()
+            col.label("Cohesion")
+            col.prop(md, "w_coh", text="", slider=True)
+            
+            layout.label(text="Color of the Flock")
+            split = layout.split(percentage=0.33)
+            
+            col = split.column()
+            col.prop(md, "color_r", slider=True) 
 
             col =  split.column()
-            col.label(text="GREEN")
-            col.prop(md, "color_g")
+            col.prop(md, "color_g", slider=True)
 
             col =  split.column()
-            col.label(text="BLUE")
-            col.prop(md, "color_b")
-            """
+            col.prop(md, "color_b", slider=True)
+            
 
     def SOLIDIFY(self, layout, ob, md):
 
