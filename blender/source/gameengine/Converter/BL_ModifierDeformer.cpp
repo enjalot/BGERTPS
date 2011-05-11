@@ -386,6 +386,19 @@ bool BL_ModifierDeformer::Update(void)
                                 {
                                     int index = (int)indexprop->GetInt();
                                     rtps->system->updateHose(index, center, velocity, radius, col);
+
+                                    CIntValue* refillprop = (CIntValue*)gobj->GetProperty("refill");
+                                    if(refillprop)
+                                    {
+                                        int refill = (int)refillprop->GetInt();
+                                        if (refill > 0)
+                                        {
+                                            rtps->system->refillHose(index, refill);
+                                            CIntValue* newrefill = new CIntValue(0);
+                                            refillprop->SetValue(newrefill);
+                                        }
+                                    }
+
                                 }
                             }
                             else
@@ -533,7 +546,7 @@ bool BL_ModifierDeformer::Apply(RAS_IPolyMaterial *mat)
                         ps->settings->SetSetting("Boundary Dampening", rtmd->boundary_dampening);
                         //settings.SetSetting("Friction Kinetic", rtmd->friction_kinetic);
                         //settings.SetSetting("Friction Static", rtmd->friction_static);
-                        ps->settings->SetSetting("Sub Intervals", rtmd->sub_intervals);
+                        ps->settings->SetSetting("sub_intervals", rtmd->sub_intervals);
 
                         //color hack for now
                         ps->settings->SetSetting("color_r", rtmd->color_r/255.0f);
