@@ -673,6 +673,16 @@ elseif(APPLE)
 		)
 	endif()
 
+    if(WITH_OPENCL)
+        message("WITH_OPENCL in creator")
+        install(  # same as linux!, deduplicate
+            DIRECTORY ${RTPS_INSTALL_DIR}
+            DESTINATION ${TARGETDIR_VER}
+            PATTERN ".svn" EXCLUDE
+        )
+    endif()
+
+
 	# python
 	if(WITH_PYTHON)
 		# the python zip is first extract as part of the build process,
