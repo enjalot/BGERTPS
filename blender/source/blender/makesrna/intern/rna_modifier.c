@@ -2302,6 +2302,7 @@ static void rna_def_modifier_rtps(BlenderRNA *brna)
 		{MOD_RTPS_REND_RENDER, "RENDER", 0, "Points", ""},
 		{MOD_RTPS_REND_SPRITE, "SPRITE", 0, "Sprites", ""},
 		{MOD_RTPS_REND_SSF, "SSF", 0, "Screen Space", ""},
+		{MOD_RTPS_REND_SPHERE3D, "SPHERE", 0, "3D Spheres", ""},
 		{0, NULL, 0, NULL, NULL}};
 
 
