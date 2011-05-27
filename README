@@ -65,3 +65,15 @@ I will continue to add more as experimentation. In the future I hope to integrat
 right now I'm still finding my way around blender and opencl
 
 ----------------------------------------------------------------------
+
+If you have write access to the EnjaParticles repository (for the RTPS library)
+then you may need to change the submodule's repository url in the .git/config
+
+change this:
+[submodule "blender/extern/rtps"]
+    url = git://github.com/enjalot/EnjaParticles.git
+
+to this:
+[submodule "blender/extern/rtps"]
+    url = git@github.com:enjalot/EnjaParticles.git
+
