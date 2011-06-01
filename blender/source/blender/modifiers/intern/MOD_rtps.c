@@ -84,6 +84,9 @@ static void initData(ModifierData *md)
     rtmd->w_sep = 1.f;
     rtmd->w_align = 1.f;
     rtmd->w_coh = 1.f; 
+
+    rtmd->angular_velocity = 0.0f;
+
 }
 /*
 static void copyData(ModifierData *md, ModifierData *target)

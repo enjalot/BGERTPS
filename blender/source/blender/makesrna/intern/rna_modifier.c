@@ -2463,17 +2463,23 @@ static void rna_def_modifier_rtps(BlenderRNA *brna)
     RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
     prop= RNA_def_property(srna, "separationdist", PROP_FLOAT, PROP_NONE);
-    RNA_def_property_range(prop, 0, 1);
-	RNA_def_property_ui_range(prop, 0, 1, 1, 3);             
+    RNA_def_property_range(prop, 0, 10);
+	RNA_def_property_ui_range(prop, 0, 10, 1, 3);             
     RNA_def_property_ui_text(prop, "Separation Dist", "Separation Distance between boids");
     RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
     prop= RNA_def_property(srna, "searchradius", PROP_FLOAT, PROP_NONE);
-    RNA_def_property_range(prop, 0, 1);
-	RNA_def_property_ui_range(prop, 0, 1, 1, 3);             
+    RNA_def_property_range(prop, 0, 10);
+	RNA_def_property_ui_range(prop, 0, 10, 1, 3);             
     RNA_def_property_ui_text(prop, "Search Radius", "Perception Range to search for neighbors");
     RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
+    prop= RNA_def_property(srna, "angular_velocity", PROP_FLOAT, PROP_NONE);
+    RNA_def_property_range(prop, -100, 100);
+	RNA_def_property_ui_range(prop, -100, 100, 1, 3);             
+    RNA_def_property_ui_text(prop, "Angular Velocity", "Angular Velocity for a Circular Velocity Field at the XZ-axes");
+    RNA_def_property_update(prop, 0, "rna_Modifier_update");
+    
     prop= RNA_def_property(srna, "color_r", PROP_FLOAT, PROP_NONE);
     RNA_def_property_range(prop, 0, 255);
 	RNA_def_property_ui_range(prop, 0, 255, 1,3);             

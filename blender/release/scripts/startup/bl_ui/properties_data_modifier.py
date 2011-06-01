@@ -655,6 +655,12 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
             #col.label("Cohesion")
             col.prop(md, "w_coh", text="Cohesion", slider=True)
             
+            split = layout.split(percentage=0.5)
+            col = split.column()
+            col.prop(md, "angular_velocity", text="AngularVel")
+            #col = split.column()
+            
+            #col.label("Cohesion")
             #layout.label(text="Color of the Flock")
             #split = layout.split(percentage=0.33)
             #col = split.column()

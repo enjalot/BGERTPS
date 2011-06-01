@@ -486,6 +486,8 @@ typedef struct RTPSModifierData {
     float w_align;
     float w_coh;
 
+    float angular_velocity;
+
     //rendering options
     short glsl;
     short blending;

@@ -614,6 +614,7 @@ bool BL_ModifierDeformer::Apply(RAS_IPolyMaterial *mat)
                         ps->settings->SetSetting("Separation Weight", rtmd->w_sep);
                         ps->settings->SetSetting("Alignment Weight", rtmd->w_align);
                         ps->settings->SetSetting("Cohesion Weight", rtmd->w_coh);
+                        ps->settings->SetSetting("Angular Velocity", rtmd->angular_velocity);
                     }
                     else 
                     {
