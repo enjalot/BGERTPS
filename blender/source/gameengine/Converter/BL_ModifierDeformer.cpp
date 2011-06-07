@@ -347,6 +347,8 @@ bool BL_ModifierDeformer::Update(void)
 
                             //hose
                             CBoolValue* hoseprop = (CBoolValue*)gobj->GetProperty("hose");
+                            CBoolValue* sphereprop = (CBoolValue*)gobj->GetProperty("sphere");
+
                             if(hoseprop)
                             {
                                 
@@ -400,6 +402,24 @@ bool BL_ModifierDeformer::Update(void)
                                     }
 
                                 }
+                            }
+                            else if(sphereprop)
+                            {
+                                printf("*** Inside the SPHERE property ***\n");
+
+                                int nn = makeEmitter(num, gobj);
+                                if( nn == 0) {continue;}
+                                
+                                MT_Point3 bbpts[8];
+                                gobj->GetSGNode()->getAABBox(bbpts);
+         
+                                float4 min = float4(bbpts[0].x(), bbpts[0].y(), bbpts[0].z(), 0);
+                                float4 max = float4(bbpts[7].x(), bbpts[7].y(), bbpts[7].z(), 0);
+                               
+                                float4 center = float4(max.z/2.f, max.y/2.f, max.z/2.f, 0.f);
+                                float radius = max.x;
+
+                                rtps->system->addBall(nn, center, radius, false, col);
                             }
                             else
                             {
