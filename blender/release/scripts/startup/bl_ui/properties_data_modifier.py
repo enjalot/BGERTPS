@@ -607,69 +607,33 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
             split = layout.split(percentage=0.5)
 
             col = split.column()
+            
             col.label(text="Simulation Parameters")
             col.prop(md, "max_num")
+            col.prop(md, "dt")
+            col.prop(md, "dim")
+            
+            col.label(text="Flock Parameters")
+            col.prop(md, "maxspeed", text="MaxSpeed")
+            col.prop(md, "separationdist", text="SeparationDist")
+            col.prop(md, "searchradius", text="SearchRadius")
+            col.prop(md, "angular_velocity", text="AngularVel")
             
             col = split.column()
+            
             col.label(text="Render Type")
             col.prop(md, "render_type", text="")
-            if md.render_type == "SSF" or md.render_type == "SPRITE":
+            if md.render_type == "SSF" or md.render_type == "SPRITE" or md.render_type == "SPHERE":
                 col.prop(md, "render_radius_scale")
                 col.prop(md, "render_blur_scale")
                 #col.prop(md, "glsl")
                 #col.prop(md, "blending")
 
-            
-            split = layout.split(percentage=0.5)
-            col = split.column()
-            col.prop(md, "dt")
-            
-            split = layout.split(percentage=0.5)
-            col = split.column()
-            col.label(text="Flock Parameters")
-            col = split.column()
             col.label(text="Weights of the Rules")
-            
-            split = layout.split(percentage=0.5)
-            col = split.column()
-            #col.label("Max Speed")
-            col.prop(md, "maxspeed", text="MaxSpeed")
-            col = split.column()
-            #col.label("Separation")
             col.prop(md, "w_sep", text="Separation", slider=True)
-            
-
-            split = layout.split(percentage=0.5)
-            col = split.column()
-            #col.label("Separation Dist")
-            col.prop(md, "separationdist", text="SeparationDist")
-            col = split.column()
-            #col.label("Alignment")
             col.prop(md, "w_align", text="Alignment", slider=True)
-            
-            split = layout.split(percentage=0.5)
-            col = split.column()
-            #col.label("Search Radius")
-            col.prop(md, "searchradius", text="SearchRadius")
-            col = split.column()
-            #col.label("Cohesion")
             col.prop(md, "w_coh", text="Cohesion", slider=True)
-            
-            split = layout.split(percentage=0.5)
-            col = split.column()
-            col.prop(md, "angular_velocity", text="AngularVel")
-            #col = split.column()
-            
-            #col.label("Cohesion")
-            #layout.label(text="Color of the Flock")
-            #split = layout.split(percentage=0.33)
-            #col = split.column()
-            #col.prop(md, "color_r", slider=True) 
-            #col =  split.column()
-            #col.prop(md, "color_g", slider=True)
-            #col =  split.column()
-            #col.prop(md, "color_b", slider=True)
-            
+
 
     def SOLIDIFY(self, layout, ob, md):
 

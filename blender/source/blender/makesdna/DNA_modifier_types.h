@@ -481,12 +481,13 @@ typedef struct RTPSModifierData {
     float color_g;
     float color_b;
     float color_a;
-    
     float w_sep;
     float w_align;
     float w_coh;
-
     float angular_velocity;
+    
+    short dim;
+    char pack4[2];
 
     //rendering options
     short glsl;
@@ -498,6 +499,8 @@ typedef struct RTPSModifierData {
 	float render_radius_scale; //GE
 	float render_blur_scale; //GE
 	char pack3[4];
+    
+
 
 } RTPSModifierData;
 

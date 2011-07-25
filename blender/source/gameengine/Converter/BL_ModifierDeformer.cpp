@@ -613,6 +613,8 @@ bool BL_ModifierDeformer::Apply(RAS_IPolyMaterial *mat)
                         m_RTPS_settings->setRenderType((rtps::RTPSettings::RenderType)rtmd->render_type);
 						m_RTPS_settings->setRadiusScale(rtmd->render_radius_scale);
 						m_RTPS_settings->setBlurScale(rtmd->render_blur_scale);
+						m_RTPS_settings->setDimension(rtmd->dim);
+printf("*** 2D = %d ***\n", rtmd->dim);
 						//settings.setUseGLSL(rtmd->glsl);
 						//settings.setUseAlphaBlending(rtmd->blending);
 						

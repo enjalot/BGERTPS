@@ -76,6 +76,8 @@ static void initData(ModifierData *md)
 	rtmd->separationdist = 1.f;
 	rtmd->searchradius = 1.f;
 
+    rtmd->dim = 0;
+
 	rtmd->color_r=255.0f;
 	rtmd->color_g=0.0f;
 	rtmd->color_b=0.0f;

@@ -2521,7 +2521,12 @@ static void rna_def_modifier_rtps(BlenderRNA *brna)
 	RNA_def_property_ui_range(prop, 0, 1, 1, 3);             
     RNA_def_property_ui_text(prop, "Cohesion", "How important is the cohesion rule?");
     RNA_def_property_update(prop, 0, "rna_Modifier_update");
-    
+   
+	prop= RNA_def_property(srna, "dim", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "dim", 0); 
+	RNA_def_property_ui_text(prop, "2D", "Use 2D flocking");
+	RNA_def_property_update(prop, 0, "rna_Modifier_update");
+
     //rendering options
     // GE: where is the title of this panel? 
 	prop= RNA_def_property(srna, "glsl", PROP_BOOLEAN, PROP_NONE);
