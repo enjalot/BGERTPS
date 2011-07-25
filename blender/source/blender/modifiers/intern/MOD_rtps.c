@@ -46,7 +46,7 @@ static void initData(ModifierData *md)
     // why are defaults required? Do not appear to be used
     // at least not if there is no associated UI
 	rtmd->system = 2;
-    rtmd->max_num = 8192;
+    rtmd->max_num = 100;
 	                     
     rtmd->sub_intervals= 3;
     rtmd->dt= .001f;
@@ -72,7 +72,7 @@ static void initData(ModifierData *md)
     rtmd->blending = 0;
 
     //boids stuff
-	rtmd->maxspeed = 100.f;
+	rtmd->maxspeed = 1.f;
 	rtmd->separationdist = 1.f;
 	rtmd->searchradius = 1.f;
 
@@ -81,9 +81,12 @@ static void initData(ModifierData *md)
 	rtmd->color_b=0.0f;
 	rtmd->color_a=255.0f;
 
-    rtmd->w_sep = 0.3f;
-    rtmd->w_align =0.1f;
-    rtmd->w_coh = 0.01f; 
+    rtmd->w_sep = 1.f;
+    rtmd->w_align = 1.f;
+    rtmd->w_coh = 1.f; 
+
+    rtmd->angular_velocity = 0.0f;
+
 }
 /*
 static void copyData(ModifierData *md, ModifierData *target)

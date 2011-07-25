@@ -2302,6 +2302,7 @@ static void rna_def_modifier_rtps(BlenderRNA *brna)
 		{MOD_RTPS_REND_RENDER, "RENDER", 0, "Points", ""},
 		{MOD_RTPS_REND_SPRITE, "SPRITE", 0, "Sprites", ""},
 		{MOD_RTPS_REND_SSF, "SSF", 0, "Screen Space", ""},
+		{MOD_RTPS_REND_SPHERE3D, "SPHERE", 0, "3D Spheres", ""},
 		{0, NULL, 0, NULL, NULL}};
 
 
@@ -2456,23 +2457,29 @@ static void rna_def_modifier_rtps(BlenderRNA *brna)
     //**** BOIDS STUFF ****
 	// boids properties
     prop= RNA_def_property(srna, "maxspeed", PROP_FLOAT, PROP_NONE);
-    RNA_def_property_range(prop, 0.1, 1000);
-	RNA_def_property_ui_range(prop, 1, 1000, 1, 3);             
+    RNA_def_property_range(prop, 0, 10);
+	RNA_def_property_ui_range(prop, 0, 10, 1, 3);             
     RNA_def_property_ui_text(prop, "Max Speed", "Max Speed of each Boid");
     RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
     prop= RNA_def_property(srna, "separationdist", PROP_FLOAT, PROP_NONE);
-    RNA_def_property_range(prop, 0.1, 50);
-	RNA_def_property_ui_range(prop, 1, 50, 1, 3);             
+    RNA_def_property_range(prop, 0, 10);
+	RNA_def_property_ui_range(prop, 0, 10, 1, 3);             
     RNA_def_property_ui_text(prop, "Separation Dist", "Separation Distance between boids");
     RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
     prop= RNA_def_property(srna, "searchradius", PROP_FLOAT, PROP_NONE);
-    RNA_def_property_range(prop, 0.1, 50);
-	RNA_def_property_ui_range(prop, 1, 50, 1, 3);             
+    RNA_def_property_range(prop, 0, 10);
+	RNA_def_property_ui_range(prop, 0, 10, 1, 3);             
     RNA_def_property_ui_text(prop, "Search Radius", "Perception Range to search for neighbors");
     RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
+    prop= RNA_def_property(srna, "angular_velocity", PROP_FLOAT, PROP_NONE);
+    RNA_def_property_range(prop, -100, 100);
+	RNA_def_property_ui_range(prop, -100, 100, 1, 3);             
+    RNA_def_property_ui_text(prop, "Angular Velocity", "Angular Velocity for a Circular Velocity Field at the XZ-axes");
+    RNA_def_property_update(prop, 0, "rna_Modifier_update");
+    
     prop= RNA_def_property(srna, "color_r", PROP_FLOAT, PROP_NONE);
     RNA_def_property_range(prop, 0, 255);
 	RNA_def_property_ui_range(prop, 0, 255, 1,3);             
@@ -2498,20 +2505,20 @@ static void rna_def_modifier_rtps(BlenderRNA *brna)
     RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
     prop= RNA_def_property(srna, "w_sep", PROP_FLOAT, PROP_NONE);
-    RNA_def_property_range(prop, 0, 100);
-	RNA_def_property_ui_range(prop, 0, 100, 1, 3);             
+    RNA_def_property_range(prop, 0, 1);
+	RNA_def_property_ui_range(prop, 0, 1, 1, 3);             
     RNA_def_property_ui_text(prop, "Separation", "How important is the separation rule?");
     RNA_def_property_update(prop, 0, "rna_Modifier_update");
     
     prop= RNA_def_property(srna, "w_align", PROP_FLOAT, PROP_NONE);
-    RNA_def_property_range(prop, 0, 100);
-	RNA_def_property_ui_range(prop, 0, 100, 1, 3);             
+    RNA_def_property_range(prop, 0, 1);
+	RNA_def_property_ui_range(prop, 0, 1, 1, 3);             
     RNA_def_property_ui_text(prop, "Alignment", "How important is the alignment rule?");
     RNA_def_property_update(prop, 0, "rna_Modifier_update");
     
     prop= RNA_def_property(srna, "w_coh", PROP_FLOAT, PROP_NONE);
-    RNA_def_property_range(prop, 0, 100);
-	RNA_def_property_ui_range(prop, 0, 100, 1, 3);             
+    RNA_def_property_range(prop, 0, 1);
+	RNA_def_property_ui_range(prop, 0, 1, 1, 3);             
     RNA_def_property_ui_text(prop, "Cohesion", "How important is the cohesion rule?");
     RNA_def_property_update(prop, 0, "rna_Modifier_update");
     

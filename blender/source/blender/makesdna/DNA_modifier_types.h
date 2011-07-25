@@ -486,6 +486,8 @@ typedef struct RTPSModifierData {
     float w_align;
     float w_coh;
 
+    float angular_velocity;
+
     //rendering options
     short glsl;
     short blending;
@@ -511,6 +513,7 @@ enum {
 	MOD_RTPS_REND_RENDER,
 	MOD_RTPS_REND_SPRITE,
 	MOD_RTPS_REND_SSF,
+	MOD_RTPS_REND_SPHERE3D,
 };
 
 

@@ -347,6 +347,8 @@ bool BL_ModifierDeformer::Update(void)
 
                             //hose
                             CBoolValue* hoseprop = (CBoolValue*)gobj->GetProperty("hose");
+                            CBoolValue* sphereprop = (CBoolValue*)gobj->GetProperty("sphere");
+
                             if(hoseprop)
                             {
                                 
@@ -400,6 +402,29 @@ bool BL_ModifierDeformer::Update(void)
                                     }
 
                                 }
+                            }
+                            else if(sphereprop)
+                            {
+                                printf("*** Inside the SPHERE property ***\n");
+
+                                int nn = makeEmitter(num, gobj);
+                                if( nn == 0) {continue;}
+                                
+                                MT_Point3 bbpts[8];
+                                gobj->GetSGNode()->getAABBox(bbpts);
+         
+                                MT_Point3 gp = gobj->NodeGetWorldPosition();
+                                
+                                float4 min = float4(bbpts[0].x(), bbpts[0].y(), bbpts[0].z(), 0);
+                                float4 max = float4(bbpts[7].x(), bbpts[7].y(), bbpts[7].z(), 0);
+                               
+                                float4 center = float4(gp[0], gp[1], gp[2], 0.f);
+                                float radius = (max.x - min.x)/2;
+
+                                center.print("**** center ***");
+                                printf("*** radius = %f ***\n", radius);
+                                
+                                rtps->system->addBall(nn, center, radius, false, col);
                             }
                             else
                             {
@@ -614,6 +639,7 @@ bool BL_ModifierDeformer::Apply(RAS_IPolyMaterial *mat)
                         ps->settings->SetSetting("Separation Weight", rtmd->w_sep);
                         ps->settings->SetSetting("Alignment Weight", rtmd->w_align);
                         ps->settings->SetSetting("Cohesion Weight", rtmd->w_coh);
+                        ps->settings->SetSetting("Angular Velocity", rtmd->angular_velocity);
                     }
                     else 
                     {
