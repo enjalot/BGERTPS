@@ -1,6 +1,7 @@
 
-Game Engine bge.logic Module
-============================
+Game Logic (bge.logic)
+======================
+
 *****
 Intro
 *****
@@ -17,7 +18,7 @@ Module to access logic functions, imported automatically into the python control
    # To get the game object this controller is on:
    obj = cont.owner
 
-:class:`~bge.types.KX_GameObject` and :class:`~bge.types.KX_Camera` or :class:`bge.types.~KX_LightObject` methods are available depending on the type of object
+:class:`~bge.types.KX_GameObject` and :class:`~bge.types.KX_Camera` or :class:`~bge.types.KX_LightObject` methods are available depending on the type of object
 
 .. code-block:: python
 
@@ -216,6 +217,12 @@ General functions
 
    Loads a scene into the game engine.
 
+   .. note::
+
+      This function is not effective immediately, the scene is queued
+      and added on the next logic cycle where it will be available
+      from `getSceneList`
+
    :arg name: The name of the scene
    :type name: string
    :arg overlay: Overlay or underlay (optional)
@@ -345,9 +352,9 @@ Utility functions
 
 .. function:: getAverageFrameRate()
 
-   Gets the estimated average framerate
-   
-   :return: The estimed average framerate in frames per second
+   Gets the estimated/average framerate for all the active scenes, not only the current scene.
+
+   :return: The estimated average framerate in frames per second
    :rtype: float
 
 .. function:: getBlendFileList(path = "//")

@@ -38,11 +38,11 @@ if builder.find('cmake') != -1:
     # set build options
     cmake_options = ['-DCMAKE_BUILD_TYPE:STRING=Release']
 
-    if builder == 'mac_x86_64_cmake':
+    if builder.endswith('mac_x86_64_cmake'):
         cmake_options.append('-DCMAKE_OSX_ARCHITECTURES:STRING=x86_64')
-    elif builder == 'mac_i386_cmake':
+    elif builder.endswith('mac_i386_cmake'):
         cmake_options.append('-DCMAKE_OSX_ARCHITECTURES:STRING=i386')
-    elif builder == 'mac_ppc_cmake':
+    elif builder.endswith('mac_ppc_cmake'):
         cmake_options.append('-DCMAKE_OSX_ARCHITECTURES:STRING=ppc')
 
     # configure and make
@@ -57,34 +57,17 @@ else:
     scons_cmd = ['python', 'scons/scons.py']
     scons_options = []
 
-    if builder.startswith('linux'):
+    if builder.find('linux') != -1:
         import shutil
-
-        cores = 1
-        if hasattr(os, 'sysconf'):
-            if 'SC_NPROCESSORS_ONLN' in os.sysconf_names:
-                cores = os.sysconf('SC_NPROCESSORS_ONLN')
-
-            if cores > 1:
-                # there're two chroot environments in one machine,
-                # so use only a half of power for better performance
-                cores = cores / 2
 
         # We're using the same rules as release builder, so tweak
         # build and install dirs
         build_dir = os.path.join('..', 'build', builder)
         install_dir = os.path.join('..', 'install', builder)
 
-        common_options = ['BF_NUMJOBS=' + str(cores),
-            'BF_BUILDDIR=' + build_dir,
-            'BF_INSTALLDIR=' + install_dir]
+        common_options = ['BF_INSTALLDIR=' + install_dir]
 
-        # Clean all directories first
-        retcode = subprocess.call(scons_cmd + common_options + ['clean'])
-        if retcode != 0:
-            print('Error cleaning build directory')
-            sys.exit(retcode)
-
+        # Clean install directory so we'll be sure there's no
         if os.path.isdir(install_dir):
             shutil.rmtree(install_dir)
 
@@ -92,10 +75,10 @@ else:
         config_dir = os.path.join(buildbot_dir, 'config')
 
         configs = []
-        if builder == 'linux_x86_64_scons':
+        if builder.endswith('linux_x86_64_scons'):
             configs = ['user-config-player-x86_64.py',
                        'user-config-x86_64.py']
-        elif builder == 'linux_i386_scons':
+        elif builder.endswith('linux_i386_scons'):
             configs = ['user-config-player-i686.py',
                        'user-config-i686.py']
 
@@ -103,6 +86,12 @@ else:
             config_fpath = os.path.join(config_dir, config)
 
             scons_options = []
+
+            if config.find('player') != -1:
+                scons_options.append('BF_BUILDDIR=%s_player' % (build_dir))
+            else:
+                scons_options.append('BF_BUILDDIR=%s' % (build_dir))
+
             scons_options += common_options
 
             if config.find('player') == -1:
@@ -119,5 +108,13 @@ else:
 
         sys.exit(0)
     else:
+        if builder.find('win') != -1:
+            bitness = '32'
+
+            if builder.find('win64') != -1:
+                bitness = '64'
+
+            scons_options.append('BF_BITNESS=' + bitness)
+
         retcode = subprocess.call(['python', 'scons/scons.py'] + scons_options)
         sys.exit(retcode)

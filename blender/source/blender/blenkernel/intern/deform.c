@@ -121,7 +121,7 @@ void defvert_sync (MDeformVert *dvert_r, const MDeformVert *dvert, int use_verif
 }
 
 /* be sure all flip_map values are valid */
-void defvert_sync_mapped (MDeformVert *dvert_r, const MDeformVert *dvert, int *flip_map, int use_verify)
+void defvert_sync_mapped (MDeformVert *dvert_r, const MDeformVert *dvert, const int *flip_map, int use_verify)
 {
 	if(dvert->totweight && dvert_r->totweight) {
 		int i;
@@ -170,7 +170,7 @@ void defvert_normalize (MDeformVert *dvert)
 	}
 }
 
-void defvert_flip (MDeformVert *dvert, int *flip_map)
+void defvert_flip (MDeformVert *dvert, const int *flip_map)
 {
 	MDeformWeight *dw;
 	int i;
@@ -254,7 +254,6 @@ int defgroup_find_index (Object *ob, bDeformGroup *dg)
 	if (eg == NULL) return -1;
 	
 	return def_nr;
-    
 }
 
 /* note, must be freed */
@@ -361,7 +360,7 @@ void flip_side_name (char name[MAX_VGROUP_NAME], const char from_name[MAX_VGROUP
 		index= strrchr(name, '.'); // last occurrence
 		if (index && isdigit(index[1]) ) { // doesnt handle case bone.1abc2 correct..., whatever!
 			if(strip_number==0)
-				 BLI_strncpy(number, index, sizeof(number));
+				BLI_strncpy(number, index, sizeof(number));
 			*index= 0;
 			len= BLI_strnlen(name, MAX_VGROUP_NAME);
 		}

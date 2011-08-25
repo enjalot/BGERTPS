@@ -675,8 +675,9 @@ void recalcData(TransInfo *t)
 				EditMesh *em = ((Mesh*)t->obedit->data)->edit_mesh;
 				/* mirror modifier clipping? */
 				if(t->state != TRANS_CANCEL) {
-					clipMirrorModifier(t, t->obedit);
+					/* apply clipping after so we never project past the clip plane [#25423] */
 					applyProject(t);
+					clipMirrorModifier(t, t->obedit);
 				}
 				if((t->options & CTX_NO_MIRROR) == 0 && (t->flag & T_MIRROR))
 					editmesh_apply_to_mirror(t);
@@ -839,9 +840,6 @@ void recalcData(TransInfo *t)
 				DAG_id_tag_update(&ob->id, OB_RECALC_OB);
 			}
 		}
-		
-		if(((View3D*)t->view)->drawtype == OB_SHADED)
-			reshadeall_displist(t->scene);
 	}
 }
 
@@ -889,6 +887,7 @@ void resetTransRestrictions(TransInfo *t)
 	t->flag &= ~T_ALL_RESTRICTIONS;
 }
 
+/* the *op can be NULL */
 int initTransInfo (bContext *C, TransInfo *t, wmOperator *op, wmEvent *event)
 {
 	Scene *sce = CTX_data_scene(C);
@@ -920,9 +919,7 @@ int initTransInfo (bContext *C, TransInfo *t, wmOperator *op, wmEvent *event)
 	
 	if (event)
 	{
-		t->imval[0] = event->x - t->ar->winrct.xmin;
-		t->imval[1] = event->y - t->ar->winrct.ymin;
-		
+		VECCOPY2D(t->imval, event->mval);
 		t->event_type = event->type;
 	}
 	else
@@ -964,7 +961,22 @@ int initTransInfo (bContext *C, TransInfo *t, wmOperator *op, wmEvent *event)
 		t->options |= CTX_EDGE;
 	}
 
-	t->spacetype = sa ? sa->spacetype : SPACE_EMPTY; /* background mode */
+
+	/* Assign the space type, some exceptions for running in different mode */
+	if(sa == NULL) {
+		/* background mode */
+		t->spacetype= SPACE_EMPTY;
+	}
+	else if ((ar == NULL) && (sa->spacetype == SPACE_VIEW3D)) {
+		/* running in the text editor */
+		t->spacetype= SPACE_EMPTY;
+	}
+	else {
+		/* normal operation */
+		t->spacetype= sa->spacetype;
+	}
+
+
 	if(t->spacetype == SPACE_VIEW3D)
 	{
 		View3D *v3d = sa->spacedata.first;
@@ -1002,13 +1014,35 @@ int initTransInfo (bContext *C, TransInfo *t, wmOperator *op, wmEvent *event)
 				t->options |= CTX_NO_PET;
 			}
 		}
+
+		/* initialize UV transform from */
+		if (op && RNA_struct_find_property(op->ptr, "correct_uv")) {
+			if(RNA_property_is_set(op->ptr, "correct_uv")) {
+				if(RNA_boolean_get(op->ptr, "correct_uv")) {
+					t->settings->uvcalc_flag |= UVCALC_TRANSFORM_CORRECT;
+				}
+				else {
+					t->settings->uvcalc_flag &= ~UVCALC_TRANSFORM_CORRECT;
+				}
+			}
+			else {
+				RNA_boolean_set(op->ptr, "correct_uv", t->settings->uvcalc_flag & UVCALC_TRANSFORM_CORRECT);
+			}
+		}
+
 	}
-	else if(t->spacetype==SPACE_IMAGE || t->spacetype==SPACE_NODE)
+	else if(t->spacetype==SPACE_IMAGE)
 	{
 		SpaceImage *sima = sa->spacedata.first;
-		// XXX for now, get View2D  from the active region
+		// XXX for now, get View2D from the active region
 		t->view = &ar->v2d;
-		t->around = (sima ? sima->around : 0);
+		t->around = sima->around;
+	}
+	else if(t->spacetype==SPACE_NODE)
+	{
+		// XXX for now, get View2D from the active region
+		t->view = &ar->v2d;
+		t->around = V3D_CENTER;
 	}
 	else if(t->spacetype==SPACE_IPO) 
 	{
@@ -1018,9 +1052,14 @@ int initTransInfo (bContext *C, TransInfo *t, wmOperator *op, wmEvent *event)
 	}
 	else
 	{
-		// XXX for now, get View2D  from the active region
-		t->view = &ar->v2d;
-		// XXX for now, the center point is the midpoint of the data
+		if(ar) {
+			// XXX for now, get View2D  from the active region
+			t->view = &ar->v2d;
+			// XXX for now, the center point is the midpoint of the data
+		}
+		else {
+			t->view= NULL;
+		}
 		t->around = V3D_CENTER;
 	}
 	
@@ -1048,7 +1087,7 @@ int initTransInfo (bContext *C, TransInfo *t, wmOperator *op, wmEvent *event)
 		}
 	}
 	// Need stuff to take it from edit mesh or whatnot here
-	else
+	else if (t->spacetype == SPACE_VIEW3D)
 	{
 		if (t->obedit && t->obedit->type == OB_MESH && (((Mesh *)t->obedit->data)->editflag & ME_EDIT_MIRROR_X))
 		{
@@ -1126,7 +1165,6 @@ int initTransInfo (bContext *C, TransInfo *t, wmOperator *op, wmEvent *event)
 	
 	setTransformViewMatrices(t);
 	initNumInput(&t->num);
-	initNDofInput(&t->ndof);
 	
 	return 1;
 }

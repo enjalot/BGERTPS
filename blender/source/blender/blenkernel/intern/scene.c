@@ -468,6 +468,7 @@ Scene *add_scene(const char *name)
 
 	sce->r.ffcodecdata.audio_mixrate = 44100;
 	sce->r.ffcodecdata.audio_volume = 1.0f;
+	sce->r.ffcodecdata.audio_bitrate = 192;
 
 	BLI_strncpy(sce->r.engine, "BLENDER_RENDER", sizeof(sce->r.engine));
 
@@ -475,8 +476,7 @@ Scene *add_scene(const char *name)
 	sce->audio.doppler_factor = 1.0;
 	sce->audio.speed_of_sound = 343.3;
 
-	strcpy(sce->r.backbuf, "//backbuf");
-	strcpy(sce->r.pic, U.renderdir);
+	BLI_strncpy(sce->r.pic, U.renderdir, sizeof(sce->r.pic));
 
 	BLI_init_rctf(&sce->r.safety, 0.1f, 0.9f, 0.1f, 0.9f);
 	sce->r.osa= 8;
@@ -1080,23 +1080,23 @@ float get_render_aosss_error(RenderData *r, float error)
 /* helper function for the SETLOOPER macro */
 Base *_setlooper_base_step(Scene **sce_iter, Base *base)
 {
-    if(base && base->next) {
-        /* common case, step to the next */
-        return base->next;
-    }
+	if(base && base->next) {
+		/* common case, step to the next */
+		return base->next;
+	}
 	else if(base==NULL && (*sce_iter)->base.first) {
-        /* first time looping, return the scenes first base */
+		/* first time looping, return the scenes first base */
 		return (Base *)(*sce_iter)->base.first;
-    }
-    else {
-        /* reached the end, get the next base in the set */
+	}
+	else {
+		/* reached the end, get the next base in the set */
 		while((*sce_iter= (*sce_iter)->set)) {
 			base= (Base *)(*sce_iter)->base.first;
-            if(base) {
-                return base;
-            }
-        }
-    }
+			if(base) {
+				return base;
+			}
+		}
+	}
 
-    return NULL;
+	return NULL;
 }

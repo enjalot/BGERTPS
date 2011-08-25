@@ -59,6 +59,7 @@
 #include "BKE_context.h"
 #include "BKE_global.h"
 #include "BKE_library.h"
+#include "BKE_icons.h"
 #include "BKE_main.h"
 #include "BKE_report.h"
 #include "BLO_readfile.h"
@@ -372,7 +373,11 @@ void filelist_init_icons(void)
 	short x, y, k;
 	ImBuf *bbuf;
 	ImBuf *ibuf;
+#ifdef WITH_HEADLESS
+	bbuf = NULL;
+#else
 	bbuf = IMB_ibImageFromMemory((unsigned char*)datatoc_prvicons, datatoc_prvicons_size, IB_rect);
+#endif
 	if (bbuf) {
 		for (y=0; y<SPECIAL_IMG_ROWS; y++) {
 			for (x=0; x<SPECIAL_IMG_COLS; x++) {
@@ -433,7 +438,7 @@ void folderlist_pushdir(ListBase* folderlist, const char *dir)
 
 	// check if already exists
 	if(previous_folder && previous_folder->foldername){
-		if(! strcmp(previous_folder->foldername, dir)){
+		if(BLI_path_cmp(previous_folder->foldername, dir)==0){
 			return;
 		}
 	}
@@ -469,13 +474,12 @@ int folderlist_clear_next(struct SpaceFile *sfile)
 /* not listbase itself */
 void folderlist_free(ListBase* folderlist)
 {
-	FolderList *folder;
 	if (folderlist){
+		FolderList *folder;
 		for(folder= folderlist->first; folder; folder= folder->next)
 			MEM_freeN(folder->foldername);
 		BLI_freelistN(folderlist);
 	}
-	folderlist= NULL;
 }
 
 ListBase *folderlist_duplicate(ListBase* folderlist)
@@ -596,28 +600,6 @@ void filelist_imgsize(struct FileList* filelist, short w, short h)
 short filelist_changed(struct FileList* filelist)
 {
 	return filelist->changed;
-}
-
-static struct ImBuf * filelist_loadimage(struct FileList* filelist, int index)
-{
-	ImBuf *imb = NULL;
-	int fidx = 0;
-	
-	if ( (index < 0) || (index >= filelist->numfiltered) ) {
-		return NULL;
-	}
-	fidx = filelist->fidx[index];
-	imb = filelist->filelist[fidx].image;
-	if (!imb)
-	{
-		if ( (filelist->filelist[fidx].flags & IMAGEFILE) || (filelist->filelist[fidx].flags & MOVIEFILE) ) {
-			imb = IMB_thumb_read(filelist->filelist[fidx].path, THB_NORMAL);
-		} 
-		if (imb) {
-			filelist->filelist[fidx].image = imb;
-		} 
-	}
-	return imb;
 }
 
 struct ImBuf * filelist_getimage(struct FileList* filelist, int index)
@@ -798,8 +780,6 @@ int ED_file_extension_icon(char *relname)
 		return ICON_FILE_MOVIE;
 	else if (type ==  PYSCRIPTFILE)
 		return ICON_FILE_SCRIPT;
-	else if (type ==  PYSCRIPTFILE)
-		return ICON_FILE_SCRIPT;
 	else if (type ==  SOUNDFILE) 
 		return ICON_FILE_SOUND;
 	else if (type ==  FTFONTFILE) 
@@ -913,6 +893,8 @@ void filelist_select_file(struct FileList* filelist, int index, FileSelType sele
 		int check_ok = 0; 
 		switch (check) {
 			case CHECK_DIRS:
+				check_ok = S_ISDIR(file->type);
+				break;
 			case CHECK_ALL:
 				check_ok = 1;
 				break;
@@ -1002,12 +984,12 @@ static int groupname_to_code(char *group)
 
 	return BKE_idcode_from_name(buf);
 }
-
+ 
 void filelist_from_library(struct FileList* filelist)
 {
 	LinkNode *l, *names, *previews;
 	struct ImBuf* ima;
-	int ok, i, nnames, idcode;
+	int ok, i, nprevs, nnames, idcode;
 	char filename[FILE_MAXDIR+FILE_MAXFILE];
 	char dir[FILE_MAX], group[GROUP_MAX];	
 	
@@ -1031,17 +1013,18 @@ void filelist_from_library(struct FileList* filelist)
 	
 	idcode= groupname_to_code(group);
 
-		// memory for strings is passed into filelist[i].relname
-		// and free'd in freefilelist
-	previews = NULL;
+	/* memory for strings is passed into filelist[i].relname
+	 * and free'd in freefilelist */
 	if (idcode) {
-		previews= BLO_blendhandle_get_previews(filelist->libfiledata, idcode);
+		previews= BLO_blendhandle_get_previews(filelist->libfiledata, idcode, &nprevs);
 		names= BLO_blendhandle_get_datablock_names(filelist->libfiledata, idcode, &nnames);
 		/* ugh, no rewind, need to reopen */
 		BLO_blendhandle_close(filelist->libfiledata);
 		filelist->libfiledata= BLO_blendhandle_from_file(dir, NULL);
 		
 	} else {
+		previews= NULL;
+		nprevs= 0;
 		names= BLO_blendhandle_get_linkable_groups(filelist->libfiledata);
 		nnames= BLI_linklist_length(names);
 	}
@@ -1064,14 +1047,17 @@ void filelist_from_library(struct FileList* filelist)
 		}
 	}
 	
-	if(previews) {
+	if(previews && (nnames != nprevs)) {
+		printf("filelist_from_library: error, found %d items, %d previews\n", nnames, nprevs);
+	}
+	else if(previews) {
 		for (i=0, l= previews; i<nnames; i++, l= l->next) {
 			PreviewImage *img= l->link;
 			
 			if (img) {
-				unsigned int w = img->w[PREVIEW_MIPMAP_LARGE];
-				unsigned int h = img->h[PREVIEW_MIPMAP_LARGE];
-				unsigned int *rect = img->rect[PREVIEW_MIPMAP_LARGE];
+				unsigned int w = img->w[ICON_SIZE_PREVIEW];
+				unsigned int h = img->h[ICON_SIZE_PREVIEW];
+				unsigned int *rect = img->rect[ICON_SIZE_PREVIEW];
 
 				/* first allocate imbuf for copying preview into it */
 				if (w > 0 && h > 0 && rect) {
@@ -1085,7 +1071,7 @@ void filelist_from_library(struct FileList* filelist)
 	}
 
 	BLI_linklist_free(names, free);
-	if (previews) BLI_linklist_free(previews, (void(*)(void*)) MEM_freeN);
+	if (previews) BLI_linklist_free(previews, BKE_previewimg_freefunc);
 
 	filelist_sort(filelist, FILE_SORT_ALPHA);
 

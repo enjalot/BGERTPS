@@ -26,9 +26,13 @@
 
 set(INC
 	.
-	../../../source/kernel/gen_system
-	../../../intern/string
+	../../../intern/container
 	../../../intern/moto/include
+	../../../intern/string
+)
+
+set(INC_SYS
+
 )
 
 set(SRC
@@ -42,4 +46,4 @@ set(SRC
 	NG_NetworkScene.h
 )
 
-blender_add_lib(ge_logic_ngnetwork "${SRC}" "${INC}")
+blender_add_lib(ge_logic_ngnetwork "${SRC}" "${INC}" "${INC_SYS}")

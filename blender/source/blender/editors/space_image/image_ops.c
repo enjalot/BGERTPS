@@ -437,6 +437,63 @@ void IMAGE_OT_view_zoom(wmOperatorType *ot)
 		"Factor", "Zoom factor, values higher than 1.0 zoom in, lower values zoom out.", -FLT_MAX, FLT_MAX);
 }
 
+/********************** NDOF operator *********************/
+
+/* Combined pan/zoom from a 3D mouse device.
+ * Z zooms, XY pans
+ * "view" (not "paper") control -- user moves the viewpoint, not the image being viewed
+ * that explains the negative signs in the code below
+ */
+
+static int view_ndof_invoke(bContext *C, wmOperator *UNUSED(op), wmEvent *event)
+{
+	if (event->type != NDOF_MOTION)
+		return OPERATOR_CANCELLED;
+	else {
+		SpaceImage *sima= CTX_wm_space_image(C);
+		ARegion *ar= CTX_wm_region(C);
+
+		wmNDOFMotionData* ndof = (wmNDOFMotionData*) event->customdata;
+
+		float dt = ndof->dt;
+		/* tune these until it feels right */
+		const float zoom_sensitivity = 0.5f; // 50% per second (I think)
+		const float pan_sensitivity = 300.f; // screen pixels per second
+
+		float pan_x = pan_sensitivity * dt * ndof->tvec[0] / sima->zoom;
+		float pan_y = pan_sensitivity * dt * ndof->tvec[1] / sima->zoom;
+
+		/* "mouse zoom" factor = 1 + (dx + dy) / 300
+		 * what about "ndof zoom" factor? should behave like this:
+		 * at rest -> factor = 1
+		 * move forward -> factor > 1
+		 * move backward -> factor < 1
+		 */
+		float zoom_factor = 1.f + zoom_sensitivity * dt * -ndof->tvec[2];
+
+		if (U.ndof_flag & NDOF_ZOOM_INVERT)
+			zoom_factor = -zoom_factor;
+
+		sima_zoom_set_factor(sima, ar, zoom_factor);
+		sima->xof += pan_x;
+		sima->yof += pan_y;
+
+		ED_region_tag_redraw(ar);	
+
+		return OPERATOR_FINISHED;
+	}
+}
+
+void IMAGE_OT_view_ndof(wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name= "NDOF Pan/Zoom";
+	ot->idname= "IMAGE_OT_view_ndof";
+	
+	/* api callbacks */
+	ot->invoke= view_ndof_invoke;
+}
+
 /********************** view all operator *********************/
 
 /* Updates the fields of the View2D member of the SpaceImage struct.
@@ -500,7 +557,7 @@ static int view_selected_exec(bContext *C, wmOperator *UNUSED(op))
 	Scene *scene;
 	Object *obedit;
 	Image *ima;
-	float size, min[2], max[2], d[2];
+	float size, min[2], max[2], d[2], aspx, aspy;
 	int width, height;
 
 	/* retrieve state */
@@ -511,6 +568,10 @@ static int view_selected_exec(bContext *C, wmOperator *UNUSED(op))
 
 	ima= ED_space_image(sima);
 	ED_space_image_size(sima, &width, &height);
+	ED_image_aspect(ima, &aspx, &aspy);
+
+	width= width*aspx;
+	height= height*aspy;
 
 	/* get bounds */
 	if(!ED_uvedit_minmax(scene, ima, obedit, min, max))
@@ -645,6 +706,9 @@ static const EnumPropertyItem image_file_type_items[] = {
 		{R_TARGA, "TARGA", 0, "Targa", ""},
 		{R_RAWTGA, "TARGA RAW", 0, "Targa Raw", ""},
 		{R_PNG, "PNG", 0, "PNG", ""},
+#ifdef WITH_DDS
+		{R_DDS, "DDS", 0, "DirectDraw Surface", ""},
+#endif
 		{R_BMP, "BMP", 0, "BMP", ""},
 		{R_JPEG90, "JPEG", 0, "Jpeg", ""},
 #ifdef WITH_OPENJPEG
@@ -768,13 +832,13 @@ static int open_invoke(bContext *C, wmOperator *op, wmEvent *UNUSED(event))
 	Image *ima= NULL;
 
 	if(sima) {
-		 ima= sima->image;
+		ima= sima->image;
 	}
 
 	if (ima==NULL) {
-		 Tex *tex= CTX_data_pointer_get_type(C, "texture", &RNA_Texture).data;
-		 if(tex && tex->type==TEX_IMAGE)
-			 ima= tex->ima;
+		Tex *tex= CTX_data_pointer_get_type(C, "texture", &RNA_Texture).data;
+		if(tex && tex->type==TEX_IMAGE)
+			ima= tex->ima;
 	}
 
 	if(ima)
@@ -799,6 +863,7 @@ void IMAGE_OT_open(wmOperatorType *ot)
 {
 	/* identifiers */
 	ot->name= "Open Image";
+	ot->description= "Open image";
 	ot->idname= "IMAGE_OT_open";
 	
 	/* api callbacks */
@@ -873,9 +938,100 @@ void IMAGE_OT_replace(wmOperatorType *ot)
 
 /******************** save image as operator ********************/
 
+typedef struct {
+	/* matching scene->r settings */
+	short planes, imtype, subimtype, quality;
+	char filepath[FILE_MAX]; /* keep absolute */
+} SaveImageOptions;
+
+static void save_image_options_defaults(SaveImageOptions *simopts)
+{
+	simopts->planes= R_PLANES24;
+	simopts->imtype= R_PNG;
+	simopts->subimtype= 0;
+	simopts->quality= 90;
+	simopts->filepath[0]= '\0';
+}
+
+static int save_image_options_init(SaveImageOptions *simopts, SpaceImage *sima, Scene *scene, const short guess_path)
+{
+	void *lock;
+	ImBuf *ibuf= ED_space_image_acquire_buffer(sima, &lock);
+
+	if(ibuf) {
+		Image *ima= sima->image;
+		RenderResult *rr= BKE_image_acquire_renderresult(scene, ima);
+
+		simopts->planes= ibuf->depth;
+
+		/* cant save multilayer sequence, ima->rr isn't valid for a specific frame */
+		if(rr && !(ima->source==IMA_SRC_SEQUENCE && ima->type==IMA_TYPE_MULTILAYER))
+			simopts->imtype= R_MULTILAYER;
+		else if(ima->type==IMA_TYPE_R_RESULT)
+			simopts->imtype= scene->r.imtype;
+		else if (ima->source == IMA_SRC_GENERATED)
+			simopts->imtype= R_PNG;
+		else
+			simopts->imtype= BKE_ftype_to_imtype(ibuf->ftype);
+
+		simopts->subimtype= scene->r.subimtype; /* XXX - this is lame, we need to make these available too! */
+		simopts->quality= ibuf->ftype & 0xff;
+
+		BLI_strncpy(simopts->filepath, ibuf->name, sizeof(simopts->filepath));
+
+		/* sanitize all settings */
+
+		/* unlikely but just incase */
+		if (ELEM3(simopts->planes, R_PLANESBW, R_PLANES24, R_PLANES32) == 0) {
+			simopts->planes= 32;
+		}
+
+		/* some formats dont use quality so fallback to scenes quality */
+		if (simopts->quality == 0) {
+			simopts->quality= scene->r.quality;
+		}
+
+		/* check for empty path */
+		if(guess_path && simopts->filepath[0]==0) {
+			if ( (G.ima[0] == '/') && (G.ima[1] == '/') && (G.ima[2] == '\0') ) {
+				BLI_strncpy(simopts->filepath, "//untitled", FILE_MAX);
+			} else {
+				BLI_strncpy(simopts->filepath, G.ima, FILE_MAX);
+			}
+			BLI_path_abs(simopts->filepath, G.main->name);
+		}
+
+		/* cleanup */
+		BKE_image_release_renderresult(scene, ima);
+	}
+
+	ED_space_image_release_buffer(sima, lock);
+
+	return (ibuf != NULL);
+}
+
+static void save_image_options_from_op(SaveImageOptions *simopts, wmOperator *op)
+{
+	if (RNA_property_is_set(op->ptr, "color_mode")) simopts->planes= RNA_enum_get(op->ptr, "color_mode");
+	if (RNA_property_is_set(op->ptr, "file_format")) simopts->imtype= RNA_enum_get(op->ptr, "file_format");
+	// if (RNA_property_is_set(op->ptr, "subimtype")) simopts->subimtype= RNA_enum_get(op->ptr, "subimtype"); // XXX
+	if (RNA_property_is_set(op->ptr, "file_quality")) simopts->quality= RNA_int_get(op->ptr, "file_quality");
+
+	if (RNA_property_is_set(op->ptr, "filepath")) RNA_string_get(op->ptr, "filepath", simopts->filepath);
+}
+
+static void save_image_options_to_op(SaveImageOptions *simopts, wmOperator *op)
+{
+	RNA_enum_set(op->ptr, "color_mode", simopts->planes);
+	RNA_enum_set(op->ptr, "file_format", simopts->imtype);
+	// RNA_enum_set(op->ptr, "subimtype", simopts->subimtype);
+	RNA_int_set(op->ptr, "file_quality", simopts->quality);
+	RNA_string_set(op->ptr, "filepath", simopts->filepath);
+}
+
 /* assumes name is FILE_MAX */
 /* ima->name and ibuf->name should end up the same */
-static void save_image_doit(bContext *C, SpaceImage *sima, Scene *scene, wmOperator *op, char *path, int do_newpath)
+static void save_image_doit(bContext *C, SpaceImage *sima, wmOperator *op, SaveImageOptions *simopts, int do_newpath)
 {
 	Image *ima= ED_space_image(sima);
 	void *lock;
@@ -887,18 +1043,17 @@ static void save_image_doit(bContext *C, SpaceImage *sima, Scene *scene, wmOpera
 		const short save_copy= (RNA_struct_find_property(op->ptr, "copy") && RNA_boolean_get(op->ptr, "copy"));
 		short ok= FALSE;
 
-		BLI_path_abs(path, bmain->name);
 		/* old global to ensure a 2nd save goes to same dir */
-		BLI_strncpy(G.ima, path, sizeof(G.ima));
+		BLI_strncpy(G.ima, simopts->filepath, sizeof(G.ima));
 
 		WM_cursor_wait(1);
 
 		if(ima->type == IMA_TYPE_R_RESULT) {
 			/* enforce user setting for RGB or RGBA, but skip BW */
-			if(scene->r.planes==32) {
+			if(simopts->planes==32) {
 				ibuf->depth= 32;
 			}
-			else if(scene->r.planes==24) {
+			else if(simopts->planes==24) {
 				ibuf->depth= 24;
 			}
 		}
@@ -909,15 +1064,12 @@ static void save_image_doit(bContext *C, SpaceImage *sima, Scene *scene, wmOpera
 				ibuf->depth= BKE_alphatest_ibuf(ibuf) ? 32 : 24;
 			}
 		}
-
-		if(scene->r.scemode & R_EXTENSION)  {
-			BKE_add_image_extension(path, sima->imtypenr);
-		}
 		
-		if(sima->imtypenr==R_MULTILAYER) {
+		if(simopts->imtype==R_MULTILAYER) {
+			Scene *scene= CTX_data_scene(C);
 			RenderResult *rr= BKE_image_acquire_renderresult(scene, ima);
 			if(rr) {
-				RE_WriteRenderResult(rr, path, scene->r.quality);
+				RE_WriteRenderResult(rr, simopts->filepath, simopts->quality);
 				ok= TRUE;
 			}
 			else {
@@ -925,23 +1077,23 @@ static void save_image_doit(bContext *C, SpaceImage *sima, Scene *scene, wmOpera
 			}
 			BKE_image_release_renderresult(scene, ima);
 		}
-		else if (BKE_write_ibuf(scene, ibuf, path, sima->imtypenr, scene->r.subimtype, scene->r.quality)) {
+		else if (BKE_write_ibuf(ibuf, simopts->filepath, simopts->imtype, simopts->subimtype, simopts->quality)) {
 			ok= TRUE;
 		}
 
 		if(ok)	{
 			if(relative)
-				BLI_path_rel(path, bmain->name); /* only after saving */
+				BLI_path_rel(simopts->filepath, bmain->name); /* only after saving */
 
 			if(ibuf->name[0]==0) {
-				BLI_strncpy(ibuf->name, path, sizeof(ibuf->name));
-				BLI_strncpy(ima->name, path, sizeof(ima->name));
+				BLI_strncpy(ibuf->name, simopts->filepath, sizeof(ibuf->name));
+				BLI_strncpy(ima->name, simopts->filepath, sizeof(ima->name));
 			}
 
 			if(!save_copy) {
 				if(do_newpath) {
-					BLI_strncpy(ima->name, path, sizeof(ima->name));
-					BLI_strncpy(ibuf->name, path, sizeof(ibuf->name));
+					BLI_strncpy(ima->name, simopts->filepath, sizeof(ima->name));
+					BLI_strncpy(ibuf->name, simopts->filepath, sizeof(ibuf->name));
 				}
 
 				ibuf->userflags &= ~IB_BITMAPDIRTY;
@@ -969,7 +1121,7 @@ static void save_image_doit(bContext *C, SpaceImage *sima, Scene *scene, wmOpera
 			}
 		}
 		else {
-			BKE_reportf(op->reports, RPT_ERROR, "Couldn't write image: %s", path);
+			BKE_reportf(op->reports, RPT_ERROR, "Couldn't write image: %s", simopts->filepath);
 		}
 
 
@@ -984,17 +1136,14 @@ static void save_image_doit(bContext *C, SpaceImage *sima, Scene *scene, wmOpera
 static int save_as_exec(bContext *C, wmOperator *op)
 {
 	SpaceImage *sima= CTX_wm_space_image(C);
-	Scene *scene= CTX_data_scene(C);
-	Image *ima = ED_space_image(sima);
-	char str[FILE_MAX];
+	SaveImageOptions simopts;
 
-	if(!ima)
-		return OPERATOR_CANCELLED;
+	/* just incase to initialize values,
+	 * these should be set on invoke or by the caller. */
+	save_image_options_defaults(&simopts);
+	save_image_options_from_op(&simopts, op);
 
-	sima->imtypenr= RNA_enum_get(op->ptr, "file_type");
-	RNA_string_get(op->ptr, "filepath", str);
-
-	save_image_doit(C, sima, scene, op, str, TRUE);
+	save_image_doit(C, sima, op, &simopts, TRUE);
 
 	return OPERATOR_FINISHED;
 }
@@ -1004,7 +1153,7 @@ static int save_as_check(bContext *UNUSED(C), wmOperator *op)
 {
 	char filepath[FILE_MAX];
 	RNA_string_get(op->ptr, "filepath", filepath);
-	if(BKE_add_image_extension(filepath, RNA_enum_get(op->ptr, "file_type"))) {
+	if(BKE_add_image_extension(filepath, RNA_enum_get(op->ptr, "file_format"))) {
 		RNA_string_set(op->ptr, "filepath", filepath);
 		return TRUE;
 	}
@@ -1016,65 +1165,33 @@ static int save_as_invoke(bContext *C, wmOperator *op, wmEvent *UNUSED(event))
 	SpaceImage *sima= CTX_wm_space_image(C);
 	Image *ima = ED_space_image(sima);
 	Scene *scene= CTX_data_scene(C);
-	ImBuf *ibuf;
-	char filename[FILE_MAX];
-	
-	void *lock;
+	SaveImageOptions simopts;
 
 	if(!RNA_property_is_set(op->ptr, "relative_path"))
 		RNA_boolean_set(op->ptr, "relative_path", U.flag & USER_RELPATHS);
 
 	if(RNA_property_is_set(op->ptr, "filepath"))
 		return save_as_exec(C, op);
-	
-	if(!ima)
+
+	if (save_image_options_init(&simopts, sima, scene, TRUE) == 0)
 		return OPERATOR_CANCELLED;
+	save_image_options_to_op(&simopts, op);
 
-	/* always opens fileselect */
-	ibuf= ED_space_image_acquire_buffer(sima, &lock);
-
-	if(ibuf) {
-		/* cant save multilayer sequence, ima->rr isn't valid for a specific frame */
-		if(ima->rr && !(ima->source==IMA_SRC_SEQUENCE && ima->type==IMA_TYPE_MULTILAYER))
-			sima->imtypenr= R_MULTILAYER;
-		else if(ima->type==IMA_TYPE_R_RESULT)
-			sima->imtypenr= scene->r.imtype;
-		else if (ima->source == IMA_SRC_GENERATED)
-			sima->imtypenr= R_PNG;
-		else
-			sima->imtypenr= BKE_ftype_to_imtype(ibuf->ftype);
-
-		RNA_enum_set(op->ptr, "file_type", sima->imtypenr);
-		
-		if(ibuf->name[0]==0)
-			if ( (G.ima[0] == '/') && (G.ima[1] == '/') && (G.ima[2] == '\0') ) {
-				BLI_strncpy(filename, "//untitled", FILE_MAX);
-			} else {
-				BLI_strncpy(filename, G.ima, FILE_MAX);
-			}
-		else
-			BLI_strncpy(filename, ibuf->name, FILE_MAX);
-		
-		/* enable save_copy by default for render results */
-		if(ELEM(ima->type, IMA_TYPE_R_RESULT, IMA_TYPE_COMPOSITE) && !RNA_property_is_set(op->ptr, "copy")) {
-			RNA_boolean_set(op->ptr, "copy", TRUE);
-		}
-
-		// XXX note: we can give default menu enums to operator for this 
-		image_filesel(C, op, filename);
-
-		ED_space_image_release_buffer(sima, lock);
-		
-		return OPERATOR_RUNNING_MODAL;
+	/* enable save_copy by default for render results */
+	if(ELEM(ima->type, IMA_TYPE_R_RESULT, IMA_TYPE_COMPOSITE) && !RNA_property_is_set(op->ptr, "copy")) {
+		RNA_boolean_set(op->ptr, "copy", TRUE);
 	}
 
-	ED_space_image_release_buffer(sima, lock);
+	// XXX note: we can give default menu enums to operator for this
+	image_filesel(C, op, simopts.filepath);
 
-	return OPERATOR_CANCELLED;
+	return OPERATOR_RUNNING_MODAL;
 }
 
 void IMAGE_OT_save_as(wmOperatorType *ot)
 {
+	PropertyRNA *prop;
+
 	/* identifiers */
 	ot->name= "Save As Image";
 	ot->idname= "IMAGE_OT_save_as";
@@ -1089,7 +1206,13 @@ void IMAGE_OT_save_as(wmOperatorType *ot)
 	ot->flag= OPTYPE_REGISTER|OPTYPE_UNDO;
 
 	/* properties */
-	RNA_def_enum(ot->srna, "file_type", image_file_type_items, R_PNG, "File Type", "File type to save image as.");
+
+	/* format options */
+	RNA_def_enum(ot->srna, "file_format", image_file_type_items, R_PNG, "File Type", "File type to save image as.");
+	RNA_def_enum(ot->srna, "color_mode", image_color_mode_items, R_PLANES24, "Channels", "Image channels to save");
+	prop= RNA_def_int(ot->srna, "file_quality", 90, 0, 100, "Quality", "", 0, 100);
+	RNA_def_property_subtype(prop, PROP_PERCENTAGE);
+
 	WM_operator_properties_filesel(ot, FOLDERFILE|IMAGEFILE|MOVIEFILE, FILE_SPECIAL, FILE_SAVE, WM_FILESEL_FILEPATH|WM_FILESEL_RELPATH);
 
 	RNA_def_boolean(ot->srna, "copy", 0, "Copy", "Create a new image file without modifying the current image in blender");
@@ -1099,45 +1222,19 @@ void IMAGE_OT_save_as(wmOperatorType *ot)
 
 static int save_exec(bContext *C, wmOperator *op)
 {
-	Main *bmain= CTX_data_main(C);
 	SpaceImage *sima= CTX_wm_space_image(C);
-	Image *ima = ED_space_image(sima);
-	void *lock;
-	ImBuf *ibuf= ED_space_image_acquire_buffer(sima, &lock);
 	Scene *scene= CTX_data_scene(C);
-	RenderResult *rr;
-	char name[FILE_MAX];
+	SaveImageOptions simopts;
 
-	if(!ima || !ibuf) {
-		ED_space_image_release_buffer(sima, lock);
+	if (save_image_options_init(&simopts, sima, scene, FALSE) == 0)
 		return OPERATOR_CANCELLED;
-	}
+	save_image_options_from_op(&simopts, op);
 
-	/* if exists, saves over without fileselect */
-	
-	BLI_strncpy(name, ima->name, FILE_MAX);
-	if(name[0]==0)
-		BLI_strncpy(name, G.ima, FILE_MAX);
-	else
-		BLI_path_abs(name, bmain->name);
-	
-	if(BLI_exists(name) && BLI_is_writable(name)) {
-		rr= BKE_image_acquire_renderresult(scene, ima);
-
-		if(rr)
-			sima->imtypenr= R_MULTILAYER;
-		else 
-			sima->imtypenr= BKE_ftype_to_imtype(ibuf->ftype);
-
-		BKE_image_release_renderresult(scene, ima);
-		ED_space_image_release_buffer(sima, lock);
-		
-		save_image_doit(C, sima, scene, op, name, FALSE);
+	if (BLI_exists(simopts.filepath) && BLI_is_writable(simopts.filepath)) {
+		save_image_doit(C, sima, op, &simopts, FALSE);
 	}
 	else {
-		ED_space_image_release_buffer(sima, lock);
-
-		BKE_report(op->reports, RPT_ERROR, "Can not save image.");
+		BKE_reportf(op->reports, RPT_ERROR, "Can not save image, path '%s' is not writable.", simopts.filepath);
 		return OPERATOR_CANCELLED;
 	}
 
@@ -1266,7 +1363,7 @@ void IMAGE_OT_reload(wmOperatorType *ot)
 	ot->exec= reload_exec;
 
 	/* flags */
-	ot->flag= OPTYPE_REGISTER|OPTYPE_UNDO;
+	ot->flag= OPTYPE_REGISTER; /* no undo, image buffer is not handled by undo */
 }
 
 /********************** new image operator *********************/
@@ -1279,7 +1376,7 @@ static int image_new_exec(bContext *C, wmOperator *op)
 	Image *ima;
 	PointerRNA ptr, idptr;
 	PropertyRNA *prop;
-	char name[22];
+	char name[MAX_ID_NAME-2];
 	float color[4];
 	int width, height, floatbuf, uvtestgrid, alpha;
 
@@ -1342,6 +1439,7 @@ void IMAGE_OT_new(wmOperatorType *ot)
 	
 	/* identifiers */
 	ot->name= "New Image";
+	ot->description= "Create a new image";
 	ot->idname= "IMAGE_OT_new";
 	
 	/* api callbacks */
@@ -1352,7 +1450,7 @@ void IMAGE_OT_new(wmOperatorType *ot)
 	ot->flag= OPTYPE_UNDO;
 
 	/* properties */
-	RNA_def_string(ot->srna, "name", "untitled", 21, "Name", "Image datablock name.");
+	RNA_def_string(ot->srna, "name", "untitled", MAX_ID_NAME-2, "Name", "Image datablock name.");
 	RNA_def_int(ot->srna, "width", 1024, 1, INT_MAX, "Width", "Image width.", 1, 16384);
 	RNA_def_int(ot->srna, "height", 1024, 1, INT_MAX, "Height", "Image height.", 1, 16384);
 	prop= RNA_def_float_color(ot->srna, "color", 4, NULL, 0.0f, FLT_MAX, "Color", "Default fill color.", 0.0f, 1.0f);
@@ -1420,6 +1518,9 @@ static int image_invert_exec(bContext *C, wmOperator *op)
 	}
 
 	ibuf->userflags |= IB_BITMAPDIRTY;
+	if(ibuf->mipmap[0])
+		ibuf->userflags |= IB_MIPMAP_INVALID;
+
 	WM_event_add_notifier(C, NC_IMAGE|NA_EDITED, ima);
 	return OPERATOR_FINISHED;
 }
@@ -1538,7 +1639,7 @@ static int image_unpack_exec(bContext *C, wmOperator *op)
 
 	/* find the suppplied image by name */
 	if (RNA_property_is_set(op->ptr, "id")) {
-		char imaname[22];
+		char imaname[MAX_ID_NAME-2];
 		RNA_string_get(op->ptr, "id", imaname);
 		ima = BLI_findstring(&CTX_data_main(C)->image, imaname, offsetof(ID, name) + 2);
 		if (!ima) ima = CTX_data_edit_image(C);
@@ -1604,7 +1705,7 @@ void IMAGE_OT_unpack(wmOperatorType *ot)
 	
 	/* properties */
 	RNA_def_enum(ot->srna, "method", unpack_method_items, PF_USE_LOCAL, "Method", "How to unpack.");
-	RNA_def_string(ot->srna, "id", "", 21, "Image Name", "Image datablock name to unpack."); /* XXX, weark!, will fail with library, name collisions */
+	RNA_def_string(ot->srna, "id", "", MAX_ID_NAME-2, "Image Name", "Image datablock name to unpack."); /* XXX, weark!, will fail with library, name collisions */
 }
 
 /******************** sample image operator ********************/
@@ -1632,7 +1733,8 @@ static void sample_draw(const bContext *UNUSED(C), ARegion *ar, void *arg_info)
 {
 	ImageSampleInfo *info= arg_info;
 	if(info->draw) {
-		draw_image_info(ar, info->channels, info->x, info->y, info->colp, info->colfp, info->zp, info->zfp);
+		/* no color management needed for images (color_manage=0) */
+		draw_image_info(ar, 0, info->channels, info->x, info->y, info->colp, info->colfp, info->zp, info->zfp);
 	}
 }
 
@@ -1644,16 +1746,13 @@ static void sample_apply(bContext *C, wmOperator *op, wmEvent *event)
 	ImBuf *ibuf= ED_space_image_acquire_buffer(sima, &lock);
 	ImageSampleInfo *info= op->customdata;
 	float fx, fy;
-	int mx, my;
 	
 	if(ibuf == NULL) {
 		ED_space_image_release_buffer(sima, lock);
 		return;
 	}
 
-	mx= event->x - ar->winrct.xmin;
-	my= event->y - ar->winrct.ymin;
-	UI_view2d_region_to_view(&ar->v2d, mx, my, &fx, &fy);
+	UI_view2d_region_to_view(&ar->v2d, event->mval[0], event->mval[1], &fx, &fy);
 
 	if(fx>=0.0f && fy>=0.0f && fx<1.0f && fy<1.0f) {
 		float *fp;
@@ -1919,9 +2018,10 @@ void IMAGE_OT_sample_line(wmOperatorType *ot)
 	ot->modal= WM_gesture_straightline_modal;
 	ot->exec= sample_line_exec;
 	ot->poll= space_image_main_area_poll;
+	ot->cancel= WM_gesture_straightline_cancel;
 	
 	/* flags */
-	ot->flag= OPTYPE_REGISTER|OPTYPE_UNDO;
+	ot->flag= 0; /* no undo/register since this operates on the space */
 	
 	WM_operator_properties_gesture_straightline(ot, CURSOR_EDIT);
 }

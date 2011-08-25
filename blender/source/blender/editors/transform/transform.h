@@ -67,14 +67,6 @@ struct wmTimer;
 struct ARegion;
 struct ReportList;
 
-typedef struct NDofInput {
-	int		flag;
-	int		axis;
-	float	fval[7];
-	float	factor[3];
-} NDofInput;
-
-
 /*
 	The ctrl value has different meaning:
 		0			: No value has been typed
@@ -95,7 +87,8 @@ typedef struct TransSnap {
 	short	modePoint;
 	short	modeSelect;
 	short	align;
-	short	project;
+	char	project;
+	char	snap_self;
 	short	peel;
 	short  	status;
 	float	snapPoint[3]; /* snapping from this point */
@@ -119,7 +112,7 @@ typedef struct TransCon {
 	float pmtx[3][3];    /* Projection Constraint Matrix (same as imtx with some axis == 0)           */
 	float center[3];     /* transformation center to define where to draw the view widget
 							ALWAYS in global space. Unlike the transformation center                  */
-	short imval[2];	     /* initial mouse value for visual calculation                                */
+	int   imval[2];	     /* initial mouse value for visual calculation                                */
 						 /* the one in TransInfo is not garanty to stay the same (Rotates change it)  */
 	int   mode;          /* Mode flags of the Constraint                                              */
 	void  (*drawExtra)(struct TransInfo *);
@@ -217,7 +210,7 @@ typedef struct SlideData {
 	struct GHash *vhash, **uvhash;
 	struct EditVert *nearest;
 	struct LinkNode *edgelist, *vertlist;
-	short start[2], end[2];
+	int start[2], end[2];
 } SlideData;
 
 typedef struct TransData {
@@ -242,12 +235,12 @@ typedef struct TransData {
 } TransData;
 
 typedef struct MouseInput {
-	void	(*apply)(struct TransInfo *, struct MouseInput *, short [2], float [3]);
+	void	(*apply)(struct TransInfo *, struct MouseInput *, const int [2], float [3]);
 	void	(*post)(struct TransInfo *, float [3]);
 
-	short   imval[2];       	/* initial mouse position                */
+	int     imval[2];       	/* initial mouse position                */
 	char	precision;
-	short	precision_mval[2];	/* mouse position when precision key was pressed */
+	int     precision_mval[2];	/* mouse position when precision key was pressed */
 	int		center[2];
 	float	factor;
 	void 	*data; /* additional data, if needed by the particular function */
@@ -261,7 +254,7 @@ typedef struct TransInfo {
 	int         options;        /* current context/options for transform                      */
 	float       val;            /* init value for some transformations (and rotation angle)  */
 	float       fac;            /* factor for distance based transform  */
-	int       (*transform)(struct TransInfo *, short *);
+	int       (*transform)(struct TransInfo *, const int *);
 								/* transform function pointer           */
 	int       (*handleEvent)(struct TransInfo *, struct wmEvent *);
 								/* event handler function pointer  RETURN 1 if redraw is needed */
@@ -272,14 +265,13 @@ typedef struct TransInfo {
 	TransCon    con;            /* transformed constraint               */
 	TransSnap	tsnap;
 	NumInput    num;            /* numerical input                      */
-	NDofInput   ndof;           /* ndof input                           */
 	MouseInput	mouse;			/* mouse input                          */
 	char        redraw;         /* redraw flag                          */
 	float		prop_size;		/* proportional circle radius           */
 	char		proptext[20];	/* proportional falloff text			*/
 	float       center[3];      /* center of transformation             */
 	int         center2d[2];    /* center in screen coordinates         */
-	short       imval[2];       /* initial mouse position               */
+	int         imval[2];       /* initial mouse position               */
 	short		event_type;		/* event->type used to invoke transform */
 	short       idx_max;		/* maximum index on the input vector	*/
 	float		snap[3];		/* Snapping Gears						*/
@@ -328,7 +320,7 @@ typedef struct TransInfo {
 	struct Scene	*scene;
 	struct ToolSettings *settings;
 	struct wmTimer *animtimer;
-	short       mval[2];        /* current mouse position               */
+	int         mval[2];        /* current mouse position               */
 	struct Object   *obedit;
 	void		*draw_handle_apply;
 	void		*draw_handle_view;
@@ -338,9 +330,6 @@ typedef struct TransInfo {
 
 
 /* ******************** Macros & Prototypes *********************** */
-
-/* NDOFINPUT FLAGS */
-#define NDOF_INIT			1
 
 /* transinfo->state */
 #define TRANS_STARTING  0
@@ -458,7 +447,7 @@ void transformApply(struct bContext *C, TransInfo *t);
 int  transformEnd(struct bContext *C, TransInfo *t);
 
 void setTransformViewMatrices(TransInfo *t);
-void convertViewVec(TransInfo *t, float *vec, short dx, short dy);
+void convertViewVec(TransInfo *t, float *vec, int dx, int dy);
 void projectIntView(TransInfo *t, float *vec, int *adr);
 void projectFloatView(TransInfo *t, float *vec, float *adr);
 
@@ -467,81 +456,81 @@ void removeAspectRatio(TransInfo *t, float *vec);
 
 void initWarp(TransInfo *t);
 int handleEventWarp(TransInfo *t, struct wmEvent *event);
-int Warp(TransInfo *t, short mval[2]);
+int Warp(TransInfo *t, const int mval[2]);
 
 void initShear(TransInfo *t);
 int handleEventShear(TransInfo *t, struct wmEvent *event);
-int Shear(TransInfo *t, short mval[2]);
+int Shear(TransInfo *t, const int mval[2]);
 
 void initResize(TransInfo *t);
-int Resize(TransInfo *t, short mval[2]);
+int Resize(TransInfo *t, const int mval[2]);
 
 void initTranslation(TransInfo *t);
-int Translation(TransInfo *t, short mval[2]);
+int Translation(TransInfo *t, const int mval[2]);
 
 void initToSphere(TransInfo *t);
-int ToSphere(TransInfo *t, short mval[2]);
+int ToSphere(TransInfo *t, const int mval[2]);
 
 void initRotation(TransInfo *t);
-int Rotation(TransInfo *t, short mval[2]);
+int Rotation(TransInfo *t, const int mval[2]);
 
 void initShrinkFatten(TransInfo *t);
-int ShrinkFatten(TransInfo *t, short mval[2]);
+int ShrinkFatten(TransInfo *t, const int mval[2]);
 
 void initTilt(TransInfo *t);
-int Tilt(TransInfo *t, short mval[2]);
+int Tilt(TransInfo *t, const int mval[2]);
 
 void initCurveShrinkFatten(TransInfo *t);
-int CurveShrinkFatten(TransInfo *t, short mval[2]);
+int CurveShrinkFatten(TransInfo *t, const int mval[2]);
 
 void initTrackball(TransInfo *t);
-int Trackball(TransInfo *t, short mval[2]);
+int Trackball(TransInfo *t, const int mval[2]);
 
 void initPushPull(TransInfo *t);
-int PushPull(TransInfo *t, short mval[2]);
+int PushPull(TransInfo *t, const int mval[2]);
 
 void initBevel(TransInfo *t);
 int handleEventBevel(TransInfo *t, struct wmEvent *event);
-int Bevel(TransInfo *t, short mval[2]);
+int Bevel(TransInfo *t, const int mval[2]);
 
 void initBevelWeight(TransInfo *t);
-int BevelWeight(TransInfo *t, short mval[2]);
+int BevelWeight(TransInfo *t, const int mval[2]);
 
 void initCrease(TransInfo *t);
-int Crease(TransInfo *t, short mval[2]);
+int Crease(TransInfo *t, const int mval[2]);
 
 void initBoneSize(TransInfo *t);
-int BoneSize(TransInfo *t, short mval[2]);
+int BoneSize(TransInfo *t, const int mval[2]);
 
 void initBoneEnvelope(TransInfo *t);
-int BoneEnvelope(TransInfo *t, short mval[2]);
+int BoneEnvelope(TransInfo *t, const int mval[2]);
 
 void initBoneRoll(TransInfo *t);
-int BoneRoll(TransInfo *t, short mval[2]);
+int BoneRoll(TransInfo *t, const int mval[2]);
 
 void initEdgeSlide(TransInfo *t);
-int EdgeSlide(TransInfo *t, short mval[2]);
+int EdgeSlide(TransInfo *t, const int mval[2]);
 
 void initTimeTranslate(TransInfo *t);
-int TimeTranslate(TransInfo *t, short mval[2]);
+int TimeTranslate(TransInfo *t, const int mval[2]);
 
 void initTimeSlide(TransInfo *t);
-int TimeSlide(TransInfo *t, short mval[2]);
+int TimeSlide(TransInfo *t, const int mval[2]);
 
 void initTimeScale(TransInfo *t);
-int TimeScale(TransInfo *t, short mval[2]);
+int TimeScale(TransInfo *t, const int mval[2]);
 
 void initBakeTime(TransInfo *t);
-int BakeTime(TransInfo *t, short mval[2]);
+int BakeTime(TransInfo *t, const int mval[2]);
 
 void initMirror(TransInfo *t);
-int Mirror(TransInfo *t, short mval[2]);
+int Mirror(TransInfo *t, const int mval[2]);
 
 void initAlign(TransInfo *t);
-int Align(TransInfo *t, short mval[2]);
+int Align(TransInfo *t, const int mval[2]);
 
 void initSeqSlide(TransInfo *t);
-int SeqSlide(TransInfo *t, short mval[2]);
+int SeqSlide(TransInfo *t, const int mval[2]);
 
 void drawPropCircle(const struct bContext *C, TransInfo *t);
 
@@ -645,12 +634,12 @@ typedef enum {
 	INPUT_CUSTOM_RATIO
 } MouseInputMode;
 
-void initMouseInput(TransInfo *t, MouseInput *mi, int center[2], short mval[2]);
+void initMouseInput(TransInfo *t, MouseInput *mi, int center[2], int mval[2]);
 void initMouseInputMode(TransInfo *t, MouseInput *mi, MouseInputMode mode);
 int handleMouseInput(struct TransInfo *t, struct MouseInput *mi, struct wmEvent *event);
-void applyMouseInput(struct TransInfo *t, struct MouseInput *mi, short mval[2], float output[3]);
+void applyMouseInput(struct TransInfo *t, struct MouseInput *mi, const int mval[2], float output[3]);
 
-void setCustomPoints(TransInfo *t, MouseInput *mi, short start[2], short end[2]);
+void setCustomPoints(TransInfo *t, MouseInput *mi, int start[2], int end[2]);
 void setInputPostFct(MouseInput *mi, void	(*post)(struct TransInfo *, float [3]));
 
 /*********************** Generics ********************************/
@@ -681,20 +670,6 @@ void calculateCenterCursor2D(TransInfo *t);
 void calculatePropRatio(TransInfo *t);
 
 void getViewVector(TransInfo *t, float coord[3], float vec[3]);
-
-/*********************** NDofInput ********************************/
-
-void initNDofInput(NDofInput *n);
-int hasNDofInput(NDofInput *n);
-void applyNDofInput(NDofInput *n, float *vec);
-int handleNDofInput(NDofInput *n, struct wmEvent *event);
-
-/* handleNDofInput return values */
-#define NDOF_REFRESH	1
-#define NDOF_NOMOVE		2
-#define NDOF_CONFIRM	3
-#define NDOF_CANCEL		4
-
 
 /*********************** Transform Orientations ******************************/
 

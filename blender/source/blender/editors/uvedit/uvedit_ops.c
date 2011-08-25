@@ -419,7 +419,7 @@ int ED_uvedit_minmax(Scene *scene, Image *ima, Object *obedit, float *min, float
 	return sel;
 }
 
-int ED_uvedit_median(Scene *scene, Image *ima, Object *obedit, float co[3])
+static int ED_uvedit_median(Scene *scene, Image *ima, Object *obedit, float co[3])
 {
 	EditMesh *em= BKE_mesh_get_editmesh((Mesh*)obedit->data);
 	EditFace *efa;
@@ -1057,6 +1057,134 @@ static void weld_align_uv(bContext *C, int tool)
 		}
 	}
 
+	if(tool == 's' || tool == 't' || tool == 'u') {
+		 /* pass 1&2 variables */
+		int i, j;
+		int starttmpl= -1, connectedtostarttmpl= -1, startcorner;
+		int endtmpl= -1,   connectedtoendtmpl= -1,   endcorner;
+		MTFace *startface, *endface;
+		int itmpl, jtmpl;
+		EditVert *eve;
+		int pass; /* first 2 passes find endpoints, 3rd pass moves middle points, 4th pass is fail-on-face-selected */
+		EditFace *startefa, *endefa;
+
+		 /* pass 3 variables */
+		float startx, starty, firstm,  firstb,  midx,      midy;
+		float endx,   endy,   secondm, secondb, midmovedx, midmovedy;
+		float IsVertical_check= -1;
+		float IsHorizontal_check= -1;
+
+		for(i= 0, eve= em->verts.first; eve; eve= eve->next, i++) /* give each point a unique name */
+			eve->tmp.l= i;
+		for(pass= 1; pass <= 3; pass++) { /* do this for each endpoint */
+			if(pass == 3){ /* calculate */
+				startx= startface->uv[startcorner][0];
+				starty= startface->uv[startcorner][1];
+				endx= endface->uv[endcorner][0];
+				endy= endface->uv[endcorner][1];
+				firstm= (endy-starty)/(endx-startx);
+				firstb= starty-(firstm*startx);
+				secondm= -1.0f/firstm;
+				if(startx == endx) IsVertical_check= startx;
+				if(starty == endy) IsHorizontal_check= starty;
+			}
+			for(efa= em->faces.first; efa; efa= efa->next) { /* for each face */
+				tf= CustomData_em_get(&em->fdata, efa->data, CD_MTFACE); /* get face */
+				if(uvedit_face_visible(scene, ima, efa, tf)) { /* if you can see it */
+					if(uvedit_face_selected(scene, efa, tf)) { /* if the face is selected, get out now! */
+						pass= 4;
+						break;
+					}
+					for(i= 0; (i < 3 || (i == 3 && efa->v4)); i++) { /* for each point of the face */
+						itmpl= (*(&efa->v1 + i))->tmp.l; /* get unique name for points */
+						if(pass == 3) { /* move */
+							if(uvedit_uv_selected(scene, efa, tf, i)) {
+								if(!(itmpl == starttmpl || itmpl == endtmpl)) {
+									if(IsVertical_check != -1) tf->uv[i][0]= IsVertical_check;
+									if(IsHorizontal_check != -1) tf->uv[i][1]= IsHorizontal_check;
+									if((IsVertical_check == -1) && (IsHorizontal_check == -1)) {
+										midx= tf->uv[i][0];
+										midy= tf->uv[i][1];
+										if(tool == 's') {
+											secondb= midy-(secondm*midx);
+											midmovedx= (secondb-firstb)/(firstm-secondm);
+											midmovedy= (secondm*midmovedx)+secondb;
+											tf->uv[i][0]= midmovedx;
+											tf->uv[i][1]= midmovedy;
+										}
+										else if(tool == 't') {
+											tf->uv[i][0]= (midy-firstb)/firstm; /* midmovedx */
+										}
+										else if(tool == 'u') {
+											tf->uv[i][1]= (firstm*midx)+firstb; /* midmovedy */
+										}
+									}
+								}
+							}
+						}
+						else {
+							for(j= 0; (j < 3 || (j == 3 && efa->v4)); j++) { /* also for each point on the face */
+								jtmpl= (*(&efa->v1 + j))->tmp.l;
+								if(i != j && (!efa->v4 || ABS(i-j) !=  2)) { /* if the points are connected */
+									/* quad   (0,1,2,3) 0,1 0,3 1,0 1,2 2,1 2,3 3,0 3,2
+									 * triangle (0,1,2) 0,1 0,2 1,0 1,2 2,0 2,1 */
+									if(uvedit_uv_selected(scene, efa, tf, i) && uvedit_uv_selected(scene, efa, tf, j)) {
+										 /* if the edge is selected */
+										if(pass == 1) { /* if finding first endpoint */
+											if(starttmpl == -1) { /* if the first endpoint isn't found yet */
+												starttmpl= itmpl; /* set unique name for endpoint */
+												connectedtostarttmpl= jtmpl;
+												 /* get point that endpoint is connected to */
+												startface= tf; /* get face it's on */
+												startcorner= i; /* what corner of the face? */
+												startefa= efa;
+												efa= em->faces.first;
+												tf= CustomData_em_get(&em->fdata, efa->data, CD_MTFACE);
+												i= -1;
+												break;
+											}
+											if(starttmpl == itmpl && jtmpl != connectedtostarttmpl) {
+												starttmpl= -1; /* not an endpoint */
+												efa= startefa;
+												tf= CustomData_em_get(&em->fdata, efa->data, CD_MTFACE);
+												i= startcorner;
+												break;
+											}
+										}
+										else if(pass == 2) { /* if finding second endpoint */
+											if(endtmpl == -1 && itmpl != starttmpl) {
+												endtmpl= itmpl;
+												connectedtoendtmpl= jtmpl;
+												endface= tf;
+												endcorner= i;
+												endefa= efa;
+												efa= em->faces.first;
+												tf= CustomData_em_get(&em->fdata, efa->data, CD_MTFACE);
+												i= -1;
+												break;
+											}
+											if(endtmpl == itmpl && jtmpl != connectedtoendtmpl) {
+												endtmpl= -1;
+												efa= endefa;
+												tf= CustomData_em_get(&em->fdata, efa->data, CD_MTFACE);
+												i= endcorner;
+												break;
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+			if(pass == 2 && (starttmpl == -1 || endtmpl == -1)) {
+				/* if endpoints aren't found */
+				pass=4;
+			}
+		}
+	}
+
 	uvedit_live_unwrap_update(sima, scene, obedit);
 	DAG_id_tag_update(obedit->data, 0);
 	WM_event_add_notifier(C, NC_GEOM|ND_DATA, obedit->data);
@@ -1074,6 +1202,9 @@ static int align_exec(bContext *C, wmOperator *op)
 static void UV_OT_align(wmOperatorType *ot)
 {
 	static EnumPropertyItem axis_items[] = {
+		{'s', "ALIGN_S", 0, "Straighten", "Align UVs along the line defined by the endpoints"},
+		{'t', "ALIGN_T", 0, "Straighten X", "Align UVs along the line defined by the endpoints along the X axis"},
+		{'u', "ALIGN_U", 0, "Straighten Y", "Align UVs along the line defined by the endpoints along the Y axis"},
 		{'a', "ALIGN_AUTO", 0, "Align Auto", "Automatically choose the axis on which there is most alignment already"},
 		{'x', "ALIGN_X", 0, "Align X", "Align UVs on X axis"},
 		{'y', "ALIGN_Y", 0, "Align Y", "Align UVs on Y axis"},
@@ -1308,59 +1439,6 @@ static void UV_OT_stitch(wmOperatorType *ot)
 
 /* ******************** (de)select all operator **************** */
 
-static int select_inverse_exec(bContext *C, wmOperator *UNUSED(op))
-{
-	Scene *scene;
-	ToolSettings *ts;
-	Object *obedit;
-	EditMesh *em;
-	EditFace *efa;
-	Image *ima;
-	MTFace *tf;
-	
-	scene= CTX_data_scene(C);
-	ts= CTX_data_tool_settings(C);
-	obedit= CTX_data_edit_object(C);
-	em= BKE_mesh_get_editmesh((Mesh*)obedit->data);
-	ima= CTX_data_edit_image(C);
-
-	if(ts->uv_flag & UV_SYNC_SELECTION) {
-		EM_select_swap(em);
-	}
-	else {
-		for(efa= em->faces.first; efa; efa= efa->next) {
-			tf = CustomData_em_get(&em->fdata, efa->data, CD_MTFACE);
-
-			if(uvedit_face_visible(scene, ima, efa, tf)) {
-				tf->flag ^= TF_SEL1;
-				tf->flag ^= TF_SEL2;
-				tf->flag ^= TF_SEL3;
-				if(efa->v4) tf->flag ^= TF_SEL4;
-			}
-		}
-	}
-
-	WM_event_add_notifier(C, NC_GEOM|ND_DATA, obedit->data);
-
-	BKE_mesh_end_editmesh(obedit->data, em);
-	return OPERATOR_FINISHED;
-}
-
-static void UV_OT_select_inverse(wmOperatorType *ot)
-{
-	/* identifiers */
-	ot->name= "Select Inverse";
-	ot->description= "Select inverse of (un)selected UV vertices";
-	ot->idname= "UV_OT_select_inverse";
-	ot->flag= OPTYPE_REGISTER|OPTYPE_UNDO;
-	
-	/* api callbacks */
-	ot->exec= select_inverse_exec;
-	ot->poll= ED_operator_uvedit;
-}
-
-/* ******************** (de)select all operator **************** */
-
 static int select_all_exec(bContext *C, wmOperator *op)
 {
 	Scene *scene;
@@ -1425,11 +1503,7 @@ static int select_all_exec(bContext *C, wmOperator *op)
 					tf->flag &= ~select_flag;
 					break;
 				case SEL_INVERT:
-					if ((tf->flag & select_flag) == select_flag) {
-						tf->flag &= ~select_flag;
-					} else {
-						tf->flag &= ~select_flag;
-					}
+					tf->flag ^= select_flag;
 					break;
 				}
 			}
@@ -1501,7 +1575,7 @@ static int mouse_select(bContext *C, float co[2], int extend, int loop)
 	 * remove doubles and could annoying if it joined points when zoomed out.
 	 * 'penalty' is in screen pixel space otherwise zooming in on a uv-vert and
 	 * shift-selecting can consider an adjacent point close enough to add to
-	 * the selection rather then de-selecting the closest. */
+	 * the selection rather than de-selecting the closest. */
 
 	uvedit_pixel_to_float(sima, limit, 0.05f);
 	uvedit_pixel_to_float(sima, penalty, 5.0f / sima->zoom);
@@ -1772,12 +1846,8 @@ static int select_invoke(bContext *C, wmOperator *op, wmEvent *event)
 {
 	ARegion *ar= CTX_wm_region(C);
 	float co[2];
-	int x, y;
 
-	x= event->x - ar->winrct.xmin;
-	y= event->y - ar->winrct.ymin;
-
-	UI_view2d_region_to_view(&ar->v2d, x, y, &co[0], &co[1]);
+	UI_view2d_region_to_view(&ar->v2d, event->mval[0], event->mval[1], &co[0], &co[1]);
 	RNA_float_set_array(op->ptr, "location", co);
 
 	return select_exec(C, op);
@@ -1787,7 +1857,7 @@ static void UV_OT_select(wmOperatorType *ot)
 {
 	/* identifiers */
 	ot->name= "Select";
-	ot->description= "Select UV vertice";
+	ot->description= "Select UV vertices";
 	ot->idname= "UV_OT_select";
 	ot->flag= OPTYPE_REGISTER|OPTYPE_UNDO;
 	
@@ -1821,12 +1891,8 @@ static int select_loop_invoke(bContext *C, wmOperator *op, wmEvent *event)
 {
 	ARegion *ar= CTX_wm_region(C);
 	float co[2];
-	int x, y;
 
-	x= event->x - ar->winrct.xmin;
-	y= event->y - ar->winrct.ymin;
-
-	UI_view2d_region_to_view(&ar->v2d, x, y, &co[0], &co[1]);
+	UI_view2d_region_to_view(&ar->v2d, event->mval[0], event->mval[1], &co[0], &co[1]);
 	RNA_float_set_array(op->ptr, "location", co);
 
 	return select_loop_exec(C, op);
@@ -1882,12 +1948,8 @@ static int select_linked_internal(bContext *C, wmOperator *op, wmEvent *event, i
 		if(event) {
 			/* invoke */
 			ARegion *ar= CTX_wm_region(C);
-			int x, y;
 
-			x= event->x - ar->winrct.xmin;
-			y= event->y - ar->winrct.ymin;
-
-			UI_view2d_region_to_view(&ar->v2d, x, y, &co[0], &co[1]);
+			UI_view2d_region_to_view(&ar->v2d, event->mval[0], event->mval[1], &co[0], &co[1]);
 			RNA_float_set_array(op->ptr, "location", co);
 		}
 		else {
@@ -2290,6 +2352,7 @@ static void UV_OT_select_border(wmOperatorType *ot)
 	ot->exec= border_select_exec;
 	ot->modal= WM_border_select_modal;
 	ot->poll= ED_operator_image_active;	/* requires space image */;
+	ot->cancel= WM_border_select_cancel;
 	
 	/* flags */
 	ot->flag= OPTYPE_REGISTER|OPTYPE_UNDO;
@@ -2331,7 +2394,7 @@ static int circle_select_exec(bContext *C, wmOperator *op)
 	int x, y, radius, width, height, select;
 	float zoomx, zoomy, offset[2], ellipse[2];
 	int gesture_mode= RNA_int_get(op->ptr, "gesture_mode");
-    
+
 	/* get operator properties */
 	select= (gesture_mode == GESTURE_MODAL_SELECT);
 	x= RNA_int_get(op->ptr, "x");
@@ -2379,6 +2442,7 @@ static void UV_OT_circle_select(wmOperatorType *ot)
 	ot->modal= WM_gesture_circle_modal;
 	ot->exec= circle_select_exec;
 	ot->poll= ED_operator_image_active;	/* requires space image */;
+	ot->cancel= WM_gesture_circle_cancel;
 	
 	/* flags */
 	ot->flag= OPTYPE_REGISTER|OPTYPE_UNDO;
@@ -3093,12 +3157,9 @@ static int set_2d_cursor_exec(bContext *C, wmOperator *op)
 static int set_2d_cursor_invoke(bContext *C, wmOperator *op, wmEvent *event)
 {
 	ARegion *ar= CTX_wm_region(C);
-	int x, y;
 	float location[2];
 
-	x= event->x - ar->winrct.xmin;
-	y= event->y - ar->winrct.ymin;
-	UI_view2d_region_to_view(&ar->v2d, x, y, &location[0], &location[1]);
+	UI_view2d_region_to_view(&ar->v2d, event->mval[0], event->mval[1], &location[0], &location[1]);
 	RNA_float_set_array(op->ptr, "location", location);
 
 	return set_2d_cursor_exec(C, op);
@@ -3149,14 +3210,12 @@ static int set_tile_invoke(bContext *C, wmOperator *op, wmEvent *event)
 	Image *ima= CTX_data_edit_image(C);
 	ARegion *ar= CTX_wm_region(C);
 	float fx, fy;
-	int x, y, tile[2];
+	int tile[2];
 
 	if(!ima || !(ima->tpageflag & IMA_TILES))
 		return OPERATOR_CANCELLED;
 
-	x= event->x - ar->winrct.xmin;
-	y= event->y - ar->winrct.ymin;
-	UI_view2d_region_to_view(&ar->v2d, x, y, &fx, &fy);
+	UI_view2d_region_to_view(&ar->v2d, event->mval[0], event->mval[1], &fx, &fy);
 
 	if(fx >= 0.0f && fy >= 0.0f && fx < 1.0f && fy < 1.0f) {
 		fx= fx*ima->xrep;
@@ -3196,7 +3255,6 @@ static void UV_OT_tile_set(wmOperatorType *ot)
 void ED_operatortypes_uvedit(void)
 {
 	WM_operatortype_append(UV_OT_select_all);
-	WM_operatortype_append(UV_OT_select_inverse);
 	WM_operatortype_append(UV_OT_select);
 	WM_operatortype_append(UV_OT_select_loop);
 	WM_operatortype_append(UV_OT_select_linked);
@@ -3258,7 +3316,7 @@ void ED_keymap_uvedit(wmKeyConfig *keyconf)
 
 	WM_keymap_add_item(keymap, "UV_OT_unlink_selected", LKEY, KM_PRESS, KM_ALT, 0);
 	WM_keymap_add_item(keymap, "UV_OT_select_all", AKEY, KM_PRESS, 0, 0);
-	WM_keymap_add_item(keymap, "UV_OT_select_inverse", IKEY, KM_PRESS, KM_CTRL, 0);
+	RNA_enum_set(WM_keymap_add_item(keymap, "UV_OT_select_all", IKEY, KM_PRESS, KM_CTRL, 0)->ptr, "action", SEL_INVERT);
 	WM_keymap_add_item(keymap, "UV_OT_select_pinned", PKEY, KM_PRESS, KM_SHIFT, 0);
 
 	WM_keymap_add_menu(keymap, "IMAGE_MT_uvs_weldalign", WKEY, KM_PRESS, 0, 0);

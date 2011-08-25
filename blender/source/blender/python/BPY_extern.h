@@ -67,14 +67,14 @@ int BPY_is_pyconstraint(struct Text *text);
 //	void BPY_free_pyconstraint_links(struct Text *text);
 //
 void BPY_python_start(int argc, const char **argv);
-void BPY_python_end( void );
-//	void init_syspath( int first_time );
-//	void syspath_append( char *dir );
-//	void BPY_rebuild_syspath( void );
-//	int BPY_path_update( void );
+void BPY_python_end(void);
+//	void init_syspath(int first_time);
+//	void syspath_append(char *dir);
+//	void BPY_rebuild_syspath(void);
+//	int BPY_path_update(void);
 //
-//	int BPY_Err_getLinenumber( void );
-//	const char *BPY_Err_getFilename( void );
+//	int BPY_Err_getLinenumber(void);
+//	const char *BPY_Err_getFilename(void);
 
 /* 2.5 UI Scripts */
 int		BPY_filepath_exec(struct bContext *C, const char *filepath, struct ReportList *reports);
@@ -83,10 +83,12 @@ void	BPY_text_free_code(struct Text *text);
 void	BPY_modules_update(struct bContext *C); // XXX - annoying, need this for pointers that get out of date
 void	BPY_modules_load_user(struct bContext *C);
 
+void	BPY_app_handlers_reset(void);
+
 void	BPY_driver_reset(void);
 float	BPY_driver_exec(struct ChannelDriver *driver);
 
-int		BPY_button_exec(struct bContext *C, const char *expr, double *value);
+int		BPY_button_exec(struct bContext *C, const char *expr, double *value, const short verbose);
 int		BPY_string_exec(struct bContext *C, const char *expr);
 
 void	BPY_DECREF(void *pyob_ptr);	/* Py_DECREF() */

@@ -26,12 +26,15 @@
 
 set(INC 
 	.
-	../makesdna
 	../blenkernel
 	../blenloader
 	../gpu
+	../makesdna
 	../../../intern/ghost
 	../../../intern/guardedalloc
+)
+
+set(INC_SYS
 	${ZLIB_INCLUDE_DIRS}
 	${FREETYPE_INCLUDE_DIRS}
 )
@@ -49,6 +52,7 @@ set(SRC
 	intern/DLRB_tree.c
 	intern/boxpack2d.c
 	intern/bpath.c
+	intern/callbacks.c
 	intern/cpu.c
 	intern/dynlib.c
 	intern/edgehash.c
@@ -86,8 +90,10 @@ set(SRC
 	BLI_blenlib.h
 	BLI_boxpack2d.h
 	BLI_bpath.h
+	BLI_callbacks.h
 	BLI_cpu.h
 	BLI_dlrbTree.h
+	BLI_dynlib.h
 	BLI_dynstr.h
 	BLI_edgehash.h
 	BLI_editVert.h
@@ -127,19 +133,19 @@ set(SRC
 	BLI_vfontdata.h
 	BLI_voxel.h
 	BLI_winstuff.h
-	PIL_dynlib.h
 	PIL_time.h
-	intern/BLI_callbacks.h
 	intern/dynamiclist.h
 )
 
 if(WITH_BINRELOC)
+	list(APPEND INC_SYS
+		${BINRELOC_INCLUDE_DIRS}
+	)
 	add_definitions(-DWITH_BINRELOC)
-	list(APPEND INC "${BINRELOC_INC}")
 endif()
 
 if(WITH_OPENMP)
 	add_definitions(-DPARALLEL=1)
 endif()
 
-blender_add_lib(bf_blenlib "${SRC}" "${INC}")
+blender_add_lib(bf_blenlib "${SRC}" "${INC}" "${INC_SYS}")

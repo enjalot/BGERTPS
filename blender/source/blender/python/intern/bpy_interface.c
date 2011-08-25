@@ -43,6 +43,7 @@
 #include "bpy_rna.h"
 #include "bpy_util.h"
 #include "bpy_traceback.h"
+#include "bpy_intern_string.h"
 
 #include "DNA_space_types.h"
 #include "DNA_text_types.h"
@@ -65,10 +66,10 @@
 #include "../generic/py_capi_utils.h"
 
 /* inittab initialization functions */
-#include "../generic/noise_py_api.h"
-#include "../generic/mathutils.h"
 #include "../generic/bgl.h"
 #include "../generic/blf_py_api.h"
+#include "../generic/noise_py_api.h"
+#include "../mathutils/mathutils.h"
 
 /* for internal use, when starting and ending python scripts */
 
@@ -86,6 +87,14 @@ static double	bpy_timer_run; /* time for each python script run */
 static double	bpy_timer_run_tot; /* accumulate python runs */
 #endif
 
+/* use for updating while a python script runs - in case of file load */
+void bpy_context_update(bContext *C)
+{
+	BPy_SetContext(C);
+	bpy_import_main_set(CTX_data_main(C));
+	BPY_modules_update(C); /* can give really bad results if this isnt here */
+}
+
 void bpy_context_set(bContext *C, PyGILState_STATE *gilstate)
 {
 	py_call_level++;
@@ -94,16 +103,7 @@ void bpy_context_set(bContext *C, PyGILState_STATE *gilstate)
 		*gilstate= PyGILState_Ensure();
 
 	if(py_call_level==1) {
-
-		if(C) { // XXX - should always be true.
-			BPy_SetContext(C);
-			bpy_import_main_set(CTX_data_main(C));
-		}
-		else {
-			fprintf(stderr, "ERROR: Python context called with a NULL Context. this should not happen!\n");
-		}
-
-		BPY_modules_update(C); /* can give really bad results if this isnt here */
+		bpy_context_update(C);
 
 #ifdef TIME_PY_RUN
 		if(bpy_timer_count==0) {
@@ -164,52 +164,6 @@ void BPY_modules_update(bContext *C)
 	bpy_context_module->ptr.data= (void *)C;
 }
 
-/* must be called before Py_Initialize */
-#ifndef WITH_PYTHON_MODULE
-static void bpy_python_start_path(void)
-{
-	char *py_path_bundle= BLI_get_folder(BLENDER_PYTHON, NULL);
-
-	if(py_path_bundle==NULL) {
-		/* Common enough to have bundled *nix python but complain on OSX/Win */
-#if defined(__APPLE__) || defined(_WIN32)
-		fprintf(stderr, "Warning! bundled python not found and is expected on this platform. (if you built with CMake: 'install' target may have not been built)\n");
-#endif
-		return;
-	}
-	/* set the environment path */
-	printf("found bundled python: %s\n", py_path_bundle);
-
-#ifdef __APPLE__
-	/* OSX allow file/directory names to contain : character (represented as / in the Finder)
-	 but current Python lib (release 3.1.1) doesn't handle these correctly */
-	if(strchr(py_path_bundle, ':'))
-		printf("Warning : Blender application is located in a path containing : or / chars\
-			   \nThis may make python import function fail\n");
-#endif
-	
-#ifdef _WIN32
-	/* cmake/MSVC debug build crashes without this, why only
-	   in this case is unknown.. */
-	{
-		BLI_setenv("PYTHONPATH", py_path_bundle);	
-	}
-#endif
-
-	{
-		static wchar_t py_path_bundle_wchar[FILE_MAX];
-
-		/* cant use this, on linux gives bug: #23018, TODO: try LANG="en_US.UTF-8" /usr/bin/blender, suggested 22008 */
-		/* mbstowcs(py_path_bundle_wchar, py_path_bundle, FILE_MAXDIR); */
-
-		utf8towchar(py_path_bundle_wchar, py_path_bundle);
-
-		Py_SetPythonHome(py_path_bundle_wchar);
-		// printf("found python (wchar_t) '%ls'\n", py_path_bundle_wchar);
-	}
-}
-#endif
-
 void BPY_context_set(bContext *C)
 {
 	BPy_SetContext(C);
@@ -220,11 +174,13 @@ extern PyObject *AUD_initPython(void);
 
 static struct _inittab bpy_internal_modules[]= {
 	{(char *)"noise", BPyInit_noise},
-	{(char *)"mathutils", BPyInit_mathutils},
-//	{(char *)"mathutils.geometry", BPyInit_mathutils_geometry},
+	{(char *)"mathutils", PyInit_mathutils},
+//	{(char *)"mathutils.geometry", PyInit_mathutils_geometry},
 	{(char *)"bgl", BPyInit_bgl},
 	{(char *)"blf", BPyInit_blf},
+#ifdef WITH_AUDASPACE
 	{(char *)"aud", AUD_initPython},
+#endif
 	{NULL, NULL}
 };
 
@@ -242,15 +198,16 @@ void BPY_python_start(int argc, const char **argv)
 	/* must run before python initializes */
 	PyImport_ExtendInittab(bpy_internal_modules);
 
-	bpy_python_start_path(); /* allow to use our own included python */
+	/* allow to use our own included python */
+	PyC_SetHomePath(BLI_get_folder(BLENDER_SYSTEM_PYTHON, NULL));
 
-	/* Python 3.2 now looks for '2.57/python/include/python3.2d/pyconfig.h' to parse
+	/* Python 3.2 now looks for '2.58/python/include/python3.2d/pyconfig.h' to parse
 	 * from the 'sysconfig' module which is used by 'site', so for now disable site.
 	 * alternatively we could copy the file. */
 	Py_NoSiteFlag= 1;
 
 	Py_Initialize();
-	
+
 	// PySys_SetArgv(argc, argv); // broken in py3, not a huge deal
 	/* sigh, why do python guys not have a char** version anymore? :( */
 	{
@@ -272,6 +229,8 @@ void BPY_python_start(int argc, const char **argv)
 	/* must run before python initializes */
 	PyImport_ExtendInittab(bpy_internal_modules);
 #endif
+
+	bpy_intern_string_init();
 
 	/* bpy.* and lets us import it */
 	BPy_init_modules();
@@ -296,7 +255,9 @@ void BPY_python_end(void)
 	pyrna_free_types();
 
 	/* clear all python data from structs */
-	
+
+	bpy_intern_string_exit();
+
 	Py_Finalize();
 	
 #ifdef TIME_PY_RUN
@@ -415,7 +376,9 @@ static int python_script_exec(bContext *C, const char *fn, struct Text *text, st
 #endif
 		}
 		else {
-			PyErr_Format(PyExc_IOError, "Python file \"%s\" could not be opened: %s", fn, strerror(errno));
+			PyErr_Format(PyExc_IOError,
+			             "Python file \"%s\" could not be opened: %s",
+			             fn, strerror(errno));
 			py_result= NULL;
 		}
 	}
@@ -471,7 +434,8 @@ void BPY_DECREF(void *pyob_ptr)
 	PyGILState_Release(gilstate);
 }
 
-int BPY_button_exec(bContext *C, const char *expr, double *value)
+/* return -1 on error, else 0 */
+int BPY_button_exec(bContext *C, const char *expr, double *value, const short verbose)
 {
 	PyGILState_STATE gilstate;
 	PyObject *py_dict, *mod, *retval;
@@ -536,7 +500,12 @@ int BPY_button_exec(bContext *C, const char *expr, double *value)
 	}
 	
 	if(error_ret) {
-		BPy_errors_to_report(CTX_wm_reports(C));
+		if(verbose) {
+			BPy_errors_to_report(CTX_wm_reports(C));
+		}
+		else {
+			PyErr_Clear();
+		}
 	}
 
 	PyC_MainModule_Backup(&main_mod);
@@ -599,6 +568,12 @@ void BPY_modules_load_user(bContext *C)
 	/* can happen on file load */
 	if(bmain==NULL)
 		return;
+
+	/* update pointers since this can run from a nested script
+	 * on file load */
+	if(py_call_level) {
+		bpy_context_update(C);
+	}
 
 	bpy_context_set(C, &gilstate);
 
@@ -693,7 +668,9 @@ int BPY_context_member_get(bContext *C, const char *member, bContextDataResult *
 #include "BLI_storage.h"
 /* TODO, reloading the module isnt functional at the moment. */
 
-extern int main_python(int argc, const char **argv);
+static void bpy_module_free(void *mod);
+extern int main_python_enter(int argc, const char **argv);
+extern void main_python_exit(void);
 static struct PyModuleDef bpy_proxy_def= {
 	PyModuleDef_HEAD_INIT,
 	"bpy",  /* m_name */
@@ -703,12 +680,12 @@ static struct PyModuleDef bpy_proxy_def= {
 	NULL,  /* m_reload */
 	NULL,  /* m_traverse */
 	NULL,  /* m_clear */
-	NULL,  /* m_free */
-};	
+	bpy_module_free,  /* m_free */
+};
 
 typedef struct {
-    PyObject_HEAD
-    /* Type-specific fields go here. */
+	PyObject_HEAD
+	/* Type-specific fields go here. */
 	PyObject *mod;
 } dealloc_obj;
 
@@ -729,7 +706,7 @@ void bpy_module_delay_init(PyObject *bpy_proxy)
 	
 	// printf("module found %s\n", argv[0]);
 
-	main_python(argc, argv);
+	main_python_enter(argc, argv);
 
 	/* initialized in BPy_init_modules() */
 	PyDict_Update(PyModule_GetDict(bpy_proxy), PyModule_GetDict(bpy_package_py));
@@ -784,6 +761,11 @@ PyInit_bpy(void)
 	PyModule_AddObject(bpy_proxy, "__file__", (PyObject *)dob); /* borrow */
 
 	return bpy_proxy;
+}
+
+static void bpy_module_free(void *UNUSED(mod))
+{
+	main_python_exit();
 }
 
 #endif

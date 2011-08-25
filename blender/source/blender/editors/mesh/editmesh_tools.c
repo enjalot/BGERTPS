@@ -483,10 +483,11 @@ static int removedoublesflag_exec(bContext *C, wmOperator *op)
 {
 	Object *obedit= CTX_data_edit_object(C);
 	EditMesh *em= BKE_mesh_get_editmesh(((Mesh *)obedit->data));
+	int totvert= em->totvert, totedge= em->totedge, totface= em->totface;
 
 	int count = removedoublesflag(em,1,0,RNA_float_get(op->ptr, "limit"));
 	
-	if(count) {
+	if (totvert != em->totvert || totedge != em->totedge || totface != em->totface) {
 		recalc_editnormals(em);
 
 		DAG_id_tag_update(obedit->data, 0);
@@ -761,7 +762,7 @@ static EnumPropertyItem extrude_items[] = {
 		{0, NULL, 0, NULL, NULL}};
 
 
-static EnumPropertyItem *mesh_extrude_itemf(bContext *C, PointerRNA *UNUSED(ptr), int *free)
+static EnumPropertyItem *mesh_extrude_itemf(bContext *C, PointerRNA *UNUSED(ptr), PropertyRNA *UNUSED(prop), int *free)
 {
 	EnumPropertyItem *item= NULL;
 	Object *obedit= CTX_data_edit_object(C);
@@ -891,12 +892,10 @@ void MESH_OT_split(wmOperatorType *ot)
 }
 
 
-static int extrude_repeat_mesh(bContext *C, wmOperator *op)
+static int extrude_repeat_mesh_exec(bContext *C, wmOperator *op)
 {
 	Object *obedit= CTX_data_edit_object(C);
 	EditMesh *em= BKE_mesh_get_editmesh((Mesh *)obedit->data);
-
-	RegionView3D *rv3d = ED_view3d_context_rv3d(C);
 
 	int steps = RNA_int_get(op->ptr,"steps");
 
@@ -906,9 +905,7 @@ static int extrude_repeat_mesh(bContext *C, wmOperator *op)
 	short a;
 
 	/* dvec */
-	dvec[0]= rv3d->persinv[2][0];
-	dvec[1]= rv3d->persinv[2][1];
-	dvec[2]= rv3d->persinv[2][2];
+	RNA_float_get_array(op->ptr, "direction", dvec);
 	normalize_v3(dvec);
 	dvec[0]*= offs;
 	dvec[1]*= offs;
@@ -935,6 +932,17 @@ static int extrude_repeat_mesh(bContext *C, wmOperator *op)
 	return OPERATOR_FINISHED;
 }
 
+/* get center and axis, in global coords */
+static int extrude_repeat_mesh_invoke(bContext *C, wmOperator *op, wmEvent *UNUSED(event))
+{
+	RegionView3D *rv3d= ED_view3d_context_rv3d(C);
+
+	if(rv3d)
+		RNA_float_set_array(op->ptr, "direction", rv3d->persinv[2]);
+
+	return extrude_repeat_mesh_exec(C, op);
+}
+
 void MESH_OT_extrude_repeat(wmOperatorType *ot)
 {
 	/* identifiers */
@@ -943,15 +951,17 @@ void MESH_OT_extrude_repeat(wmOperatorType *ot)
 	ot->idname= "MESH_OT_extrude_repeat";
 
 	/* api callbacks */
-	ot->exec= extrude_repeat_mesh;
-	ot->poll= ED_operator_editmesh_region_view3d;
+	ot->invoke= extrude_repeat_mesh_invoke;
+	ot->exec= extrude_repeat_mesh_exec;
+	ot->poll= ED_operator_editmesh;
 
 	/* flags */
 	ot->flag= OPTYPE_REGISTER|OPTYPE_UNDO;
 
 	/* props */
-	RNA_def_float(ot->srna, "offset", 2.0f, 0.0f, 100.0f, "Offset", "", 0.0f, FLT_MAX);
-	RNA_def_int(ot->srna, "steps", 10, 0, 180, "Steps", "", 0, INT_MAX);
+	RNA_def_float(ot->srna, "offset", 2.0f, 0.0f, 100.0f, "Offset", "", 0.0f, 100.0f);
+	RNA_def_int(ot->srna, "steps", 10, 0, 180, "Steps", "", 0, 180);
+	RNA_def_float_vector(ot->srna, "direction", 3, NULL, -FLT_MAX, FLT_MAX, "Direction", "Direction of extrude", -FLT_MAX, FLT_MAX);
 }
 
 /* ************************** spin operator ******************** */
@@ -2755,7 +2765,7 @@ void esubdivideflag(Object *obedit, EditMesh *em, int flag, float smooth, float 
 
 				// Beauty Long Edges
 				else {
-					 for(j=0;j<2;j++) {
+					for(j=0;j<2;j++) {
 						hold = -1;
 						for(i=0;i<4;i++) {
 							if(length[i] < 0) {
@@ -2969,8 +2979,8 @@ void esubdivideflag(Object *obedit, EditMesh *em, int flag, float smooth, float 
 			}
 		}
 	}
-	 if(em->selectmode & SCE_SELECT_VERTEX) {
-		 for(eed = em->edges.first;eed;eed = eed->next) {
+	if(em->selectmode & SCE_SELECT_VERTEX) {
+		for(eed = em->edges.first;eed;eed = eed->next) {
 			if(eed->f & SELECT) {
 				eed->v1->f |= SELECT;
 				eed->v2->f |= SELECT;
@@ -3643,7 +3653,7 @@ static void edge_rotate(EditMesh *em, wmOperator *op, EditEdge *eed, int dir)
 		return;
 
 	/* how many edges does each face have */
-	 if(face[0]->e4) fac1= 4;
+	if(face[0]->e4) fac1= 4;
 	else fac1= 3;
 
 	if(face[1]->e4) fac2= 4;
@@ -3885,7 +3895,7 @@ void MESH_OT_edge_rotate(wmOperatorType *ot)
 
   /* XXX old bevel not ported yet */
 
-static void bevel_menu(EditMesh *em)
+static void UNUSED_FUNCTION(bevel_menu)(EditMesh *em)
 {
 	BME_Mesh *bm;
 	BME_TransData_Head *td;
@@ -3957,6 +3967,7 @@ short sharesFace(EditMesh *em, EditEdge* e1, EditEdge* e2)
 	return 0;
 }
 
+#if 0
 
 typedef struct SlideUv {
 	float origuv[2];
@@ -3970,7 +3981,6 @@ typedef struct SlideVert {
 	EditVert origvert;
 } SlideVert;
 
-#if 0
 int EdgeSlide(EditMesh *em, wmOperator *op, short immediate, float imperc)
 {
 	return 0;
@@ -4001,7 +4011,7 @@ useless:
 	LinkNode *fuv_link;
 
 	short event, draw=1;
-	short mval[2], mvalo[2];
+	int mval[2], mvalo[2];
 	char str[128];
 	float labda = 0.0f;
 
@@ -4061,8 +4071,8 @@ useless:
 		}
 		// Make sure loop is not 2 edges of same face
 		if(ct > 1) {
-		   BKE_report(op->reports, RPT_ERROR, "Loop crosses itself");
-		   return 0;
+			BKE_report(op->reports, RPT_ERROR, "Loop crosses itself");
+			return 0;
 		}
 	}
 	// Get # of selected verts
@@ -4179,11 +4189,11 @@ useless:
 			for(eed=em->edges.first;eed;eed=eed->next) {
 				if(editedge_containsVert(eed, ev)) {
 					if(!(eed->f & SELECT)) {
-						 if(!tempsv->up) {
-							 tempsv->up = eed;
-						 } else if (!(tempsv->down)) {
-							 tempsv->down = eed;
-						 }
+						if(!tempsv->up) {
+							tempsv->up = eed;
+						} else if (!(tempsv->down)) {
+							tempsv->down = eed;
+						}
 					}
 				}
 			}
@@ -4195,33 +4205,33 @@ useless:
 					for(efa = em->faces.first;efa;efa=efa->next) {
 						if(editface_containsEdge(efa, eed)) {
 							if(editedge_containsVert(efa->e1, ev) && efa->e1 != eed) {
-								 if(!tempsv->up) {
-									 tempsv->up = efa->e1;
-								 } else if (!(tempsv->down)) {
-									 tempsv->down = efa->e1;
-								 }
+								if(!tempsv->up) {
+									tempsv->up = efa->e1;
+								} else if (!(tempsv->down)) {
+									tempsv->down = efa->e1;
+								}
 							}
 							if(editedge_containsVert(efa->e2, ev) && efa->e2 != eed) {
-								 if(!tempsv->up) {
-									 tempsv->up = efa->e2;
-								 } else if (!(tempsv->down)) {
-									 tempsv->down = efa->e2;
-								 }
+								if(!tempsv->up) {
+									tempsv->up = efa->e2;
+								} else if (!(tempsv->down)) {
+									tempsv->down = efa->e2;
+								}
 							}
 							if(editedge_containsVert(efa->e3, ev) && efa->e3 != eed) {
-								 if(!tempsv->up) {
-									 tempsv->up = efa->e3;
-								 } else if (!(tempsv->down)) {
-									 tempsv->down = efa->e3;
-								 }
+								if(!tempsv->up) {
+									tempsv->up = efa->e3;
+								} else if (!(tempsv->down)) {
+									tempsv->down = efa->e3;
+								}
 							}
 							if(efa->e4) {
 								if(editedge_containsVert(efa->e4, ev) && efa->e4 != eed) {
-									 if(!tempsv->up) {
-										 tempsv->up = efa->e4;
-									 } else if (!(tempsv->down)) {
-										 tempsv->down = efa->e4;
-									 }
+									if(!tempsv->up) {
+										tempsv->up = efa->e4;
+									} else if (!(tempsv->down)) {
+										tempsv->down = efa->e4;
+									}
 								}
 							}
 
@@ -4406,7 +4416,7 @@ useless:
 	percp = -1;
 	while(draw) {
 		 /* For the % calculation */
-		short mval[2];
+		int mval[2];
 		float rc[2];
 		float v2[2], v3[2];
 		EditVert *centerVert, *upVert, *downVert;
@@ -4665,7 +4675,7 @@ useless:
 							mvalo[0] = -1;
 					} else if(ELEM(event, RIGHTARROWKEY, WHEELUPMOUSE)) { // Scroll through Control Edges
 						look = vertlist;
-						 while(look) {
+						while(look) {
 							if(nearest == (EditVert*)look->link) {
 								if(look->next == NULL) {
 									nearest =  (EditVert*)vertlist->link;
@@ -4679,7 +4689,7 @@ useless:
 						}
 					} else if(ELEM(event, LEFTARROWKEY, WHEELDOWNMOUSE)) { // Scroll through Control Edges
 						look = vertlist;
-						 while(look) {
+						while(look) {
 							if(look->next) {
 								if(look->next->link == nearest) {
 									nearest = (EditVert*)look->link;
@@ -4817,7 +4827,7 @@ void mesh_set_face_flags(EditMesh *em, short mode)
 	add_numbut(12, TOG|SHO, "Sort", 0, 0, &m_sort, NULL);
 
 	if (!do_clever_numbuts((mode ? "Set Flags" : "Clear Flags"), 13, REDRAW))
-		 return;
+		return;
 
 	/* these 2 cant both be on */
 	if (mode) /* are we seeting*/
@@ -4857,12 +4867,12 @@ void mesh_set_face_flags(EditMesh *em, short mode)
 /********************** Rip Operator *************************/
 
 /* helper to find edge for edge_rip */
-static float mesh_rip_edgedist(ARegion *ar, float mat[][4], float *co1, float *co2, short *mval)
+static float mesh_rip_edgedist(ARegion *ar, float mat[][4], float *co1, float *co2, const int mval[2])
 {
 	float vec1[3], vec2[3], mvalf[2];
 
-	view3d_project_float(ar, co1, vec1, mat);
-	view3d_project_float(ar, co2, vec2, mat);
+	ED_view3d_project_float(ar, co1, vec1, mat);
+	ED_view3d_project_float(ar, co2, vec2, mat);
 	mvalf[0]= (float)mval[0];
 	mvalf[1]= (float)mval[1];
 
@@ -4900,12 +4910,13 @@ static int mesh_rip_invoke(bContext *C, wmOperator *op, wmEvent *event)
 	EditEdge *eed, *seed= NULL;
 	EditFace *efa, *sefa= NULL;
 	float projectMat[4][4], vec[3], dist, mindist;
-	short doit= 1, *mval= event->mval;
+	short doit= 1;
+	int *mval= event->mval;
 
 	/* select flush... vertices are important */
 	EM_selectmode_set(em);
 
-	view3d_get_object_project_mat(rv3d, obedit, projectMat);
+	ED_view3d_ob_project_mat_get(rv3d, obedit, projectMat);
 
 	/* find best face, exclude triangles and break on face select or faces with 2 edges select */
 	mindist= 1000000.0f;
@@ -4922,7 +4933,7 @@ static int mesh_rip_invoke(bContext *C, wmOperator *op, wmEvent *event)
 
 			if(totsel>1)
 				break;
-			view3d_project_float(ar, efa->cent, vec, projectMat);
+			ED_view3d_project_float(ar, efa->cent, vec, projectMat);
 			dist= sqrt( (vec[0]-mval[0])*(vec[0]-mval[0]) + (vec[1]-mval[1])*(vec[1]-mval[1]) );
 			if(dist<mindist) {
 				mindist= dist;
@@ -5252,7 +5263,7 @@ static int blend_from_shape_exec(bContext *C, wmOperator *op)
 	return OPERATOR_FINISHED;
 }
 
-static EnumPropertyItem *shape_itemf(bContext *C, PointerRNA *UNUSED(ptr), int *free)
+static EnumPropertyItem *shape_itemf(bContext *C, PointerRNA *UNUSED(ptr), PropertyRNA *UNUSED(prop), int *free)
 {	
 	Object *obedit= CTX_data_edit_object(C);
 	Mesh *me= (obedit) ? obedit->data : NULL;
@@ -5305,7 +5316,7 @@ void MESH_OT_blend_from_shape(wmOperatorType *ot)
 	prop= RNA_def_enum(ot->srna, "shape", shape_items, 0, "Shape", "Shape key to use for blending.");
 	RNA_def_enum_funcs(prop, shape_itemf);
 	RNA_def_float(ot->srna, "blend", 1.0f, -FLT_MAX, FLT_MAX, "Blend", "Blending factor.", -2.0f, 2.0f);
-	RNA_def_boolean(ot->srna, "add", 0, "Add", "Add rather then blend between shapes.");
+	RNA_def_boolean(ot->srna, "add", 0, "Add", "Add rather than blend between shapes.");
 }
 
 /************************ Merge Operator *************************/
@@ -5414,7 +5425,7 @@ static void freecollections(ListBase *allcollections)
 
 /*Begin UV Edge Collapse Code
 	Like Edge subdivide, Edge Collapse should handle UV's intelligently, but since UV's are a per-face attribute, normal edge collapse will fail
-	in areas such as the boundries of 'UV islands'. So for each edge collection we need to build a set of 'welded' UV vertices and edges for it.
+	in areas such as the boundaries of 'UV islands'. So for each edge collection we need to build a set of 'welded' UV vertices and edges for it.
 	The welded UV edges can then be sorted and collapsed.
 */
 typedef struct wUV{
@@ -5910,6 +5921,7 @@ static int merge_exec(bContext *C, wmOperator *op)
 	EditMesh *em= BKE_mesh_get_editmesh((Mesh *)obedit->data);
 	int count= 0, uvs= RNA_boolean_get(op->ptr, "uvs");
 	EditSelection *ese;
+	int totvert= em->totvert, totedge= em->totedge, totface= em->totface;
 
 	switch(RNA_enum_get(op->ptr, "type")) {
 		case 3:
@@ -5940,7 +5952,7 @@ static int merge_exec(bContext *C, wmOperator *op)
 			break;
 	}
 
-	if(!count)
+	if (!(totvert != em->totvert || totedge != em->totedge || totface != em->totface))
 		return OPERATOR_CANCELLED;
 
 	recalc_editnormals(em);
@@ -5963,7 +5975,7 @@ static EnumPropertyItem merge_type_items[]= {
 	{5, "COLLAPSE", 0, "Collapse", ""},
 	{0, NULL, 0, NULL, NULL}};
 
-static EnumPropertyItem *merge_type_itemf(bContext *C, PointerRNA *UNUSED(ptr), int *free)
+static EnumPropertyItem *merge_type_itemf(bContext *C, PointerRNA *UNUSED(ptr), PropertyRNA *UNUSED(prop), int *free)
 {	
 	Object *obedit= CTX_data_edit_object(C);
 	EnumPropertyItem *item= NULL;

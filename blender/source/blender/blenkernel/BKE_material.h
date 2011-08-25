@@ -55,6 +55,7 @@ struct Material *copy_material(struct Material *ma);
 struct Material *localize_material(struct Material *ma);
 struct Material *give_node_material(struct Material *ma); /* returns node material or self */
 void make_local_material(struct Material *ma);
+void extern_local_matarar(struct Material **matar, short totcol);
 
 void automatname(struct Material *);
 
@@ -77,7 +78,7 @@ int object_remove_material_slot(struct Object *ob);
 
 /* rna api */
 void material_append_id(struct ID *id, struct Material *ma);
-struct Material *material_pop_id(struct ID *id, int index);
+struct Material *material_pop_id(struct ID *id, int index, int remove_material_slot);
 
 /* rendering */
 

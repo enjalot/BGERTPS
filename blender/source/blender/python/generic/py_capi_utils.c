@@ -30,7 +30,81 @@
 
 #include "py_capi_utils.h"
 
-#define PYC_INTERPRETER_ACTIVE (((PyThreadState*)_Py_atomic_load_relaxed(&_PyThreadState_Current)) != NULL)
+#include "BKE_font.h" /* only for utf8towchar, should replace with py funcs but too late in release now */
+
+#ifdef _WIN32 /* BLI_setenv */
+#include "BLI_path_util.h"
+#endif
+
+/* array utility function */
+int PyC_AsArray(void *array, PyObject *value, const int length, const PyTypeObject *type, const short is_double, const char *error_prefix)
+{
+	PyObject *value_fast;
+	int value_len;
+	int i;
+
+	if(!(value_fast=PySequence_Fast(value, error_prefix))) {
+		return -1;
+	}
+
+	value_len= PySequence_Fast_GET_SIZE(value_fast);
+
+	if(value_len != length) {
+		Py_DECREF(value);
+		PyErr_Format(PyExc_TypeError,
+		             "%.200s: invalid sequence length. expected %d, got %d",
+		             error_prefix, length, value_len);
+		return -1;
+	}
+
+	/* for each type */
+	if(type == &PyFloat_Type) {
+		if(is_double) {
+			double *array_double= array;
+			for(i=0; i<length; i++) {
+				array_double[i]= PyFloat_AsDouble(PySequence_Fast_GET_ITEM(value_fast, i));
+			}
+		}
+		else {
+			float *array_float= array;
+			for(i=0; i<length; i++) {
+				array_float[i]= PyFloat_AsDouble(PySequence_Fast_GET_ITEM(value_fast, i));
+			}
+		}
+	}
+	else if(type == &PyLong_Type) {
+		/* could use is_double for 'long int' but no use now */
+		int *array_int= array;
+		for(i=0; i<length; i++) {
+			array_int[i]= PyLong_AsSsize_t(PySequence_Fast_GET_ITEM(value_fast, i));
+		}
+	}
+	else if(type == &PyBool_Type) {
+		int *array_bool= array;
+		for(i=0; i<length; i++) {
+			array_bool[i]= (PyLong_AsSsize_t(PySequence_Fast_GET_ITEM(value_fast, i)) != 0);
+		}
+	}
+	else {
+		Py_DECREF(value_fast);
+		PyErr_Format(PyExc_TypeError,
+		             "%s: internal error %s is invalid",
+		             error_prefix, type->tp_name);
+		return -1;
+	}
+
+	Py_DECREF(value_fast);
+
+	if(PyErr_Occurred()) {
+		PyErr_Format(PyExc_TypeError,
+		             "%s: one or more items could not be used as a %s",
+		             error_prefix, type->tp_name);
+		return -1;
+	}
+
+	return 0;
+}
+
 
 /* for debugging */
 void PyC_ObSpit(const char *name, PyObject *var) {
@@ -282,6 +356,48 @@ void PyC_MainModule_Restore(PyObject *main_mod)
 	PyInterpreterState *interp= PyThreadState_GET()->interp;
 	PyDict_SetItemString(interp->modules, "__main__", main_mod);
 	Py_XDECREF(main_mod);
+}
+
+/* must be called before Py_Initialize, expects output of BLI_get_folder(BLENDER_PYTHON, NULL) */
+void PyC_SetHomePath(const char *py_path_bundle)
+{
+	if(py_path_bundle==NULL) {
+		/* Common enough to have bundled *nix python but complain on OSX/Win */
+#if defined(__APPLE__) || defined(_WIN32)
+		fprintf(stderr, "Warning! bundled python not found and is expected on this platform. (if you built with CMake: 'install' target may have not been built)\n");
+#endif
+		return;
+	}
+	/* set the environment path */
+	printf("found bundled python: %s\n", py_path_bundle);
+
+#ifdef __APPLE__
+	/* OSX allow file/directory names to contain : character (represented as / in the Finder)
+	 but current Python lib (release 3.1.1) doesn't handle these correctly */
+	if(strchr(py_path_bundle, ':'))
+		printf("Warning : Blender application is located in a path containing : or / chars\
+			   \nThis may make python import function fail\n");
+#endif
+
+#ifdef _WIN32
+	/* cmake/MSVC debug build crashes without this, why only
+	   in this case is unknown.. */
+	{
+		BLI_setenv("PYTHONPATH", py_path_bundle);
+	}
+#endif
+
+	{
+		static wchar_t py_path_bundle_wchar[1024];
+
+		/* cant use this, on linux gives bug: #23018, TODO: try LANG="en_US.UTF-8" /usr/bin/blender, suggested 22008 */
+		/* mbstowcs(py_path_bundle_wchar, py_path_bundle, FILE_MAXDIR); */
+
+		utf8towchar(py_path_bundle_wchar, py_path_bundle);
+
+		Py_SetPythonHome(py_path_bundle_wchar);
+		// printf("found python (wchar_t) '%ls'\n", py_path_bundle_wchar);
+	}
 }
 
 /* Would be nice if python had this built in */

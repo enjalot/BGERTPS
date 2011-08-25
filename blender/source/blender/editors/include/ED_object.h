@@ -108,7 +108,7 @@ int ED_object_add_generic_get_opts(struct bContext *C, struct wmOperator *op, fl
 struct Object *ED_object_add_type(struct bContext *C, int type, float *loc, float *rot, int enter_editmode, unsigned int layer);
 
 void ED_object_single_users(struct Main *bmain, struct Scene *scene, int full);
-
+void ED_object_single_user(struct Scene *scene, struct Object *ob);
 
 /* object motion paths */
 void ED_objects_clear_paths(struct bContext *C);
@@ -126,7 +126,7 @@ void ED_object_constraint_update(struct Object *ob);
 void ED_object_constraint_dependency_update(struct Main *bmain, struct Scene *scene, struct Object *ob);
 
 /* object_lattice.c */
-int  mouse_lattice(struct bContext *C, short mval[2], int extend);
+int  mouse_lattice(struct bContext *C, const int mval[2], int extend);
 void undo_push_lattice(struct bContext *C, const char *name);
 
 /* object_lattice.c */

@@ -28,33 +28,19 @@ remove_strict_flags()
 
 set(INC
 	.
-	../blenlib
 	../blenkernel
+	../blenlib
 	../blenloader
-	../windowmanager
+	../editors/include
 	../makesdna
 	../makesrna
-	../editors/include
+	../windowmanager
 	../../../intern/guardedalloc
 )
 
-if(APPLE)
-	list(APPEND INC
-		${OPENCOLLADA_INC}/COLLADAStreamWriter
-		${OPENCOLLADA_INC}/COLLADABaseUtils
-		${OPENCOLLADA_INC}/COLLADAFramework
-		${OPENCOLLADA_INC}/COLLADASaxFrameworkLoader
-		${OPENCOLLADA_INC}/GeneratedSaxParser 
-	)
-else()
-	list(APPEND INC
-		${OPENCOLLADA_INC}/COLLADAStreamWriter/include
-		${OPENCOLLADA_INC}/COLLADABaseUtils/include
-		${OPENCOLLADA_INC}/COLLADAFramework/include
-		${OPENCOLLADA_INC}/COLLADASaxFrameworkLoader/include 
-		${OPENCOLLADA_INC}/GeneratedSaxParser/include 
-	)
-endif()
+set(INC_SYS
+	${OPENCOLLADA_INCLUDE_DIRS}
+)
 
 set(SRC
 	AnimationImporter.cpp
@@ -103,7 +89,7 @@ set(SRC
 )
 
 if(WITH_BUILDINFO)
-	add_definitions(-DNAN_BUILDINFO)
+	add_definitions(-DWITH_BUILDINFO)
 endif()
 
 if(CMAKE_COMPILER_IS_GNUCXX)
@@ -111,4 +97,4 @@ if(CMAKE_COMPILER_IS_GNUCXX)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fpermissive")
 endif()
 
-blender_add_lib(bf_collada "${SRC}" "${INC}")
+blender_add_lib(bf_collada "${SRC}" "${INC}" "${INC_SYS}")

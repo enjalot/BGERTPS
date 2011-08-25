@@ -49,18 +49,26 @@ static bNodeSocketType cmp_node_color_out[]={
 
 static void do_color_key(bNode *node, float *out, float *in)
 {
+	float h_wrap;
 	NodeChroma *c;
 	c=node->storage;
 
 
-   VECCOPY(out, in);
+	VECCOPY(out, in);
 
-   if(fabs(in[0]-c->key[0]) < c->t1 &&
-	  fabs(in[1]-c->key[1]) < c->t2 &&
-	  fabs(in[2]-c->key[2]) < c->t3) 
-   {
-	  out[3]=0.0; /*make transparent*/
-   }
+	if(
+	/* do hue last because it needs to wrap, and does some more checks  */
+
+	/* sat */	(fabs(in[1]-c->key[1]) < c->t2) &&
+	/* val */	(fabs(in[2]-c->key[2]) < c->t3) &&
+
+	/* multiply by 2 because it wraps on both sides of the hue,
+	 * otherwise 0.5 would key all hue's */
+
+	/* hue */	((h_wrap= 2.0f * fabs(in[0]-c->key[0])) < c->t1 || (2.0f - h_wrap) < c->t1)
+	) {
+		out[3]=0.0; /*make transparent*/
+	}
 
 	else { /*pixel is outside key color */
 		out[3]=in[3]; /* make pixel just as transparent as it was before */
@@ -108,13 +116,13 @@ static void node_composit_exec_color_matte(void *data, bNode *node, bNodeStack *
 
 static void node_composit_init_color_matte(bNode *node)
 {
-   NodeChroma *c= MEM_callocN(sizeof(NodeChroma), "node color");
-   node->storage= c;
-   c->t1= 0.01f;
-   c->t2= 0.1f;
-   c->t3= 0.1f;
-   c->fsize= 0.0f;
-   c->fstrength= 1.0f;
+	NodeChroma *c= MEM_callocN(sizeof(NodeChroma), "node color");
+	node->storage= c;
+	c->t1= 0.01f;
+	c->t2= 0.1f;
+	c->t3= 0.1f;
+	c->fsize= 0.0f;
+	c->fstrength= 1.0f;
 }
 
 void register_node_type_cmp_color_matte(ListBase *lb)

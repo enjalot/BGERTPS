@@ -334,10 +334,13 @@ static void uiPanelPop(uiBlock *UNUSED(block))
 void UI_DrawTriIcon(float x, float y, char dir)
 {
 	if(dir=='h') {
-		ui_draw_anti_tria( x-3,y-5, x-3,y+5, x+7,y );
+		ui_draw_anti_tria( x-3, y-5, x-3, y+5, x+7,y );
 	}
-	else {
-		ui_draw_anti_tria( x-5,y+3,  x+5,y+3, x,y-7);	
+	else if(dir=='t') {
+		ui_draw_anti_tria( x-5, y-7, x+5, y-7, x, y+3);	
+	}
+	else { /* 'v' = vertical, down */
+		ui_draw_anti_tria( x-5, y+3, x+5, y+3, x, y-7);	
 	}
 }
 
@@ -381,7 +384,7 @@ static void ui_draw_x_icon(float x, float y)
 
 }
 
-#define PNL_ICON 	20
+#define PNL_ICON 	UI_UNIT_X  /* could be UI_UNIT_Y too */
 
 static void ui_draw_panel_scalewidget(rcti *rect)
 {
@@ -572,8 +575,8 @@ void ui_draw_aligned_panel(uiStyle *style, uiBlock *block, rcti *rect)
 		ui_draw_tria_rect(&itemrect, 'h');
 	else
 		ui_draw_tria_rect(&itemrect, 'v');
-	
-	
+
+	(void)ofsx;
 }
 
 /************************** panel alignment *************************/
@@ -1211,7 +1214,7 @@ static void panel_activate_state(const bContext *C, Panel *pa, uiHandlePanelStat
 		MEM_freeN(data);
 		pa->activedata= NULL;
 
-		WM_event_remove_ui_handler(&win->modalhandlers, ui_handler_panel, ui_handler_remove_panel, pa);
+		WM_event_remove_ui_handler(&win->modalhandlers, ui_handler_panel, ui_handler_remove_panel, pa, 0);
 	}
 	else {
 		if(!data) {

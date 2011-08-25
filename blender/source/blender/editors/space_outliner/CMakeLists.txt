@@ -22,23 +22,30 @@
 set(INC
 	../include
 	../../blenkernel
-	../../blenloader
 	../../blenlib
+	../../blenloader
 	../../imbuf
 	../../makesdna
 	../../makesrna
 	../../windowmanager
 	../../../../intern/guardedalloc
 	../../../../intern/opennl/extern
+)
+
+set(INC_SYS
 	${GLEW_INCLUDE_PATH}
 )
 
 set(SRC
-	outliner.c
+	outliner_draw.c
+	outliner_edit.c
 	outliner_ops.c
+	outliner_select.c
+	outliner_tools.c
+	outliner_tree.c
 	space_outliner.c
 
 	outliner_intern.h
 )
 
-blender_add_lib(bf_editor_space_outliner "${SRC}" "${INC}")
+blender_add_lib(bf_editor_space_outliner "${SRC}" "${INC}" "${INC_SYS}")

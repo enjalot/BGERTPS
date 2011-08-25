@@ -210,8 +210,8 @@ static void randuvec(float v[3])
 	if((r = 1.f - v[2] * v[2]) > 0.f) {
 		float a = (float)(6.283185307f * frand());
 		r = (float)sqrt(r);
-		v[0] = (float)(r * cos(a));
-		v[1] = (float)(r * sin(a));
+		v[0] = (float)(r * cosf(a));
+		v[1] = (float)(r * sinf(a));
 	}
 	else {
 		v[2] = 1.f;
@@ -254,7 +254,7 @@ static PyObject *Noise_noise(PyObject *UNUSED(self), PyObject *args)
 	if(!PyArg_ParseTuple(args, "(fff)|i:noise", &x, &y, &z, &nb))
 		return NULL;
 
-	return PyFloat_FromDouble((2.0 * BLI_gNoise(1.0, x, y, z, 0, nb) - 1.0));
+	return PyFloat_FromDouble((2.0f * BLI_gNoise(1.0f, x, y, z, 0, nb) - 1.0f));
 }
 
 /*-------------------------------------------------------------------------*/
@@ -264,11 +264,11 @@ static PyObject *Noise_noise(PyObject *UNUSED(self), PyObject *args)
 static void noise_vector(float x, float y, float z, int nb, float v[3])
 {
 	/* Simply evaluate noise at 3 different positions */
-	v[0] = (float)(2.0 * BLI_gNoise(1.f, x + 9.321f, y - 1.531f, z - 7.951f, 0,
-				 nb) - 1.0);
-	v[1] = (float)(2.0 * BLI_gNoise(1.f, x, y, z, 0, nb) - 1.0);
-	v[2] = (float)(2.0 * BLI_gNoise(1.f, x + 6.327f, y + 0.1671f, z - 2.672f, 0,
-				 nb) - 1.0);
+	v[0]= (float)(2.0f * BLI_gNoise(1.f, x + 9.321f, y - 1.531f, z - 7.951f, 0,
+				 nb) - 1.0f);
+	v[1]= (float)(2.0f * BLI_gNoise(1.f, x, y, z, 0, nb) - 1.0f);
+	v[2]= (float)(2.0f * BLI_gNoise(1.f, x + 6.327f, y + 0.1671f, z - 2.672f, 0,
+				 nb) - 1.0f);
 }
 
 static PyObject *Noise_vector(PyObject *UNUSED(self), PyObject *args)
@@ -291,7 +291,7 @@ static float turb(float x, float y, float z, int oct, int hard, int nb,
 	float amp, out, t;
 	int i;
 	amp = 1.f;
-	out = (float)(2.0 * BLI_gNoise(1.f, x, y, z, 0, nb) - 1.0);
+	out = (float)(2.0f * BLI_gNoise(1.f, x, y, z, 0, nb) - 1.0f);
 	if(hard)
 		out = (float)fabs(out);
 	for(i = 1; i < oct; i++) {
@@ -299,7 +299,7 @@ static float turb(float x, float y, float z, int oct, int hard, int nb,
 		x *= freqscale;
 		y *= freqscale;
 		z *= freqscale;
-		t = (float)(amp * (2.0 * BLI_gNoise(1.f, x, y, z, 0, nb) - 1.0));
+		t = (float)(amp * (2.0f * BLI_gNoise(1.f, x, y, z, 0, nb) - 1.0f));
 		if(hard)
 			t = (float)fabs(t);
 		out += t;
@@ -478,111 +478,134 @@ static PyObject *Noise_cell_vector(PyObject *UNUSED(self), PyObject *args)
    In the original module I actually kept the docs stings with the functions themselves,
    but I grouped them here so that it can easily be moved to a header if anyone thinks that is necessary. */
 
-static char random__doc__[] = "() No arguments.\n\n\
-Returns a random floating point number in the range [0, 1)";
+PyDoc_STRVAR(random__doc__,
+"() No arguments.\n\n\
+Returns a random floating point number in the range [0, 1)"
+);
 
-static char random_unit_vector__doc__[] =
-	"() No arguments.\n\nReturns a random unit vector (3-float list).";
+PyDoc_STRVAR(random_unit_vector__doc__,
+"() No arguments.\n\nReturns a random unit vector (3-float list)."
+);
 
-static char seed_set__doc__[] = "(seed value)\n\n\
+PyDoc_STRVAR(seed_set__doc__,
+"(seed value)\n\n\
 Initializes random number generator.\n\
-if seed is zero, the current time will be used instead.";
+if seed is zero, the current time will be used instead."
+);
 
-static char noise__doc__[] = "((x,y,z) tuple, [noisetype])\n\n\
+PyDoc_STRVAR(noise__doc__,
+"((x,y,z) tuple, [noisetype])\n\n\
 Returns general noise of the optional specified type.\n\
-Optional argument noisetype determines the type of noise, STDPERLIN by default, see NoiseTypes.";
+Optional argument noisetype determines the type of noise, STDPERLIN by default, see NoiseTypes."
+);
 
-static char noise_vector__doc__[] = "((x,y,z) tuple, [noisetype])\n\n\
+PyDoc_STRVAR(noise_vector__doc__,
+"((x,y,z) tuple, [noisetype])\n\n\
 Returns noise vector (3-float list) of the optional specified type.\
-Optional argument noisetype determines the type of noise, STDPERLIN by default, see NoiseTypes.";
+Optional argument noisetype determines the type of noise, STDPERLIN by default, see NoiseTypes."
+);
 
-static char turbulence__doc__[] =
-	"((x,y,z) tuple, octaves, hard, [noisebasis], [ampscale], [freqscale])\n\n\
+PyDoc_STRVAR(turbulence__doc__,
+"((x,y,z) tuple, octaves, hard, [noisebasis], [ampscale], [freqscale])\n\n\
 Returns general turbulence value using the optional specified noisebasis function.\n\
 octaves (integer) is the number of noise values added.\n\
 hard (bool), when false (0) returns 'soft' noise, when true (1) returns 'hard' noise (returned value always positive).\n\
 Optional arguments:\n\
 noisebasis determines the type of noise used for the turbulence, STDPERLIN by default, see NoiseTypes.\n\
 ampscale sets the amplitude scale value of the noise frequencies added, 0.5 by default.\n\
-freqscale sets the frequency scale factor, 2.0 by default.";
+freqscale sets the frequency scale factor, 2.0 by default."
+);
 
-static char turbulence_vector__doc__[] =
-	"((x,y,z) tuple, octaves, hard, [noisebasis], [ampscale], [freqscale])\n\n\
+PyDoc_STRVAR(turbulence_vector__doc__,
+"((x,y,z) tuple, octaves, hard, [noisebasis], [ampscale], [freqscale])\n\n\
 Returns general turbulence vector (3-float list) using the optional specified noisebasis function.\n\
 octaves (integer) is the number of noise values added.\n\
 hard (bool), when false (0) returns 'soft' noise, when true (1) returns 'hard' noise (returned vector always positive).\n\
 Optional arguments:\n\
 noisebasis determines the type of noise used for the turbulence, STDPERLIN by default, see NoiseTypes.\n\
 ampscale sets the amplitude scale value of the noise frequencies added, 0.5 by default.\n\
-freqscale sets the frequency scale factor, 2.0 by default.";
+freqscale sets the frequency scale factor, 2.0 by default."
+);
 
-static char fractal__doc__[] =
-	"((x,y,z) tuple, H, lacunarity, octaves, [noisebasis])\n\n\
+PyDoc_STRVAR(fractal__doc__,
+"((x,y,z) tuple, H, lacunarity, octaves, [noisebasis])\n\n\
 Returns Fractal Brownian Motion noise value(fBm).\n\
 H is the fractal increment parameter.\n\
 lacunarity is the gap between successive frequencies.\n\
 octaves is the number of frequencies in the fBm.\n\
-Optional argument noisebasis determines the type of noise used for the turbulence, STDPERLIN by default, see NoiseTypes.";
+Optional argument noisebasis determines the type of noise used for the turbulence, STDPERLIN by default, see NoiseTypes."
+);
 
-static char multi_fractal__doc__[] =
-	"((x,y,z) tuple, H, lacunarity, octaves, [noisebasis])\n\n\
+PyDoc_STRVAR(multi_fractal__doc__,
+"((x,y,z) tuple, H, lacunarity, octaves, [noisebasis])\n\n\
 Returns Multifractal noise value.\n\
 H determines the highest fractal dimension.\n\
 lacunarity is gap between successive frequencies.\n\
 octaves is the number of frequencies in the fBm.\n\
-Optional argument noisebasis determines the type of noise used for the turbulence, STDPERLIN by default, see NoiseTypes.";
+Optional argument noisebasis determines the type of noise used for the turbulence, STDPERLIN by default, see NoiseTypes."
+);
 
-static char vl_vector__doc__[] =
-	"((x,y,z) tuple, distortion, [noisetype1], [noisetype2])\n\n\
+PyDoc_STRVAR(vl_vector__doc__,
+"((x,y,z) tuple, distortion, [noisetype1], [noisetype2])\n\n\
 Returns Variable Lacunarity Noise value, a distorted variety of noise.\n\
 distortion sets the amount of distortion.\n\
 Optional arguments noisetype1 and noisetype2 set the noisetype to distort and the noisetype used for the distortion respectively.\n\
-See NoiseTypes, both are STDPERLIN by default.";
+See NoiseTypes, both are STDPERLIN by default."
+);
 
-static char hetero_terrain__doc__[] =
-	"((x,y,z) tuple, H, lacunarity, octaves, offset, [noisebasis])\n\n\
+PyDoc_STRVAR(hetero_terrain__doc__,
+"((x,y,z) tuple, H, lacunarity, octaves, offset, [noisebasis])\n\n\
 returns Heterogeneous Terrain value\n\
 H determines the fractal dimension of the roughest areas.\n\
 lacunarity is the gap between successive frequencies.\n\
 octaves is the number of frequencies in the fBm.\n\
 offset raises the terrain from 'sea level'.\n\
-Optional argument noisebasis determines the type of noise used for the turbulence, STDPERLIN by default, see NoiseTypes.";
+Optional argument noisebasis determines the type of noise used for the turbulence, STDPERLIN by default, see NoiseTypes."
+);
 
-static char hybrid_multi_fractal__doc__[] =
-	"((x,y,z) tuple, H, lacunarity, octaves, offset, gain, [noisebasis])\n\n\
+PyDoc_STRVAR(hybrid_multi_fractal__doc__,
+"((x,y,z) tuple, H, lacunarity, octaves, offset, gain, [noisebasis])\n\n\
 returns Hybrid Multifractal value.\n\
 H determines the fractal dimension of the roughest areas.\n\
 lacunarity is the gap between successive frequencies.\n\
 octaves is the number of frequencies in the fBm.\n\
 offset raises the terrain from 'sea level'.\n\
 gain scales the values.\n\
-Optional argument noisebasis determines the type of noise used for the turbulence, STDPERLIN by default, see NoiseTypes.";
+Optional argument noisebasis determines the type of noise used for the turbulence, STDPERLIN by default, see NoiseTypes."
+);
 
-static char ridged_multi_fractal__doc__[] =
-	"((x,y,z) tuple, H, lacunarity, octaves, offset, gain [noisebasis])\n\n\
+PyDoc_STRVAR(ridged_multi_fractal__doc__,
+"((x,y,z) tuple, H, lacunarity, octaves, offset, gain [noisebasis])\n\n\
 returns Ridged Multifractal value.\n\
 H determines the fractal dimension of the roughest areas.\n\
 lacunarity is the gap between successive frequencies.\n\
 octaves is the number of frequencies in the fBm.\n\
 offset raises the terrain from 'sea level'.\n\
 gain scales the values.\n\
-Optional argument noisebasis determines the type of noise used for the turbulence, STDPERLIN by default, see NoiseTypes.";
+Optional argument noisebasis determines the type of noise used for the turbulence, STDPERLIN by default, see NoiseTypes."
+);
 
-static char voronoi__doc__[] =
-	"((x,y,z) tuple, distance_metric, [exponent])\n\n\
+PyDoc_STRVAR(voronoi__doc__,
+"((x,y,z) tuple, distance_metric, [exponent])\n\n\
 returns a list, containing a list of distances in order of closest feature,\n\
 and a list containing the positions of the four closest features\n\
 Optional arguments:\n\
 distance_metric: see DistanceMetrics, default is DISTANCE\n\
-exponent is only used with MINKOVSKY, default is 2.5.";
+exponent is only used with MINKOVSKY, default is 2.5."
+);
 
-static char cell__doc__[] = "((x,y,z) tuple)\n\n\
-returns cellnoise float value.";
+PyDoc_STRVAR(cell__doc__,
+"((x,y,z) tuple)\n\n\
+returns cellnoise float value."
+);
 
-static char cell_vector__doc__[] = "((x,y,z) tuple)\n\n\
-returns cellnoise vector/point/color (3-float list).";
+PyDoc_STRVAR(cell_vector__doc__,
+"((x,y,z) tuple)\n\n\
+returns cellnoise vector/point/color (3-float list)."
+);
 
-static char Noise__doc__[] = "Blender Noise and Turbulence Module\n\n\
+PyDoc_STRVAR(Noise__doc__,
+"Blender Noise and Turbulence Module\n\n\
 This module can be used to generate noise of various types.\n\
 This can be used for terrain generation, to create textures,\n\
 make animations more 'animated', object deformation, etc.\n\
@@ -610,7 +633,8 @@ look like anything from an earthquake to a very nervous or maybe even drunk came
 \trv = Noise.turbulence_vector(ps, 3, 0, Noise.NoiseTypes.NEWPERLIN)\n\
 \tob.dloc = (sp*rv[0], sp*rv[1], sp*rv[2])\n\
 \tob.drot = (sr*rv[0], sr*rv[1], sr*rv[2])\n\
-\n";
+\n"
+);
 
 /* Just in case, declarations for a header file */
 /*

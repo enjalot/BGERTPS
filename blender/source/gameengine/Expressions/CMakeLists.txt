@@ -26,12 +26,15 @@
 
 set(INC
 	.
-	../../../source/kernel/gen_system
-	../../../intern/string
+	../SceneGraph
+	../../blender/blenloader
 	../../../intern/guardedalloc
 	../../../intern/moto/include
-	../../../source/gameengine/SceneGraph
-	../../../source/blender/blenloader
+	../../../intern/string
+)
+
+set(INC_SYS
+
 )
 
 set(SRC
@@ -78,4 +81,4 @@ set(SRC
 	VoidValue.h
 )
 
-blender_add_lib(ge_logic_expressions "${SRC}" "${INC}")
+blender_add_lib(ge_logic_expressions "${SRC}" "${INC}" "${INC_SYS}")

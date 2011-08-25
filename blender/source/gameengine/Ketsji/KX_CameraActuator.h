@@ -73,6 +73,9 @@ private :
 	
 	/** xy toggle (pick one): true == x, false == y */
 	bool m_x;
+	
+	/** damping (float), */
+	float m_damping;
 
 	/* get the KX_IGameObject with this name */
 	CValue *findObject(char *obName);
@@ -95,7 +98,8 @@ private :
 		float hght,
 		float minhght,
 		float maxhght,
-		bool xytog
+		bool xytog,
+		float damping
 	);
 
 
@@ -116,7 +120,7 @@ private :
 	virtual bool	UnlinkObject(SCA_IObject* clientobj);
 
 	/** Methods inherited from SCA_ILogicBrick */
-	virtual void	Relink(GEN_Map<GEN_HashedPtr, void*> *obj_map);
+	virtual void	Relink(CTR_Map<CTR_HashedPtr, void*> *obj_map);
 
 #ifdef WITH_PYTHON
 

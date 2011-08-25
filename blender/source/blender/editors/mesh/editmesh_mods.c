@@ -140,14 +140,13 @@ void EM_automerge(Scene *scene, Object *obedit, int update)
 	int len;
 
 	if ((scene->toolsettings->automerge) &&
-		(obedit && obedit->type==OB_MESH && (obedit->mode & OB_MODE_EDIT)) &&
-		(me->mr==NULL)
+		(obedit && obedit->type==OB_MESH && (obedit->mode & OB_MODE_EDIT))
 	  ) {
 		EditMesh *em= me->edit_mesh;
+		int totvert= em->totvert, totedge= em->totedge, totface= em->totface;
 
 		len = removedoublesflag(em, 1, 1, scene->toolsettings->doublimit);
-		if (len) {
-			em->totvert -= len; /* saves doing a countall */
+		if (totvert != em->totvert || totedge != em->totedge || totface != em->totface) {
 			if (update) {
 				DAG_id_tag_update(&me->id, 0);
 			}
@@ -163,7 +162,7 @@ unsigned int em_solidoffs=0, em_wireoffs=0, em_vertoffs=0;	/* set in drawobject.
 static char *selbuf= NULL;
 
 /* opengl doesn't support concave... */
-static void draw_triangulated(short mcords[][2], short tot)
+static void draw_triangulated(int mcords[][2], short tot)
 {
 	ListBase lb={NULL, NULL};
 	DispList *dl;
@@ -257,7 +256,7 @@ void EM_free_backbuf(void)
    - grab again and compare
    returns 'OK' 
 */
-int EM_mask_init_backbuf_border(ViewContext *vc, short mcords[][2], short tot, short xmin, short ymin, short xmax, short ymax)
+int EM_mask_init_backbuf_border(ViewContext *vc, int mcords[][2], short tot, short xmin, short ymin, short xmax, short ymax)
 {
 	unsigned int *dr, *drm;
 	struct ImBuf *buf, *bufmask;
@@ -291,7 +290,7 @@ int EM_mask_init_backbuf_border(ViewContext *vc, short mcords[][2], short tot, s
 	draw_triangulated(mcords, tot);
 	
 	glBegin(GL_LINE_LOOP);	/* for zero sized masks, lines */
-	for(a=0; a<tot; a++) glVertex2s(mcords[a][0], mcords[a][1]);
+	for(a=0; a<tot; a++) glVertex2iv(mcords[a]);
 	glEnd();
 	
 	glFinish();	/* to be sure readpixels sees mask */
@@ -359,7 +358,7 @@ int EM_init_backbuf_circle(ViewContext *vc, short xs, short ys, short rads)
 
 static void findnearestvert__doClosest(void *userData, EditVert *eve, int x, int y, int index)
 {
-	struct { short mval[2], pass, select, strict; int dist, lastIndex, closestIndex; EditVert *closest; } *data = userData;
+	struct { int mval[2]; short pass, select, strict; int dist, lastIndex, closestIndex; EditVert *closest; } *data = userData;
 
 	if (data->pass==0) {
 		if (index<=data->lastIndex)
@@ -427,7 +426,7 @@ EditVert *findnearestvert(ViewContext *vc, int *dist, short sel, short strict)
 			
 	}
 	else {
-		struct { short mval[2], pass, select, strict; int dist, lastIndex, closestIndex; EditVert *closest; } data;
+		struct { int mval[2]; short pass, select, strict; int dist, lastIndex, closestIndex; EditVert *closest; } data;
 		static int lastSelectedIndex=0;
 		static EditVert *lastSelected=NULL;
 
@@ -505,7 +504,7 @@ static void findnearestedge__doClosest(void *userData, EditEdge *eed, int x0, in
 			vec[1]= eed->v1->co[1] + labda*(eed->v2->co[1] - eed->v1->co[1]);
 			vec[2]= eed->v1->co[2] + labda*(eed->v2->co[2] - eed->v1->co[2]);
 
-			if(view3d_test_clipping(data->vc.rv3d, vec, 1)==0) {
+			if(ED_view3d_test_clipping(data->vc.rv3d, vec, 1)==0) {
 				data->dist = distance;
 				data->closest = eed;
 			}
@@ -550,7 +549,7 @@ EditEdge *findnearestedge(ViewContext *vc, int *dist)
 
 static void findnearestface__getDistance(void *userData, EditFace *efa, int x, int y, int UNUSED(index))
 {
-	struct { short mval[2]; int dist; EditFace *toFace; } *data = userData;
+	struct { int mval[2]; int dist; EditFace *toFace; } *data = userData;
 
 	if (efa==data->toFace) {
 		int temp = abs(data->mval[0]-x) + abs(data->mval[1]-y);
@@ -561,7 +560,7 @@ static void findnearestface__getDistance(void *userData, EditFace *efa, int x, i
 }
 static void findnearestface__doClosest(void *userData, EditFace *efa, int x, int y, int index)
 {
-	struct { short mval[2], pass; int dist, lastIndex, closestIndex; EditFace *closest; } *data = userData;
+	struct { int mval[2]; short pass; int dist, lastIndex, closestIndex; EditFace *closest; } *data = userData;
 
 	if (data->pass==0) {
 		if (index<=data->lastIndex)
@@ -589,7 +588,7 @@ static EditFace *findnearestface(ViewContext *vc, int *dist)
 		EditFace *efa = BLI_findlink(&vc->em->faces, index-1);
 
 		if (efa) {
-			struct { short mval[2]; int dist; EditFace *toFace; } data;
+			struct { int mval[2]; int dist; EditFace *toFace; } data;
 
 			data.mval[0] = vc->mval[0];
 			data.mval[1] = vc->mval[1];
@@ -608,7 +607,7 @@ static EditFace *findnearestface(ViewContext *vc, int *dist)
 		return NULL;
 	}
 	else {
-		struct { short mval[2], pass; int dist, lastIndex, closestIndex; EditFace *closest; } data;
+		struct { int mval[2]; short pass; int dist, lastIndex, closestIndex; EditFace *closest; } data;
 		static int lastSelectedIndex=0;
 		static EditFace *lastSelected=NULL;
 
@@ -868,7 +867,7 @@ static int similar_face_select_exec(bContext *C, wmOperator *op)
 	Mesh *me= obedit->data;
 	EditMesh *em= BKE_mesh_get_editmesh(me); 
 
-	int selcount = similar_face_select__internal(em, RNA_int_get(op->ptr, "type"), RNA_float_get(op->ptr, "threshold"));
+	int selcount = similar_face_select__internal(em, RNA_enum_get(op->ptr, "type"), RNA_float_get(op->ptr, "threshold"));
 	
 	if (selcount) {
 		/* here was an edge-mode only select flush case, has to be generalized */
@@ -1251,7 +1250,7 @@ static int select_similar_exec(bContext *C, wmOperator *op)
 		return similar_face_select_exec(C, op);
 }
 
-static EnumPropertyItem *select_similar_type_itemf(bContext *C, PointerRNA *UNUSED(ptr), int *free)
+static EnumPropertyItem *select_similar_type_itemf(bContext *C, PointerRNA *UNUSED(ptr), PropertyRNA *UNUSED(prop), int *free)
 {
 	Object *obedit= CTX_data_edit_object(C);
 	EnumPropertyItem *item= NULL;
@@ -1698,7 +1697,7 @@ void EM_mesh_copy_face_layer(EditMesh *em, wmOperator *op, short type)
 
 
 /* ctrl+c in mesh editmode */
-static void mesh_copy_menu(EditMesh *em, wmOperator *op)
+static void UNUSED_FUNCTION(mesh_copy_menu)(EditMesh *em, wmOperator *op)
 {
 	EditSelection *ese;
 	int ret;
@@ -2062,7 +2061,7 @@ void MESH_OT_loop_multi_select(wmOperatorType *ot)
 
 /* ***************** loop select (non modal) ************** */
 
-static void mouse_mesh_loop(bContext *C, short mval[2], short extend, short ring)
+static void mouse_mesh_loop(bContext *C, const int mval[2], short extend, short ring)
 {
 	ViewContext vc;
 	EditMesh *em;
@@ -2150,7 +2149,7 @@ void MESH_OT_loop_select(wmOperatorType *ot)
 /* ******************* mesh shortest path select, uses prev-selected edge ****************** */
 
 /* since you want to create paths with multiple selects, it doesn't have extend option */
-static void mouse_mesh_shortest_path(bContext *C, short mval[2])
+static void mouse_mesh_shortest_path(bContext *C, const int mval[2])
 {
 	ViewContext vc;
 	EditMesh *em;
@@ -2283,7 +2282,7 @@ void MESH_OT_select_shortest_path(wmOperatorType *ot)
 
 /* here actual select happens */
 /* gets called via generic mouse select operator */
-int mouse_mesh(bContext *C, short mval[2], short extend)
+int mouse_mesh(bContext *C, const int mval[2], short extend)
 {
 	ViewContext vc;
 	EditVert *eve;
@@ -2340,7 +2339,7 @@ int mouse_mesh(bContext *C, short mval[2], short extend)
 		if (efa && efa->mat_nr != vc.obedit->actcol-1) {
 			vc.obedit->actcol= efa->mat_nr+1;
 			vc.em->mat_nr= efa->mat_nr;
-//			BIF_preview_changed(ID_MA);
+			WM_event_add_notifier(C, NC_MATERIAL|ND_SHADING, NULL);
 		}
 
 		WM_event_add_notifier(C, NC_GEOM|ND_SELECT, vc.obedit->data);
@@ -2452,7 +2451,7 @@ static int select_linked_limited_invoke(ViewContext *vc, short all, short sel)
 	if (!change)
 		return OPERATOR_CANCELLED;
 	
-	if (!sel) /* make sure de-selecting faces didnt de-select the verts/edges connected to selected faces, this is common with boundries */
+	if (!sel) /* make sure de-selecting faces didnt de-select the verts/edges connected to selected faces, this is common with boundaries */
 		for(efa= em->faces.first; efa; efa= efa->next)
 			if (efa->f & SELECT)
 				EM_select_face(efa, 1);
@@ -2582,7 +2581,7 @@ void MESH_OT_select_linked_pick(wmOperatorType *ot)
 	ot->flag= OPTYPE_REGISTER|OPTYPE_UNDO;
 	
 	RNA_def_boolean(ot->srna, "deselect", 0, "Deselect", "");
-	RNA_def_boolean(ot->srna, "limit", 0, "Limit by Seams", "Limit selection by seam boundries (faces only)");
+	RNA_def_boolean(ot->srna, "limit", 0, "Limit by Seams", "Limit selection by seam boundaries (faces only)");
 }
 
 
@@ -2671,7 +2670,7 @@ void MESH_OT_select_linked(wmOperatorType *ot)
 	/* flags */
 	ot->flag= OPTYPE_REGISTER|OPTYPE_UNDO;
 	
-	RNA_def_boolean(ot->srna, "limit", 0, "Limit by Seams", "Limit selection by seam boundries (faces only)");
+	RNA_def_boolean(ot->srna, "limit", 0, "Limit by Seams", "Limit selection by seam boundaries (faces only)");
 }
 
 

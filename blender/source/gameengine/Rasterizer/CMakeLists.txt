@@ -26,14 +26,17 @@
 
 set(INC
 	.
-	../../../source/kernel/gen_system
-	../../../source/blender/makesdna
-	../../../source/gameengine/SceneGraph
-	../../../source/gameengine/Ketsji
-	../../../intern/string
-	../../../intern/moto/include
-	../../../intern/guardedalloc
 	../Expressions
+	../Ketsji
+	../SceneGraph
+	../../blender/makesdna
+	../../../intern/container
+	../../../intern/guardedalloc
+	../../../intern/moto/include
+	../../../intern/string
+)
+
+set(INC_SYS
 	${GLEW_INCLUDE_PATH}
 	${PYTHON_INCLUDE_DIRS}
 )
@@ -86,4 +89,4 @@ ENDIF(WITH_OPENCL)
 
 add_definitions(-DGLEW_STATIC)
 
-blender_add_lib(ge_rasterizer "${SRC}" "${INC}")
+blender_add_lib(ge_rasterizer "${SRC}" "${INC}" "${INC_SYS}")

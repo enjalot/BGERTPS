@@ -592,6 +592,9 @@ bool	CcdPhysicsEnvironment::proceedDeltaTime(double curTime,float timeStep,float
 
 	float subStep = timeStep / float(m_numTimeSubSteps);
 	i = m_dynamicsWorld->stepSimulation(interval,25,subStep);//perform always a full simulation step
+//uncomment next line to see where Bullet spend its time (printf in console)	
+//CProfileManager::dumpAll();
+
 	processFhSprings(curTime,i*subStep);
 
 	for (it=m_controllers.begin(); it!=m_controllers.end(); it++)
@@ -936,7 +939,7 @@ int			CcdPhysicsEnvironment::createUniversalD6Constraint(
 	} else
 	{
 		// TODO: Implement single body case...
-		//No, we can use a fixed rigidbody in above code, rather then unnecessary duplation of code
+		//No, we can use a fixed rigidbody in above code, rather than unnecessary duplation of code
 
 	}
 	
@@ -2268,7 +2271,7 @@ PHY_IPhysicsController*	CcdPhysicsEnvironment::CreateSphereController(float radi
 	cinfo.m_collisionShape = new btSphereShape(radius); // memory leak! The shape is not deleted by Bullet and we cannot add it to the KX_Scene.m_shapes list
 	cinfo.m_MotionState = 0;
 	cinfo.m_physicsEnv = this;
-	// declare this object as Dyamic rather then static!!
+	// declare this object as Dyamic rather than static!!
 	// The reason as it is designed to detect all type of object, including static object
 	// It would cause static-static message to be printed on the console otherwise
 	cinfo.m_collisionFlags |= btCollisionObject::CF_NO_CONTACT_RESPONSE | btCollisionObject::CF_STATIC_OBJECT;
@@ -2759,7 +2762,8 @@ int			CcdPhysicsEnvironment::createConstraint(class PHY_IPhysicsController* ctrl
 PHY_IPhysicsController* CcdPhysicsEnvironment::CreateConeController(float coneradius,float coneheight)
 {
 	CcdConstructionInfo	cinfo;
-	memset(&cinfo, 0, sizeof(cinfo)); /* avoid uninitialized values */
+//don't memset cinfo: this is C++ and values should be set in the constructor!
+
 	// we don't need a CcdShapeConstructionInfo for this shape:
 	// it is simple enough for the standard copy constructor (see CcdPhysicsController::GetReplica)
 	cinfo.m_collisionShape = new btConeShape(coneradius,coneheight);

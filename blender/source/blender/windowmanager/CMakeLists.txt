@@ -26,30 +26,33 @@
 
 set(INC
 	.
-	../nodes
-	../gpu
 	../blenfont
-	../blenlib
-	../makesdna
-	../makesrna
 	../blenkernel
-	../imbuf
+	../blenlib
 	../blenloader
 	../editors/include
+	../gpu
+	../imbuf
+	../makesdna
+	../makesrna
+	../nodes
 	../render/extern/include
-	../../kernel/gen_system
-	../../../intern/guardedalloc
-	../../../intern/memutil
+	../../gameengine/BlenderRoutines
 	../../../intern/elbeem/extern
 	../../../intern/ghost
+	../../../intern/guardedalloc
+	../../../intern/memutil
 	../../../intern/opennl/extern
+)
+
+set(INC_SYS
+	${ZLIB_INCLUDE_DIRS}
 	${OPENGL_INCLUDE_DIR}
 	${GLEW_INCLUDE_PATH}
 )
 
 set(SRC
 	intern/wm.c
-	intern/wm_apple.c
 	intern/wm_cursors.c
 	intern/wm_dragdrop.c
 	intern/wm_draw.c
@@ -64,6 +67,7 @@ set(SRC
 	intern/wm_window.c
 
 	WM_api.h
+	WM_keymap.h
 	WM_types.h
 	wm.h
 	wm_cursors.h
@@ -86,30 +90,47 @@ if(WITH_OPENCOLLADA)
 endif()
 
 if(WITH_CODEC_QUICKTIME)
-	list(APPEND INC ../quicktime ${QUICKTIME_INC})
+	list(APPEND INC
+		../quicktime
+	)
+	list(APPEND INC_SYS
+		${QUICKTIME_INCLUDE_DIRS}
+	)
 	add_definitions(-DWITH_QUICKTIME)
 endif()
 
 if(WITH_CODEC_FFMPEG)
-	list(APPEND INC ${FFMPEG_INC})
+	list(APPEND INC_SYS
+		${FFMPEG_INCLUDE_DIRS}
+	)
 	add_definitions(-DWITH_FFMPEG)
 endif()
 
 if(WITH_PYTHON)
-	list(APPEND INC ../python ${PYTHON_INCLUDE_DIRS})
+	list(APPEND INC
+		../python
+	)
 	add_definitions(-DWITH_PYTHON)
+
+	if(WITH_PYTHON_SECURITY)
+		add_definitions(-DWITH_PYTHON_SECURITY)
+	endif()
 endif()
 
 if(WITH_GAMEENGINE)
 	add_definitions(-DWITH_GAMEENGINE)
 endif()
 
-if(WITH_COCOA)
-	list(REMOVE_ITEM SRC "${CMAKE_CURRENT_SOURCE_DIR}/intern/wm_apple.c")
+if(APPLE)
+	if(NOT WITH_COCOA)
+		list(APPEND SRC
+			intern/wm_apple.c
+		)
+	endif()
 endif()
 
 if(WITH_BUILDINFO)
-	add_definitions(-DNAN_BUILDINFO)
+	add_definitions(-DWITH_BUILDINFO)
 endif()
 
-blender_add_lib_nolist(bf_windowmanager "${SRC}" "${INC}")
+blender_add_lib_nolist(bf_windowmanager "${SRC}" "${INC}" "${INC_SYS}")

@@ -70,16 +70,13 @@
 ARegion *view3d_has_buttons_region(ScrArea *sa)
 {
 	ARegion *ar, *arnew;
-	
-	for(ar= sa->regionbase.first; ar; ar= ar->next)
-		if(ar->regiontype==RGN_TYPE_UI)
-			return ar;
+
+	ar= BKE_area_find_region_type(sa, RGN_TYPE_UI);
+	if(ar) return ar;
 	
 	/* add subdiv level; after header */
-	for(ar= sa->regionbase.first; ar; ar= ar->next)
-		if(ar->regiontype==RGN_TYPE_HEADER)
-			break;
-	
+	ar= BKE_area_find_region_type(sa, RGN_TYPE_HEADER);
+
 	/* is error! */
 	if(ar==NULL) return NULL;
 	
@@ -147,13 +144,51 @@ RegionView3D *ED_view3d_context_rv3d(bContext *C)
 	if(rv3d==NULL) {
 		ScrArea *sa =CTX_wm_area(C);
 		if(sa && sa->spacetype==SPACE_VIEW3D) {
-			ARegion *ar;
-			for(ar= sa->regionbase.first; ar; ar= ar->next)
-				if(ar->regiontype==RGN_TYPE_WINDOW)
-					return ar->regiondata;
+			ARegion *ar= BKE_area_find_region_type(sa, RGN_TYPE_WINDOW);
+			if(ar) {
+				rv3d= ar->regiondata;
+			}
 		}
 	}
 	return rv3d;
+}
+
+/* ideally would return an rv3d but in some cases the region is needed too
+ * so return that, the caller can then access the ar->regiondata */
+ARegion *ED_view3d_context_region_unlock(bContext *C)
+{
+	ScrArea *sa= CTX_wm_area(C);
+	if(sa && sa->spacetype==SPACE_VIEW3D) {
+		ARegion *ar= CTX_wm_region(C);
+		if(ar) {
+			RegionView3D *rv3d= ar->regiondata;
+			if(rv3d && rv3d->viewlock == 0) {
+				return ar;
+			}
+			else {
+				ARegion *ar_unlock_user= NULL;
+				ARegion *ar_unlock= NULL;
+				for(ar= sa->regionbase.first; ar; ar= ar->next) {
+					/* find the first unlocked rv3d */
+					if(ar->regiondata && ar->regiontype == RGN_TYPE_WINDOW) {
+						rv3d= ar->regiondata;
+						if(rv3d->viewlock == 0) {
+							ar_unlock= ar;
+							if(rv3d->persp==RV3D_PERSP || rv3d->persp==RV3D_CAMOB) {
+								ar_unlock_user= ar;
+								break;
+							}
+						} 
+					}
+				}
+
+				/* camera/perspective view get priority when the active region is locked */
+				if(ar_unlock_user) return ar_unlock_user;
+				if(ar_unlock) return ar_unlock;
+			}
+		}
+	}
+	return NULL;
 }
 
 /* Most of the time this isn't needed since you could assume the view matrix was
@@ -173,13 +208,18 @@ void ED_view3d_init_mats_rv3d(struct Object *ob, struct RegionView3D *rv3d)
 	mul_m4_m4m4(rv3d->viewmatob, ob->obmat, rv3d->viewmat);
 	mul_m4_m4m4(rv3d->persmatob, ob->obmat, rv3d->persmat);
 
+	/* initializes object space clipping, speeds up clip tests */
+	ED_view3d_local_clipping(rv3d, ob->obmat);
+}
+
+void ED_view3d_init_mats_rv3d_gl(struct Object *ob, struct RegionView3D *rv3d)
+{
+	ED_view3d_init_mats_rv3d(ob, rv3d);
+
 	/* we have to multiply instead of loading viewmatob to make
 	   it work with duplis using displists, otherwise it will
 	   override the dupli-matrix */
 	glMultMatrixf(ob->obmat);
-
-	/* initializes object space clipping, speeds up clip tests */
-	ED_view3d_local_clipping(rv3d, ob->obmat);
 }
 
 /* ******************** default callbacks for view3d space ***************** */
@@ -937,7 +977,14 @@ static void space_view3d_listener(struct ScrArea *sa, struct wmNotifier *wmn)
 					break;
 			}
 			break;
-
+		case NC_MATERIAL:
+			switch(wmn->data) {
+				case ND_NODES:
+					if(v3d->drawtype == OB_TEXTURE)
+						ED_area_tag_redraw_regiontype(sa, RGN_TYPE_WINDOW);
+					break;
+			}
+			break;
 	}
 
 #if 0 // removed since BKE_image_user_calc_frame is now called in draw_bgpic because screen_ops doesnt call the notifier.

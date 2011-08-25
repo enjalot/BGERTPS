@@ -238,7 +238,7 @@ static void cleanup_textline(TextLine * tl)
 int reopen_text(Text *text)
 {
 	FILE *fp;
-	int i, llen, len, res;
+	int i, llen, len;
 	unsigned char *buffer;
 	TextLine *tmp;
 	char str[FILE_MAXDIR+FILE_MAXFILE];
@@ -281,7 +281,7 @@ int reopen_text(Text *text)
 
 	fclose(fp);
 
-	res= stat(str, &st);
+	stat(str, &st);
 	text->mtime= st.st_mtime;
 	
 	text->nlines=0;
@@ -334,7 +334,7 @@ Text *add_text(const char *file, const char *relpath)
 {
 	Main *bmain= G.main;
 	FILE *fp;
-	int i, llen, len, res;
+	int i, llen, len;
 	unsigned char *buffer;
 	TextLine *tmp;
 	Text *ta;
@@ -374,7 +374,7 @@ Text *add_text(const char *file, const char *relpath)
 
 	fclose(fp);
 
-	res= stat(str, &st);
+	stat(str, &st);
 	ta->mtime= st.st_mtime;
 	
 	ta->nlines=0;
@@ -400,7 +400,13 @@ Text *add_text(const char *file, const char *relpath)
 		llen++;
 	}
 
-	if (llen!=0 || ta->nlines==0) {
+	/* create new line in cases:
+	   - rest of line (if last line in file hasn't got \n terminator).
+	     in this case content of such line would be used to fill text line buffer
+	   - file is empty. in this case new line is needed to start editing from.
+	   - last characted in buffer is \n. in this case new line is needed to
+	     deal with newline at end of file. (see [#28087]) (sergey) */
+	if (llen!=0 || ta->nlines==0 || buffer[len-1]=='\n') {
 		tmp= (TextLine*) MEM_mallocN(sizeof(TextLine), "textline");
 		tmp->line= (char*) MEM_mallocN(llen+1, "textline_string");
 		tmp->format= NULL;
@@ -1232,21 +1238,19 @@ char *txt_to_buf (Text *text)
 	return buf;
 }
 
-int txt_find_string(Text *text, char *findstr, int wrap)
+int txt_find_string(Text *text, char *findstr, int wrap, int match_case)
 {
 	TextLine *tl, *startl;
 	char *s= NULL;
-	int oldcl, oldsl;
 
 	if (!text || !text->curl || !text->sell) return 0;
 	
 	txt_order_cursors(text);
 
-	oldcl= txt_get_span(text->lines.first, text->curl);
-	oldsl= txt_get_span(text->lines.first, text->sell);
 	tl= startl= text->sell;
 	
-	s= strstr(&tl->line[text->selc], findstr);
+	if(match_case) s= strstr(&tl->line[text->selc], findstr);
+	else s= BLI_strcasestr(&tl->line[text->selc], findstr);
 	while (!s) {
 		tl= tl->next;
 		if (!tl) {
@@ -1256,7 +1260,8 @@ int txt_find_string(Text *text, char *findstr, int wrap)
 				break;
 		}
 
-		s= strstr(tl->line, findstr);
+		if(match_case) s= strstr(tl->line, findstr);
+		else s= BLI_strcasestr(tl->line, findstr);
 		if (tl==startl)
 			break;
 	}
@@ -1348,9 +1353,19 @@ char *txt_sel_to_buf (Text *text)
 	return buf;
 }
 
+static void txt_shift_markers(Text *text, int lineno, int count)
+{
+	TextMarker *marker;
+
+	for (marker=text->markers.first; marker; marker= marker->next)
+		if (marker->lineno>=lineno) {
+			marker->lineno+= count;
+		}
+}
+
 void txt_insert_buf(Text *text, const char *in_buffer)
 {
-	int i=0, l=0, j, u, len;
+	int i=0, l=0, j, u, len, lineno= -1, count= 0;
 	TextLine *add;
 
 	if (!text) return;
@@ -1365,7 +1380,7 @@ void txt_insert_buf(Text *text, const char *in_buffer)
 
 	/* Read the first line (or as close as possible */
 	while (in_buffer[i] && in_buffer[i]!='\n') {
-		txt_add_char(text, in_buffer[i]);
+		txt_add_raw_char(text, in_buffer[i]);
 		i++;
 	}
 	
@@ -1375,6 +1390,7 @@ void txt_insert_buf(Text *text, const char *in_buffer)
 
 	/* Read as many full lines as we can */
 	len= strlen(in_buffer);
+	lineno= txt_get_span(text->lines.first, text->curl);
 
 	while (i<len) {
 		l=0;
@@ -1387,15 +1403,28 @@ void txt_insert_buf(Text *text, const char *in_buffer)
 			add= txt_new_linen(in_buffer +(i-l), l);
 			BLI_insertlinkbefore(&text->lines, text->curl, add);
 			i++;
+			count++;
 		} else {
+			if(count) {
+				txt_shift_markers(text, lineno, count);
+				count= 0;
+			}
+
 			for (j= i-l; j<i && j<(int)strlen(in_buffer); j++) {
-				txt_add_char(text, in_buffer[j]);
+				txt_add_raw_char(text, in_buffer[j]);
 			}
 			break;
 		}
 	}
-	
+
+	if(count) {
+		txt_shift_markers(text, lineno, count);
+		count= 0;
+	}
+
 	undoing= u;
+
+	(void)count;
 }
 
 /******************/
@@ -1870,13 +1899,13 @@ void txt_do_undo(Text *text)
 
 			
 			if (op==UNDO_INDENT) {
-				unindent(text);
+				txt_unindent(text);
 			} else if (op== UNDO_UNINDENT) {
-				indent(text);
+				txt_indent(text);
 			} else if (op == UNDO_COMMENT) {
-				uncomment(text);
+				txt_uncomment(text);
 			} else if (op == UNDO_UNCOMMENT) {
-				comment(text);
+				txt_comment(text);
 			}
 
 			text->undo_pos--;
@@ -2046,6 +2075,7 @@ void txt_do_redo(Text *text)
 			linep= linep+(text->undo_buf[text->undo_pos]<<8); text->undo_pos++;
 			linep= linep+(text->undo_buf[text->undo_pos]<<16); text->undo_pos++;
 			linep= linep+(text->undo_buf[text->undo_pos]<<24); text->undo_pos++;
+			(void)linep;
 
 			break;
 		case UNDO_INDENT:
@@ -2085,13 +2115,13 @@ void txt_do_redo(Text *text)
 			}
 
 			if (op==UNDO_INDENT) {
-				indent(text);
+				txt_indent(text);
 			} else if (op== UNDO_UNINDENT) {
-				unindent(text);
+				txt_unindent(text);
 			} else if (op == UNDO_COMMENT) {
-				comment(text);
+				txt_comment(text);
 			} else if (op == UNDO_UNCOMMENT) {
-				uncomment(text);
+				txt_uncomment(text);
 			}
 			break;
 		default:
@@ -2375,7 +2405,7 @@ static void txt_convert_tab_to_spaces (Text *text)
 	txt_insert_buf(text, sb);
 }
 
-int txt_add_char (Text *text, char add) 
+static int txt_add_char_intern (Text *text, char add, int replace_tabs)
 {
 	int len, lineno;
 	char *tmp;
@@ -2389,8 +2419,8 @@ int txt_add_char (Text *text, char add)
 		return 1;
 	}
 	
-	/* insert spaces rather then tabs */
-	if (add == '\t' && text->flags & TXT_TABSTOSPACES) {
+	/* insert spaces rather than tabs */
+	if (add == '\t' && replace_tabs) {
 		txt_convert_tab_to_spaces(text);
 		return 1;
 	}
@@ -2426,6 +2456,16 @@ int txt_add_char (Text *text, char add)
 
 	if(!undoing) txt_undo_add_charop(text, UNDO_INSERT, add);
 	return 1;
+}
+
+int txt_add_char (Text *text, char add)
+{
+	return txt_add_char_intern(text, add, text->flags & TXT_TABSTOSPACES);
+}
+
+int txt_add_raw_char (Text *text, char add)
+{
+	return txt_add_char_intern(text, add, 0);
 }
 
 void txt_delete_selected(Text *text)
@@ -2466,7 +2506,7 @@ int txt_replace_char (Text *text, char add)
 	return 1;
 }
 
-void indent(Text *text)
+void txt_indent(Text *text)
 {
 	int len, num;
 	char *tmp;
@@ -2477,7 +2517,7 @@ void indent(Text *text)
 	/* hardcoded: TXT_TABSIZE = 4 spaces: */
 	int spaceslen = TXT_TABSIZE;
 
-	/* insert spaces rather then tabs */
+	/* insert spaces rather than tabs */
 	if (text->flags & TXT_TABSTOSPACES){
 		add = tab_to_spaces;
 		indentlen = spaceslen;
@@ -2529,7 +2569,7 @@ void indent(Text *text)
 	}
 }
 
-void unindent(Text *text)
+void txt_unindent(Text *text)
 {
 	int num = 0;
 	const char *remove = "\t";
@@ -2538,7 +2578,7 @@ void unindent(Text *text)
 	/* hardcoded: TXT_TABSIZE = 4 spaces: */
 	int spaceslen = TXT_TABSIZE;
 
-	/* insert spaces rather then tabs */
+	/* insert spaces rather than tabs */
 	if (text->flags & TXT_TABSTOSPACES){
 		remove = tab_to_spaces;
 		indent = spaceslen;
@@ -2587,7 +2627,7 @@ void unindent(Text *text)
 	}
 }
 
-void comment(Text *text)
+void txt_comment(Text *text)
 {
 	int len, num;
 	char *tmp;
@@ -2595,7 +2635,7 @@ void comment(Text *text)
 	
 	if (!text) return;
 	if (!text->curl) return;
-	if (!text->sell) return;// Need to change this need to check if only one line is selected ot more then one
+	if (!text->sell) return;// Need to change this need to check if only one line is selected to more then one
 
 	num = 0;
 	while (TRUE)
@@ -2639,7 +2679,7 @@ void comment(Text *text)
 	}
 }
 
-void uncomment(Text *text)
+void txt_uncomment(Text *text)
 {
 	int num = 0;
 	char remove = '#';
@@ -2716,19 +2756,19 @@ int setcurr_tab_spaces (Text *text, int space)
 		 * 	2) within an identifier
 		 *	3) after the cursor (text->curc), i.e. when creating space before a function def [#25414] 
 		 */
-		int a, indent = 0;
+		int a, is_indent = 0;
 		for(a=0; (a < text->curc) && (text->curl->line[a] != '\0'); a++)
 		{
 			char ch= text->curl->line[a];
 			if (ch=='#') {
 				break;
 			} else if (ch==':') {
-				indent = 1;
-			} else if (ch==']' || ch=='}' || ch=='"' || ch=='\'') {
-				indent = 0;
+				is_indent = 1;
+			} else if (ch!=' ' && ch!='\t') {
+				is_indent = 0;
 			}
 		}
-		if (indent) {
+		if (is_indent) {
 			i += space;
 		}
 	}

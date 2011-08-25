@@ -61,7 +61,7 @@ void seq_reset_imageofs(struct SpaceSeq *sseq);
 struct View2D;
 void seq_rectf(struct Sequence *seq, struct rctf *rectf);
 void boundbox_seq(struct Scene *scene, struct rctf *rect);
-struct Sequence *find_nearest_seq(struct Scene *scene, struct View2D *v2d, int *hand, short mval[2]);
+struct Sequence *find_nearest_seq(struct Scene *scene, struct View2D *v2d, int *hand, const int mval[2]);
 struct Sequence *find_neighboring_sequence(struct Scene *scene, struct Sequence *test, int lr, int sel);
 void deselect_all_seq(struct Scene *scene);
 void recurs_sel_seq(struct Sequence *seqm);
@@ -70,6 +70,8 @@ int seq_effect_find_selected(struct Scene *scene, struct Sequence *activeseq, in
 
 /* operator helpers */
 int sequencer_edit_poll(struct bContext *C);
+int sequencer_strip_poll(struct bContext *C);
+int sequencer_strip_has_path_poll(struct bContext *C);
 int sequencer_view_poll(struct bContext *C);
 
 /* externs */
@@ -91,6 +93,7 @@ void SEQUENCER_OT_reassign_inputs(struct wmOperatorType *ot);
 void SEQUENCER_OT_swap_inputs(struct wmOperatorType *ot);
 void SEQUENCER_OT_duplicate(struct wmOperatorType *ot);
 void SEQUENCER_OT_delete(struct wmOperatorType *ot);
+void SEQUENCER_OT_offset_clear(struct wmOperatorType *ot);
 void SEQUENCER_OT_images_separate(struct wmOperatorType *ot);
 void SEQUENCER_OT_meta_toggle(struct wmOperatorType *ot);
 void SEQUENCER_OT_meta_make(struct wmOperatorType *ot);
@@ -107,6 +110,10 @@ void SEQUENCER_OT_view_all(struct wmOperatorType *ot);
 void SEQUENCER_OT_view_selected(struct wmOperatorType *ot);
 void SEQUENCER_OT_view_zoom_ratio(struct wmOperatorType *ot);
 void SEQUENCER_OT_view_ghost_border(struct wmOperatorType *ot);
+
+void SEQUENCER_OT_change_effect_input(struct wmOperatorType *ot);
+void SEQUENCER_OT_change_effect_type(struct wmOperatorType *ot);
+void SEQUENCER_OT_change_path(struct wmOperatorType *ot);
 
 void SEQUENCER_OT_copy(struct wmOperatorType *ot);
 void SEQUENCER_OT_paste(struct wmOperatorType *ot);

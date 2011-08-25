@@ -264,16 +264,9 @@ static void psys_create_frand(ParticleSystem *psys)
 int psys_check_enabled(Object *ob, ParticleSystem *psys)
 {
 	ParticleSystemModifierData *psmd;
-	Mesh *me;
 
 	if(psys->flag & PSYS_DISABLED || psys->flag & PSYS_DELETE || !psys->part)
 		return 0;
-
-	if(ob->type == OB_MESH) {
-		me= (Mesh*)ob->data;
-		if(me->mr && me->mr->current != 1)
-			return 0;
-	}
 
 	psmd= psys_get_modifier(ob, psys);
 	if(psys->renderdata || G.rendering) {
@@ -2896,8 +2889,6 @@ void psys_cache_paths(ParticleSimulationData *sim, float cfra)
 	if(psys_in_edit_mode(sim->scene, psys))
 		if(psys->renderdata==0 && (psys->edit==NULL || pset->flag & PE_DRAW_PART)==0)
 			return;
-	
-	BLI_srandom(psys->seed);
 
 	keyed = psys->flag & PSYS_KEYED;
 	baked = psys->pointcache->mem_cache.first && psys->part->type != PART_HAIR;
@@ -3037,7 +3028,7 @@ void psys_cache_paths(ParticleSimulationData *sim, float cfra)
 
 	psys->totcached = totpart;
 
-	if(psys && psys->lattice){
+	if(psys->lattice){
 		end_latt_deform(psys->lattice);
 		psys->lattice= NULL;
 	}
@@ -3064,7 +3055,7 @@ void psys_cache_edit_paths(Scene *scene, Object *ob, PTCacheEdit *edit, float cf
 	ParticleKey result;
 	
 	float birthtime = 0.0f, dietime = 0.0f;
-	float t, time = 0.0f, keytime = 0.0f, frs_sec;
+	float t, time = 0.0f, keytime = 0.0f /*, frs_sec */;
 	float hairmat[4][4], rotmat[3][3], prev_tangent[3] = {0.0f, 0.0f, 0.0f};
 	int k, i;
 	int steps = (int)pow(2.0, (double)pset->draw_step);
@@ -3085,7 +3076,7 @@ void psys_cache_edit_paths(Scene *scene, Object *ob, PTCacheEdit *edit, float cf
 		recalc_set = 1;
 	}
 
-	frs_sec = (psys || edit->pid.flag & PTCACHE_VEL_PER_SEC) ? 25.0f : 1.0f;
+	/* frs_sec = (psys || edit->pid.flag & PTCACHE_VEL_PER_SEC) ? 25.0f : 1.0f; */ /* UNUSED */
 
 	if(pset->brushtype == PE_BRUSH_WEIGHT) {
 		;/* use weight painting colors now... */
@@ -3541,6 +3532,8 @@ static void default_particle_settings(ParticleSettings *part)
 	part->path_start = 0.0f;
 	part->path_end = 1.0f;
 
+	part->bb_size[0] = part->bb_size[1] = 1.0f;
+
 	part->keyed_loops = 1;
 
 	part->color_vec_max = 1.f;
@@ -3596,28 +3589,38 @@ ParticleSettings *psys_copy_settings(ParticleSettings *part)
 	return partn;
 }
 
+static void expand_local_particlesettings(ParticleSettings *part)
+{
+	int i;
+	id_lib_extern((ID *)part->dup_group);
+
+	for(i=0; i<MAX_MTEX; i++) {
+		if(part->mtex[i]) id_lib_extern((ID *)part->mtex[i]->tex);
+	}
+}
+
 void make_local_particlesettings(ParticleSettings *part)
 {
+	Main *bmain= G.main;
 	Object *ob;
-	ParticleSettings *par;
 	int local=0, lib=0;
 
 	/* - only lib users: do nothing
-		* - only local users: set flag
-		* - mixed: make copy
-		*/
+	 * - only local users: set flag
+	 * - mixed: make copy
+	 */
 	
 	if(part->id.lib==0) return;
 	if(part->id.us==1) {
 		part->id.lib= 0;
 		part->id.flag= LIB_LOCAL;
-		new_id(0, (ID *)part, 0);
+		new_id(&bmain->particle, (ID *)part, 0);
+		expand_local_particlesettings(part);
 		return;
 	}
-	
+
 	/* test objects */
-	ob= G.main->object.first;
-	while(ob) {
+	for(ob= bmain->object.first; ob && ELEM(0, lib, local); ob= ob->id.next) {
 		ParticleSystem *psys=ob->particlesystem.first;
 		for(; psys; psys=psys->next){
 			if(psys->part==part) {
@@ -3625,31 +3628,28 @@ void make_local_particlesettings(ParticleSettings *part)
 				else local= 1;
 			}
 		}
-		ob= ob->id.next;
 	}
 	
 	if(local && lib==0) {
 		part->id.lib= 0;
 		part->id.flag= LIB_LOCAL;
-		new_id(0, (ID *)part, 0);
+		new_id(&bmain->particle, (ID *)part, 0);
+		expand_local_particlesettings(part);
 	}
 	else if(local && lib) {
-		
-		par= psys_copy_settings(part);
-		par->id.us= 0;
+		ParticleSettings *partn= psys_copy_settings(part);
+		partn->id.us= 0;
 		
 		/* do objects */
-		ob= G.main->object.first;
-		while(ob) {
-			ParticleSystem *psys=ob->particlesystem.first;
-			for(; psys; psys=psys->next){
+		for(ob= bmain->object.first; ob; ob= ob->id.next) {
+			ParticleSystem *psys;
+			for(psys= ob->particlesystem.first; psys; psys=psys->next){
 				if(psys->part==part && ob->id.lib==0) {
-					psys->part= par;
-					par->id.us++;
+					psys->part= partn;
+					partn->id.us++;
 					part->id.us--;
 				}
 			}
-			ob= ob->id.next;
 		}
 	}
 }
@@ -4018,7 +4018,11 @@ void psys_get_particle_on_path(ParticleSimulationData *sim, int p, ParticleKey *
 		init_particle_interpolation(sim->ob, psys, pa, &pind);
 		do_particle_interpolation(psys, p, pa, t, &pind, state);
 
-		if(!keyed && !cached) {
+		if(pind.dm) {
+			mul_m4_v3(sim->ob->obmat, state->co);
+			mul_mat3_m4_v3(sim->ob->obmat, state->vel);
+		}
+		else if(!keyed && !cached && !(psys->flag & PSYS_GLOBAL_HAIR)) {
 			if((pa->flag & PARS_REKEY)==0) {
 				psys_mat_hair_to_global(sim->ob, sim->psmd->dm, part->from, pa, hairmat);
 				mul_m4_v3(hairmat, state->co);
@@ -4368,58 +4372,46 @@ void psys_get_dupli_path_transform(ParticleSimulationData *sim, ParticleData *pa
 	Object *ob = sim->ob;
 	ParticleSystem *psys = sim->psys;
 	ParticleSystemModifierData *psmd = sim->psmd;
-	float loc[3], nor[3], vec[3], side[3], len, obrotmat[4][4], qmat[4][4];
-	float xvec[3] = {-1.0, 0.0, 0.0}, q[4], nmat[3][3];
+	float loc[3], nor[3], vec[3], side[3], len;
+	float xvec[3] = {-1.0, 0.0, 0.0}, nmat[3][3];
 
-	sub_v3_v3v3(vec, (cache+cache->steps-1)->co, cache->co);
+	sub_v3_v3v3(vec, (cache+cache->steps)->co, cache->co);
 	len= normalize_v3(vec);
 
-	if(psys->part->rotmode) {
-		if(pa == NULL)
-			pa= psys->particles+cpa->pa[0];
+	if(pa == NULL && psys->part->childflat != PART_CHILD_FACES)
+		pa = psys->particles + cpa->pa[0];
 
-		vec_to_quat( q,xvec, ob->trackflag, ob->upflag);
-		quat_to_mat4( obrotmat,q);
-		obrotmat[3][3]= 1.0f;
-
-		quat_to_mat4( qmat,pa->state.rot);
-		mul_m4_m4m4(mat, obrotmat, qmat);
-	}
-	else {
-		if(pa == NULL && psys->part->childflat != PART_CHILD_FACES)
-			pa = psys->particles + cpa->pa[0];
-
-		if(pa)
-			psys_particle_on_emitter(psmd,sim->psys->part->from,pa->num,pa->num_dmcache,pa->fuv,pa->foffset,loc,nor,0,0,0,0);
-		else
-			psys_particle_on_emitter(psmd,PART_FROM_FACE,cpa->num,DMCACHE_ISCHILD,cpa->fuv,cpa->foffset,loc,nor,0,0,0,0);
+	if(pa)
+		psys_particle_on_emitter(psmd,sim->psys->part->from,pa->num,pa->num_dmcache,pa->fuv,pa->foffset,loc,nor,0,0,0,0);
+	else
+		psys_particle_on_emitter(psmd,PART_FROM_FACE,cpa->num,DMCACHE_ISCHILD,cpa->fuv,cpa->foffset,loc,nor,0,0,0,0);
 		
-		copy_m3_m4(nmat, ob->imat);
-		transpose_m3(nmat);
-		mul_m3_v3(nmat, nor);
+	copy_m3_m4(nmat, ob->imat);
+	transpose_m3(nmat);
+	mul_m3_v3(nmat, nor);
+	normalize_v3(nor);
 
-		/* make sure that we get a proper side vector */
-		if(fabs(dot_v3v3(nor,vec))>0.999999) {
-			if(fabs(dot_v3v3(nor,xvec))>0.999999) {
-				nor[0] = 0.0f;
-				nor[1] = 1.0f;
-				nor[2] = 0.0f;
-			}
-			else {
-				nor[0] = 1.0f;
-				nor[1] = 0.0f;
-				nor[2] = 0.0f;
-			}
+	/* make sure that we get a proper side vector */
+	if(fabs(dot_v3v3(nor,vec))>0.999999) {
+		if(fabs(dot_v3v3(nor,xvec))>0.999999) {
+			nor[0] = 0.0f;
+			nor[1] = 1.0f;
+			nor[2] = 0.0f;
 		}
-		cross_v3_v3v3(side, nor, vec);
-		normalize_v3(side);
-		cross_v3_v3v3(nor, vec, side);
-
-		unit_m4(mat);
-		VECCOPY(mat[0], vec);
-		VECCOPY(mat[1], side);
-		VECCOPY(mat[2], nor);
+		else {
+			nor[0] = 1.0f;
+			nor[1] = 0.0f;
+			nor[2] = 0.0f;
+		}
 	}
+	cross_v3_v3v3(side, nor, vec);
+	normalize_v3(side);
+	cross_v3_v3v3(nor, vec, side);
+
+	unit_m4(mat);
+	VECCOPY(mat[0], vec);
+	VECCOPY(mat[1], side);
+	VECCOPY(mat[2], nor);
 
 	*scale= len;
 }
@@ -4431,22 +4423,22 @@ void psys_make_billboard(ParticleBillboardData *bb, float xvec[3], float yvec[3]
 	xvec[0] = 1.0f; xvec[1] = 0.0f; xvec[2] = 0.0f;
 	yvec[0] = 0.0f; yvec[1] = 1.0f; yvec[2] = 0.0f;
 
-    /* can happen with bad pointcache or physics calculation
-     * since this becomes geometry, nan's and inf's crash raytrace code.
-     * better not allow this. */
-    if( !finite(bb->vec[0]) || !finite(bb->vec[1]) || !finite(bb->vec[2]) ||
-        !finite(bb->vel[0]) || !finite(bb->vel[1]) || !finite(bb->vel[2]) )
-    {
-        zero_v3(bb->vec);
-        zero_v3(bb->vel);
-        
-        zero_v3(xvec);
-        zero_v3(yvec);
-        zero_v3(zvec);
-        zero_v3(center);
+	/* can happen with bad pointcache or physics calculation
+	 * since this becomes geometry, nan's and inf's crash raytrace code.
+	 * better not allow this. */
+	if( !finite(bb->vec[0]) || !finite(bb->vec[1]) || !finite(bb->vec[2]) ||
+	    !finite(bb->vel[0]) || !finite(bb->vel[1]) || !finite(bb->vel[2]) )
+	{
+		zero_v3(bb->vec);
+		zero_v3(bb->vel);
 
-        return;
-    }
+		zero_v3(xvec);
+		zero_v3(yvec);
+		zero_v3(zvec);
+		zero_v3(center);
+
+		return;
+	}
 
 	if(bb->align < PART_BB_VIEW)
 		onevec[bb->align]=1.0f;
@@ -4501,8 +4493,8 @@ void psys_make_billboard(ParticleBillboardData *bb, float xvec[3], float yvec[3]
 	mul_v3_fl(tvec, -sin(bb->tilt * (float)M_PI));
 	VECADD(yvec, yvec, tvec);
 
-	mul_v3_fl(xvec, bb->size);
-	mul_v3_fl(yvec, bb->size);
+	mul_v3_fl(xvec, bb->size[0]);
+	mul_v3_fl(yvec, bb->size[1]);
 
 	VECADDFAC(center, bb->vec, xvec, bb->offset[0]);
 	VECADDFAC(center, center, yvec, bb->offset[1]);

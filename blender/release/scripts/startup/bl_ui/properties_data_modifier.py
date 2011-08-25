@@ -18,6 +18,7 @@
 
 # <pep8 compliant>
 import bpy
+from bpy.types import Panel
 
 
 class ModifierButtonsPanel():
@@ -26,7 +27,7 @@ class ModifierButtonsPanel():
     bl_context = "modifier"
 
 
-class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
+class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
     bl_label = "Modifiers"
 
     def draw(self, context):
@@ -118,11 +119,8 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
     def BEVEL(self, layout, ob, md):
         split = layout.split()
 
-        col = split.column()
-        col.prop(md, "width")
-
-        col = split.column()
-        col.prop(md, "use_only_vertices")
+        split.prop(md, "width")
+        split.prop(md, "use_only_vertices")
 
         layout.label(text="Limit Method:")
         layout.row().prop(md, "limit_method", expand=True)
@@ -186,10 +184,10 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
             col.prop(md, "use_transform")
 
     def CLOTH(self, layout, ob, md):
-        layout.label(text="See Cloth panel.")
+        layout.label(text="Settings can be found inside the Physics context")
 
     def COLLISION(self, layout, ob, md):
-        layout.label(text="See Collision panel.")
+        layout.label(text="Settings can be found inside the Physics context")
 
     def CURVE(self, layout, ob, md):
         split = layout.split()
@@ -222,7 +220,7 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
         col.label(text="Texture Coordinates:")
         col.prop(md, "texture_coords", text="")
         if md.texture_coords == 'OBJECT':
-            layout.prop(md, "texture_coordinate_object", text="Object")
+            layout.prop(md, "texture_coords_object", text="Object")
         elif md.texture_coords == 'UV' and ob.type == 'MESH':
             layout.prop_search(md, "uv_layer", ob.data, "uv_textures")
 
@@ -265,7 +263,7 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
         layout.operator("object.explode_refresh", text="Refresh")
 
     def FLUID_SIMULATION(self, layout, ob, md):
-        layout.label(text="See Fluid panel.")
+        layout.label(text="Settings can be found inside the Physics context")
 
     def HOOK(self, layout, ob, md):
         split = layout.split()
@@ -397,6 +395,7 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
         col.operator("object.multires_higher_levels_delete", text="Delete Higher")
         col.operator("object.multires_reshape", text="Reshape")
         col.operator("object.multires_base_apply", text="Apply Base")
+        col.prop(md, "use_subsurf_uv")
         col.prop(md, "show_only_control_edges")
 
         layout.separator()
@@ -444,7 +443,7 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
         col.prop(md, "random_position", text="Random", slider=True)
 
     def PARTICLE_SYSTEM(self, layout, ob, md):
-        layout.label(text="See Particle panel.")
+        layout.label(text="Settings can be found inside the Particle context")
 
     def SCREW(self, layout, ob, md):
         split = layout.split()
@@ -486,11 +485,10 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
         col.label(text="Mode:")
         col.prop(md, "wrap_method", text="")
 
-        split = layout.split(percentage=0.25)
-
-        col = split.column()
-
         if md.wrap_method == 'PROJECT':
+            split = layout.split(percentage=0.25)
+
+            col = split.column()
             col.label(text="Axis:")
             col.prop(md, "use_project_x")
             col.prop(md, "use_project_y")
@@ -502,7 +500,6 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
             col.prop(md, "use_positive_direction")
 
             col = split.column()
-
             col.label(text="Cull Faces:")
             col.prop(md, "cull_face", expand=True)
 
@@ -541,7 +538,7 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
             col.prop(md, "lock_y")
 
     def SMOKE(self, layout, ob, md):
-        layout.label(text="See Smoke panel.")
+        layout.label(text="Settings can be found inside the Physics context")
 
     def SMOOTH(self, layout, ob, md):
         split = layout.split(percentage=0.25)
@@ -634,9 +631,7 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
             col.prop(md, "w_align", text="Alignment", slider=True)
             col.prop(md, "w_coh", text="Cohesion", slider=True)
 
-
     def SOLIDIFY(self, layout, ob, md):
-
         split = layout.split()
 
         col = split.column()
@@ -652,22 +647,21 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
         col = split.column()
 
         col.prop(md, "offset")
-        colsub = col.column()
-        colsub.active = bool(md.vertex_group)
-        colsub.prop(md, "invert_vertex_group", text="Invert")
+        sub = col.column()
+        sub.active = bool(md.vertex_group)
+        sub.prop(md, "invert_vertex_group", text="Invert")
+        sub.prop(md, "thickness_vertex_group", text="Factor")
 
         col.prop(md, "use_even_offset")
         col.prop(md, "use_quality_normals")
-
         col.prop(md, "use_rim")
-        colsub = col.column()
 
-        colsub.label()
-        rowsub = colsub.split(align=True, percentage=0.4)
-        rowsub.prop(md, "material_offset", text="")
-        colsub = rowsub.row()
-        colsub.active = md.use_rim
-        colsub.prop(md, "material_offset_rim", text="Rim")
+        sub = col.column()
+        row = sub.split(align=True, percentage=0.4)
+        row.prop(md, "material_offset", text="")
+        row = row.row()
+        row.active = md.use_rim
+        row.prop(md, "material_offset_rim", text="Rim")
 
     def SUBSURF(self, layout, ob, md):
         layout.row().prop(md, "subdivision_type", expand=True)
@@ -684,7 +678,7 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
         col.prop(md, "show_only_control_edges")
 
     def SURFACE(self, layout, ob, md):
-        layout.label(text="See Fields panel.")
+        layout.label(text="Settings can be found inside the Physics context")
 
     def UV_PROJECT(self, layout, ob, md):
         if ob.type == 'MESH':
@@ -713,6 +707,48 @@ class DATA_PT_modifiers(ModifierButtonsPanel, bpy.types.Panel):
             sub = col.column(align=True)
             sub.prop(md, "scale_x", text="Scale X")
             sub.prop(md, "scale_y", text="Scale Y")
+
+    def WARP(self, layout, ob, md):
+        use_falloff = (md.falloff_type != 'NONE')
+        split = layout.split()
+
+        col = split.column()
+        col.label(text="From:")
+        col.prop(md, "object_from", text="")
+
+        col.prop(md, "use_volume_preserve")
+
+        col = split.column()
+        col.label(text="To:")
+        col.prop(md, "object_to", text="")
+        col.prop_search(md, "vertex_group", ob, "vertex_groups", text="")
+
+        col = layout.column()
+
+        row = col.row(align=True)
+        row.prop(md, "strength")
+        if use_falloff:
+            row.prop(md, "falloff_radius")
+
+        col.prop(md, "falloff_type")
+        if use_falloff:
+            if md.falloff_type == 'CURVE':
+                col.template_curve_mapping(md, "falloff_curve")
+
+        # 2 new columns
+        split = layout.split()
+        col = split.column()
+        col.label(text="Texture:")
+        col.prop(md, "texture", text="")
+
+        col = split.column()
+        col.label(text="Texture Coordinates:")
+        col.prop(md, "texture_coords", text="")
+
+        if md.texture_coords == 'OBJECT':
+            layout.prop(md, "texture_coords_object", text="Object")
+        elif md.texture_coords == 'UV' and ob.type == 'MESH':
+            layout.prop_search(md, "uv_layer", ob.data, "uv_textures")
 
     def WAVE(self, layout, ob, md):
         split = layout.split()

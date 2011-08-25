@@ -29,21 +29,22 @@ set(INC
 	../string
 	../../source/blender/imbuf
 	../../source/blender/makesdna
-    ${GLEW_INCLUDE_PATH}
+)
+
+set(INC_SYS
+	${GLEW_INCLUDE_PATH}
 )
 
 set(SRC
 	intern/GHOST_Buttons.cpp
-	intern/GHOST_CallbackEventConsumer.cpp
 	intern/GHOST_C-api.cpp
-	intern/GHOST_Path-api.cpp
+	intern/GHOST_CallbackEventConsumer.cpp
 	intern/GHOST_DisplayManager.cpp
 	intern/GHOST_EventManager.cpp
-	intern/GHOST_EventPrinter.cpp
 	intern/GHOST_ISystem.cpp
 	intern/GHOST_ISystemPaths.cpp
 	intern/GHOST_ModifierKeys.cpp
-	intern/GHOST_NDOFManager.cpp
+	intern/GHOST_Path-api.cpp
 	intern/GHOST_Path-api.cpp
 	intern/GHOST_Rect.cpp
 	intern/GHOST_System.cpp
@@ -61,6 +62,7 @@ set(SRC
 	GHOST_Path-api.h
 	GHOST_Rect.h
 	GHOST_Types.h
+
 	intern/GHOST_Buttons.h
 	intern/GHOST_CallbackEventConsumer.h
 	intern/GHOST_Debug.h
@@ -71,13 +73,10 @@ set(SRC
 	intern/GHOST_EventDragnDrop.h
 	intern/GHOST_EventKey.h
 	intern/GHOST_EventManager.h
-	intern/GHOST_EventNDOF.h
-	intern/GHOST_EventPrinter.h
 	intern/GHOST_EventString.h
 	intern/GHOST_EventTrackpad.h
 	intern/GHOST_EventWheel.h
 	intern/GHOST_ModifierKeys.h
-	intern/GHOST_NDOFManager.h
 	intern/GHOST_System.h
 	intern/GHOST_SystemPaths.h
 	intern/GHOST_TimerManager.h
@@ -86,19 +85,109 @@ set(SRC
 	intern/GHOST_WindowManager.h
 )
 
-if(APPLE)
+if(WITH_GHOST_DEBUG)
+	list(APPEND SRC
+		intern/GHOST_EventPrinter.cpp
+
+		intern/GHOST_EventPrinter.h
+	)
+	add_definitions(-DWITH_GHOST_DEBUG)
+endif()
+
+if(WITH_INPUT_NDOF)
+	add_definitions(-DWITH_INPUT_NDOF)
+
+	list(APPEND SRC
+		intern/GHOST_NDOFManager.cpp
+
+		intern/GHOST_EventNDOF.h
+		intern/GHOST_NDOFManager.h
+	)
+
+	list(APPEND INC_SYS
+		${NDOF_INCLUDE_DIRS}
+	)
+endif()
+
+if(WITH_HEADLESS OR WITH_GHOST_SDL)
+	if(WITH_HEADLESS)
+		list(APPEND SRC
+			intern/GHOST_DisplayManagerNULL.h
+			intern/GHOST_SystemNULL.h
+			intern/GHOST_WindowNULL.h
+		)
+		add_definitions(-DWITH_HEADLESS)
+	else()
+		list(APPEND SRC
+			intern/GHOST_DisplayManagerSDL.cpp
+			intern/GHOST_SystemSDL.cpp
+			intern/GHOST_WindowSDL.cpp
+
+			intern/GHOST_DisplayManagerSDL.h
+			intern/GHOST_SystemSDL.h
+			intern/GHOST_WindowSDL.h
+		)
+		add_definitions(-DWITH_GHOST_SDL)
+	endif()
+
+
+	# ack, this is still system dependant
+	if(APPLE)
+		if(WITH_COCOA)
+			list(APPEND SRC
+				intern/GHOST_SystemPathsCocoa.mm
+				intern/GHOST_SystemPathsCocoa.h
+			)
+		else()
+			list(APPEND SRC
+				intern/GHOST_SystemPathsCarbon.cpp
+				intern/GHOST_SystemPathsCarbon.h
+			)
+		endif()
+	elseif(UNIX)
+		list(APPEND SRC
+			intern/GHOST_SystemPathsX11.cpp
+			intern/GHOST_SystemPathsX11.h
+		)
+
+		if(NOT WITH_INSTALL_PORTABLE)
+			add_definitions(-DPREFIX="${CMAKE_INSTALL_PREFIX}")
+		endif()
+	elseif(WIN32)
+
+		list(APPEND SRC
+			intern/GHOST_SystemPathsWin32.cpp
+
+			intern/GHOST_SystemPathsWin32.h
+		)
+	endif()
+
+	list(APPEND INC_SYS
+		${SDL_INCLUDE_DIR}
+	)
+
+elseif(APPLE)
 	if(WITH_COCOA)
 		list(APPEND SRC
 			intern/GHOST_DisplayManagerCocoa.mm
 			intern/GHOST_SystemCocoa.mm
 			intern/GHOST_SystemPathsCocoa.mm
 			intern/GHOST_WindowCocoa.mm
-			
+
 			intern/GHOST_DisplayManagerCocoa.h
 			intern/GHOST_SystemCocoa.h
 			intern/GHOST_SystemPathsCocoa.h
 			intern/GHOST_WindowCocoa.h
 		)
+
+		if(WITH_INPUT_NDOF)
+			list(APPEND SRC
+				intern/GHOST_NDOFManagerCocoa.mm
+
+				intern/GHOST_NDOFManagerCocoa.h
+			)
+		endif()
+
 	else()
 		list(APPEND SRC
 			intern/GHOST_DisplayManagerCarbon.cpp
@@ -119,11 +208,9 @@ if(APPLE)
 
 elseif(UNIX)
 
-	if(WITH_X11_XINPUT)
-		add_definitions(-DWITH_X11_XINPUT)
-	endif()
-
-	list(APPEND INC ${X11_X11_INCLUDE_PATH})
+	list(APPEND INC_SYS
+		${X11_X11_INCLUDE_PATH}
+	)
 
 	list(APPEND SRC
 		intern/GHOST_DisplayManagerX11.cpp
@@ -137,13 +224,27 @@ elseif(UNIX)
 		intern/GHOST_WindowX11.h
 	)
 
+	if(X11_XF86keysym_INCLUDE_PATH)
+		add_definitions(-DWITH_XF86KEYSYM)
+		list(APPEND INC_SYS
+			${X11_XF86keysym_INCLUDE_PATH}
+		)
+	endif()
+
+	if(WITH_INPUT_NDOF)
+		list(APPEND SRC
+			intern/GHOST_NDOFManagerX11.cpp
+
+			intern/GHOST_NDOFManagerX11.h
+		)
+	endif()
+
 	if(NOT WITH_INSTALL_PORTABLE)
 		add_definitions(-DPREFIX="${CMAKE_INSTALL_PREFIX}")
 	endif()
 
-	if(X11_XF86keysym_INCLUDE_PATH)
-		add_definitions(-DWITH_XF86KEYSYM)
-		list(APPEND INC ${X11_XF86keysym_INCLUDE_PATH})
+	if(WITH_X11_XINPUT)
+		add_definitions(-DWITH_X11_XINPUT)
 	endif()
 
 elseif(WIN32)
@@ -151,7 +252,9 @@ elseif(WIN32)
 		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /WX")
 	endif()
 
-	list(APPEND INC ${WINTAB_INC})
+	list(APPEND INC_SYS
+		${WINTAB_INC}
+	)
 
 	list(APPEND SRC
 		intern/GHOST_DisplayManagerWin32.cpp
@@ -167,7 +270,16 @@ elseif(WIN32)
 		intern/GHOST_WindowWin32.h
 		intern/GHOST_TaskbarWin32.h
 	)
+
+	if(WITH_INPUT_NDOF)
+		list(APPEND SRC
+			intern/GHOST_NDOFManagerWin32.cpp
+
+			intern/GHOST_NDOFManagerWin32.h
+		)
+	endif()
+
 endif()
 
-blender_add_lib(bf_intern_ghost "${SRC}" "${INC}")
+blender_add_lib(bf_intern_ghost "${SRC}" "${INC}" "${INC_SYS}")
 

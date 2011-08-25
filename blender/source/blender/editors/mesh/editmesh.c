@@ -1177,13 +1177,14 @@ void load_editMesh(Scene *scene, Object *obedit)
 			}
 
 			if(act_is_basis) { /* active key is a base */
+				float (*fp)[3]= actkey->data;
 				i=0;
 				ofs= MEM_callocN(sizeof(float) * 3 * em->totvert,  "currkey->data");
 				eve= em->verts.first;
 				mvert = me->mvert;
 				while(eve) {
 					if(eve->keyindex>=0)
-						VECSUB(ofs[i], mvert->co, oldverts[eve->keyindex].co);
+						VECSUB(ofs[i], mvert->co, fp[eve->keyindex]);
 
 					eve= eve->next;
 					i++;
@@ -1448,9 +1449,8 @@ static int mesh_separate_material(wmOperator *op, Main *bmain, Scene *scene, Bas
 		/* select the material */
 		EM_select_by_material(em, curr_mat);
 		/* and now separate */
-		if(0==mesh_separate_selected(op, bmain, scene, editbase)) {
-			BKE_mesh_end_editmesh(me, em);
-			return 0;
+		if(em->totfacesel > 0) {
+			mesh_separate_selected(op, bmain, scene, editbase);
 		}
 	}
 

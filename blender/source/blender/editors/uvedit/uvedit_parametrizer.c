@@ -595,7 +595,7 @@ static void p_vert_load_pin_select_uvs(PHandle *handle, PVert *v)
 			if (e->flag & PEDGE_SELECT)
 				v->flag |= PVERT_SELECT;
 
-			 if (e->flag & PEDGE_PIN) {
+			if (e->flag & PEDGE_PIN) {
 				pinuv[0] += e->orig_uv[0]*handle->aspx;
 				pinuv[1] += e->orig_uv[1]*handle->aspy;
 				npins++;
@@ -1142,7 +1142,7 @@ static void p_chart_boundaries(PChart *chart, int *nboundaries, PEdge **outer)
 			(*nboundaries)++;
 
 		len = 0.0f;
-    
+
 		be = e;
 		do {
 			be->flag |= PEDGE_DONE;
@@ -4140,7 +4140,7 @@ void param_construct_end(ParamHandle *handle, ParamBool fill, ParamBool impl)
 
 	param_assert(phandle->state == PHANDLE_STATE_ALLOCATED);
 
-	phandle->ncharts = p_connect_pairs(phandle, impl);
+	phandle->ncharts = p_connect_pairs(phandle, (PBool)impl);
 	phandle->charts = p_split_charts(phandle, chart, phandle->ncharts);
 
 	p_chart_delete(phandle->construction_chart);
@@ -4189,7 +4189,7 @@ void param_lscm_begin(ParamHandle *handle, ParamBool live, ParamBool abf)
 	for (i = 0; i < phandle->ncharts; i++) {
 		for (f=phandle->charts[i]->faces; f; f=f->nextlink)
 			p_face_backup_uvs(f);
-		p_chart_lscm_begin(phandle->charts[i], live, abf);
+		p_chart_lscm_begin(phandle->charts[i], (PBool)live, (PBool)abf);
 	}
 }
 

@@ -94,7 +94,7 @@ static char *rna_NlaStrip_path(PointerRNA *ptr)
 	return "";
 }
 
-static void rna_NlaStrip_transform_update(Main *bmain, Scene *scene, PointerRNA *ptr)
+static void rna_NlaStrip_transform_update(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
 {
 	NlaStrip *strip= (NlaStrip*)ptr->data;
 
@@ -273,7 +273,7 @@ static void rna_NlaStrip_animated_time_set(PointerRNA *ptr, int value)
 		data->flag &= ~NLASTRIP_FLAG_USR_TIME;
 }
 
-static NlaStrip *rna_NlaStrip_new(NlaTrack *track, bContext *C, ReportList *reports, const char *name, int start, bAction *action)
+static NlaStrip *rna_NlaStrip_new(NlaTrack *track, bContext *C, ReportList *reports, const char *UNUSED(name), int start, bAction *action)
 {
 	NlaStrip *strip = add_nlastrip(action);
 	
@@ -426,6 +426,7 @@ static void rna_def_nlastrip(BlenderRNA *brna)
 	/* Action */
 	prop= RNA_def_property(srna, "action", PROP_POINTER, PROP_NONE);
 	RNA_def_property_pointer_sdna(prop, NULL, "act");
+	RNA_def_property_pointer_funcs(prop, NULL, NULL, NULL, "rna_Action_id_poll");
 	RNA_def_property_flag(prop, PROP_EDITABLE); 
 	RNA_def_property_ui_text(prop, "Action", "Action referenced by this strip");
 	RNA_def_property_update(prop, NC_ANIMATION|ND_NLA, NULL); /* this will do? */

@@ -60,7 +60,7 @@ int bpy_pydriver_create_dict(void)
 	else
 		bpy_pydriver_Dict= d;
 
-	/* import some modules: builtins, bpy, math, (Blender.noise )*/
+	/* import some modules: builtins, bpy, math, (Blender.noise)*/
 	PyDict_SetItemString(d, "__builtins__", PyEval_GetBuiltins());
 
 	mod= PyImport_ImportModule("math");
@@ -87,7 +87,7 @@ int bpy_pydriver_create_dict(void)
 void BPY_driver_reset(void)
 {
 	PyGILState_STATE gilstate;
-	int use_gil= 1; // (PyThreadState_Get()==NULL);
+	int use_gil= 1; /* !PYC_INTERPRETER_ACTIVE; */
 
 	if(use_gil)
 		gilstate= PyGILState_Ensure();
@@ -118,9 +118,14 @@ static void pydriver_error(ChannelDriver *driver)
 /* This evals py driver expressions, 'expr' is a Python expression that
  * should evaluate to a float number, which is returned.
  *
- * note: PyGILState_Ensure() isnt always called because python can call the
- * bake operator which intern starts a thread which calls scene update which
- * does a driver update. to avoid a deadlock check PyThreadState_Get() if PyGILState_Ensure() is needed.
+ * (old)note: PyGILState_Ensure() isnt always called because python can call
+ * the bake operator which intern starts a thread which calls scene update
+ * which does a driver update. to avoid a deadlock check PYC_INTERPRETER_ACTIVE
+ * if PyGILState_Ensure() is needed - see [#27683]
+ *
+ * (new)note: checking if python is running is not threadsafe [#28114]
+ * now release the GIL on python operator execution instead, using
+ * PyEval_SaveThread() / PyEval_RestoreThread() so we dont lock up blender.
  */
 float BPY_driver_exec(ChannelDriver *driver)
 {
@@ -147,7 +152,7 @@ float BPY_driver_exec(ChannelDriver *driver)
 		return 0.0f;
 	}
 
-	use_gil= 1; //(PyThreadState_Get()==NULL);
+	use_gil= 1; /* !PYC_INTERPRETER_ACTIVE; */
 
 	if(use_gil)
 		gilstate= PyGILState_Ensure();
@@ -185,12 +190,11 @@ float BPY_driver_exec(ChannelDriver *driver)
 		expr_vars= PyTuple_GET_ITEM(((PyObject *)driver->expr_comp), 1);
 		Py_XDECREF(expr_vars);
 
-		/* intern the arg names so creating the namespace for every run is faster */
 		expr_vars= PyTuple_New(BLI_countlist(&driver->variables));
 		PyTuple_SET_ITEM(((PyObject *)driver->expr_comp), 1, expr_vars);
 
 		for (dvar= driver->variables.first, i=0; dvar; dvar= dvar->next) {
-			PyTuple_SET_ITEM(expr_vars, i++, PyUnicode_InternFromString(dvar->name));
+			PyTuple_SET_ITEM(expr_vars, i++, PyUnicode_FromString(dvar->name));
 		}
 		
 		driver->flag &= ~DRIVER_FLAG_RENAMEVAR;
@@ -211,7 +215,7 @@ float BPY_driver_exec(ChannelDriver *driver)
 		
 		/* try to add to dictionary */
 		/* if (PyDict_SetItemString(driver_vars, dvar->name, driver_arg)) { */
-		if (PyDict_SetItem(driver_vars, PyTuple_GET_ITEM(expr_vars, i++), driver_arg) < 0) { /* use string interning for faster namespace creation */
+		if (PyDict_SetItem(driver_vars, PyTuple_GET_ITEM(expr_vars, i++), driver_arg) < 0) {
 			/* this target failed - bad name */
 			if (targets_ok) {
 				/* first one - print some extra info for easier identification */
@@ -255,7 +259,7 @@ float BPY_driver_exec(ChannelDriver *driver)
 
 	if(use_gil)
 		PyGILState_Release(gilstate);
-    
+
 	if(finite(result)) {
 		return (float)result;
 	}

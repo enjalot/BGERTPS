@@ -1050,6 +1050,7 @@ static void emDM_drawMappedFacesGLSL(DerivedMesh *dm,
 			glEnd();
 		}
 	}
+#undef PASSATTRIB
 }
 
 static void emDM_drawFacesGLSL(DerivedMesh *dm,
@@ -1772,11 +1773,20 @@ static void mesh_calc_modifiers(Scene *scene, Object *ob, float (*inputVertexCos
 			modifier_setError(md, "Modifier requires original data, bad stack position.");
 			continue;
 		}
-		if(sculpt_mode && (!has_multires || multires_applied))
-			if(mti->type != eModifierTypeType_OnlyDeform || multires_applied) {
+		if(sculpt_mode && (!has_multires || multires_applied)) {
+			int unsupported= 0;
+
+			if(scene->toolsettings->sculpt->flags & SCULPT_ONLY_DEFORM)
+				unsupported|= mti->type != eModifierTypeType_OnlyDeform;
+
+			unsupported|= md->type == eModifierType_Multires && ((MultiresModifierData*)md)->sculptlvl==0;
+			unsupported|= multires_applied;
+
+			if(unsupported) {
 				modifier_setError(md, "Not supported in sculpt mode.");
 				continue;
 			}
+		}
 		if(needMapping && !modifier_supportsMapping(md)) continue;
 		if(useDeform < 0 && mti->dependsOnTime && mti->dependsOnTime(md)) continue;
 
@@ -1815,7 +1825,7 @@ static void mesh_calc_modifiers(Scene *scene, Object *ob, float (*inputVertexCos
 			 * to avoid giving bogus normals to the next modifier see: [#23673] */
 			if(isPrevDeform &&  mti->dependsOnNormals && mti->dependsOnNormals(md)) {
 				/* XXX, this covers bug #23673, but we may need normal calc for other types */
-				if(dm->type == DM_TYPE_CDDM) {
+				if(dm && dm->type == DM_TYPE_CDDM) {
 					CDDM_apply_vert_coords(dm, deformedVerts);
 					CDDM_calc_normals(dm);
 				}
@@ -1874,7 +1884,9 @@ static void mesh_calc_modifiers(Scene *scene, Object *ob, float (*inputVertexCos
 			
 			/* set the DerivedMesh to only copy needed data */
 			mask= (CustomDataMask)GET_INT_FROM_POINTER(curr->link);
-			DM_set_only_copy(dm, mask);
+			/* needMapping check here fixes bug [#28112], otherwise its
+			 * possible that it wont be copied */
+			DM_set_only_copy(dm, mask | (needMapping ? CD_MASK_ORIGINDEX : 0));
 			
 			/* add cloth rest shape key if need */
 			if(mask & CD_MASK_CLOTH_ORCO)
@@ -2558,7 +2570,6 @@ static void GetNormal(const SMikkTSpaceContext * pContext, float fNorm[], const 
 	else {
 		const short *no= pMesh->mvert[(&pMesh->mface[face_num].v1)[vert_index]].no;
 		normal_short_to_float_v3(fNorm, no);
-		normalize_v3(fNorm); /* XXX, is this needed */
 	}
 }
 static void SetTSpace(const SMikkTSpaceContext * pContext, const float fvTangent[], const float fSign, const int face_num, const int iVert)
@@ -2757,6 +2768,7 @@ void DM_vertex_attributes_from_gpu(DerivedMesh *dm, GPUVertexAttribs *gattribs, 
 				attribs->tface[a].array = tfdata->layers[layer].data;
 				attribs->tface[a].emOffset = tfdata->layers[layer].offset;
 				attribs->tface[a].glIndex = gattribs->layer[b].glindex;
+				attribs->tface[a].glTexco = gattribs->layer[b].gltexco;
 			}
 		}
 		else if(gattribs->layer[b].type == CD_MCOL) {
@@ -2797,6 +2809,7 @@ void DM_vertex_attributes_from_gpu(DerivedMesh *dm, GPUVertexAttribs *gattribs, 
 				attribs->orco.array = vdata->layers[layer].data;
 				attribs->orco.emOffset = vdata->layers[layer].offset;
 				attribs->orco.glIndex = gattribs->layer[b].glindex;
+				attribs->orco.glTexco = gattribs->layer[b].gltexco;
 			}
 		}
 	}

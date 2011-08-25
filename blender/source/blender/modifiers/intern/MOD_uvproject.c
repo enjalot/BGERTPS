@@ -42,6 +42,7 @@
 #include "DNA_object_types.h"
 
 #include "BLI_math.h"
+#include "BLI_string.h"
 #include "BLI_uvproject.h"
 #include "BLI_utildefines.h"
 
@@ -83,6 +84,7 @@ static void copyData(ModifierData *md, ModifierData *target)
 	tumd->aspecty = umd->aspecty;
 	tumd->scalex = umd->scalex;
 	tumd->scaley = umd->scaley;
+	BLI_strncpy(tumd->uvlayer_name, umd->uvlayer_name, sizeof(umd->uvlayer_name));
 }
 
 static CustomDataMask requiredDataMask(Object *UNUSED(ob), ModifierData *UNUSED(md))
@@ -271,7 +273,7 @@ static DerivedMesh *uvprojectModifier_do(UVProjectModifierData *umd,
 	/* if only one projector, project coords to UVs */
 	if(num_projectors == 1 && projectors[0].uci==NULL)
 		for(i = 0, co = coords; i < numVerts; ++i, ++co)
-			mul_project_m4_v4(projectors[0].projmat, *co);
+			mul_project_m4_v3(projectors[0].projmat, *co);
 
 	mface = dm->getFaceArray(dm);
 	numFaces = dm->getNumFaces(dm);
@@ -345,11 +347,11 @@ static DerivedMesh *uvprojectModifier_do(UVProjectModifierData *umd,
 						project_from_camera(tface->uv[3], coords[mf->v4], best_projector->uci);
 				}
 				else {
-					mul_project_m4_v4(best_projector->projmat, co1);
-					mul_project_m4_v4(best_projector->projmat, co2);
-					mul_project_m4_v4(best_projector->projmat, co3);
+					mul_project_m4_v3(best_projector->projmat, co1);
+					mul_project_m4_v3(best_projector->projmat, co2);
+					mul_project_m4_v3(best_projector->projmat, co3);
 					if(mf->v4)
-						mul_project_m4_v4(best_projector->projmat, co4);
+						mul_project_m4_v3(best_projector->projmat, co4);
 
 					/* apply transformed coords as UVs */
 					tface->uv[0][0] = co1[0];
@@ -432,4 +434,5 @@ ModifierTypeInfo modifierType_UVProject = {
 	/* dependsOnNormals */	NULL,
 	/* foreachObjectLink */ foreachObjectLink,
 	/* foreachIDLink */     foreachIDLink,
+	/* foreachTexLink */    NULL,
 };

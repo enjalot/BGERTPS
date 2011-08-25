@@ -64,6 +64,7 @@
 #include "BLI_dynstr.h"
 #include "BLI_path_util.h"
 #include "BLI_utildefines.h"
+#include "BLI_callbacks.h"
 
 #include "IMB_imbuf.h"
 
@@ -96,7 +97,7 @@ UserDef U;
 /* ListBase = {NULL, NULL}; */
 short ENDIAN_ORDER;
 
-static char versionstr[48]= "";
+char versionstr[48]= "";
 
 /* ********** free ********** */
 
@@ -110,6 +111,9 @@ void free_blender(void)
 	BKE_spacetypes_free();		/* after free main, it uses space callbacks */
 	
 	IMB_exit();
+
+	BLI_cb_finalize();
+
 	seq_stripelem_cache_destruct();
 	
 	free_nodesystem();	
@@ -129,9 +133,9 @@ void initglobals(void)
 	ENDIAN_ORDER= (((char*)&ENDIAN_ORDER)[0])? L_ENDIAN: B_ENDIAN;
 
 	if(BLENDER_SUBVERSION)
-		BLI_snprintf(versionstr, sizeof(versionstr), "www.blender.org %d.%d", BLENDER_VERSION, BLENDER_SUBVERSION);
+		BLI_snprintf(versionstr, sizeof(versionstr), "blender.org %d.%d", BLENDER_VERSION, BLENDER_SUBVERSION);
 	else
-		BLI_snprintf(versionstr, sizeof(versionstr), "www.blender.org %d", BLENDER_VERSION);
+		BLI_snprintf(versionstr, sizeof(versionstr), "blender.org %d", BLENDER_VERSION);
 
 #ifdef _WIN32	// FULLSCREEN
 	G.windowstate = G_WINDOWSTATE_USERDEF;
@@ -140,8 +144,12 @@ void initglobals(void)
 	G.charstart = 0x0000;
 	G.charmin = 0x0000;
 	G.charmax = 0xffff;
-	
+
+#ifndef WITH_PYTHON_SECURITY /* default */
 	G.f |= G_SCRIPT_AUTOEXEC;
+#else
+	G.f &= ~G_SCRIPT_AUTOEXEC;
+#endif
 }
 
 /***/
@@ -150,7 +158,6 @@ static void clear_global(void)
 {
 //	extern short winqueue_break;	/* screen.c */
 
-	fastshade_free_render();	/* lamps hang otherwise */
 	free_main(G.main);			/* free all lib data */
 	
 //	free_vertexpaint();
@@ -176,7 +183,6 @@ static void clean_paths(Main *main)
 	BLI_bpathIterator_free(bpi);
 
 	for(scene= main->scene.first; scene; scene= scene->id.next) {
-		BLI_clean(scene->r.backbuf);
 		BLI_clean(scene->r.pic);
 	}
 }
@@ -187,7 +193,7 @@ static void clean_paths(Main *main)
 /* note, this is called on Undo so any slow conversion functions here
  * should be avoided or check (mode!='u') */
 
-static void setup_app_data(bContext *C, BlendFileData *bfd, const char *filename) 
+static void setup_app_data(bContext *C, BlendFileData *bfd, const char *filepath)
 {
 	bScreen *curscreen= NULL;
 	Scene *curscene= NULL;
@@ -291,18 +297,18 @@ static void setup_app_data(bContext *C, BlendFileData *bfd, const char *filename
 	if(recover && bfd->filename[0] && G.relbase_valid) {
 		/* in case of autosave or quit.blend, use original filename instead
 		 * use relbase_valid to make sure the file is saved, else we get <memory2> in the filename */
-		filename= bfd->filename;
+		filepath= bfd->filename;
 	}
 #if 0
 	else if (!G.relbase_valid) {
 		/* otherwise, use an empty string as filename, rather than <memory2> */
-		filename="";
+		filepath="";
 	}
 #endif
 	
 	/* these are the same at times, should never copy to the same location */
-	if(G.main->name != filename)
-		BLI_strncpy(G.main->name, filename, FILE_MAX);
+	if(G.main->name != filepath)
+		BLI_strncpy(G.main->name, filepath, FILE_MAX);
 
 	/* baseflags, groups, make depsgraph, etc */
 	set_scene_bg(G.main, CTX_data_scene(C));
@@ -324,40 +330,57 @@ static int handle_subversion_warning(Main *main)
 	return 1;
 }
 
+static void keymap_item_free(wmKeyMapItem *kmi)
+{
+	if(kmi->properties) {
+		IDP_FreeProperty(kmi->properties);
+		MEM_freeN(kmi->properties);
+	}
+	if(kmi->ptr)
+		MEM_freeN(kmi->ptr);
+}
+
 void BKE_userdef_free(void)
 {
 	wmKeyMap *km;
 	wmKeyMapItem *kmi;
+	wmKeyMapDiffItem *kmdi;
 
-	for(km=U.keymaps.first; km; km=km->next) {
-		for(kmi=km->items.first; kmi; kmi=kmi->next) {
-			if(kmi->properties) {
-				IDP_FreeProperty(kmi->properties);
-				MEM_freeN(kmi->properties);
+	for(km=U.user_keymaps.first; km; km=km->next) {
+		for(kmdi=km->diff_items.first; kmdi; kmdi=kmdi->next) {
+			if(kmdi->add_item) {
+				keymap_item_free(kmdi->add_item);
+				MEM_freeN(kmdi->add_item);
 			}
-			if(kmi->ptr)
-				MEM_freeN(kmi->ptr);
+			if(kmdi->remove_item) {
+				keymap_item_free(kmdi->remove_item);
+				MEM_freeN(kmdi->remove_item);
+			}
 		}
 
+		for(kmi=km->items.first; kmi; kmi=kmi->next)
+			keymap_item_free(kmi);
+
+		BLI_freelistN(&km->diff_items);
 		BLI_freelistN(&km->items);
 	}
 	
 	BLI_freelistN(&U.uistyles);
 	BLI_freelistN(&U.uifonts);
 	BLI_freelistN(&U.themes);
-	BLI_freelistN(&U.keymaps);
+	BLI_freelistN(&U.user_keymaps);
 	BLI_freelistN(&U.addons);
 }
 
-int BKE_read_file(bContext *C, const char *dir, ReportList *reports) 
+int BKE_read_file(bContext *C, const char *filepath, ReportList *reports)
 {
 	BlendFileData *bfd;
 	int retval= BKE_READ_FILE_OK;
 
-	if(strstr(dir, BLENDER_STARTUP_FILE)==NULL) /* dont print user-pref loading */
-		printf("read blend: %s\n", dir);
+	if(strstr(filepath, BLENDER_STARTUP_FILE)==NULL) /* dont print user-pref loading */
+		printf("read blend: %s\n", filepath);
 
-	bfd= BLO_read_from_file(dir, reports);
+	bfd= BLO_read_from_file(filepath, reports);
 	if (bfd) {
 		if(bfd->user) retval= BKE_READ_FILE_OK_USERPREFS;
 		
@@ -368,10 +391,10 @@ int BKE_read_file(bContext *C, const char *dir, ReportList *reports)
 			retval= BKE_READ_FILE_FAIL;
 		}
 		else
-			setup_app_data(C, bfd, dir); // frees BFD
+			setup_app_data(C, bfd, filepath); // frees BFD
 	} 
 	else
-		BKE_reports_prependf(reports, "Loading %s failed: ", dir);
+		BKE_reports_prependf(reports, "Loading %s failed: ", filepath);
 		
 	return (bfd?retval:BKE_READ_FILE_FAIL);
 }
@@ -517,19 +540,20 @@ void BKE_write_undo(bContext *C, const char *name)
 	/* disk save version */
 	if(UNDO_DISK) {
 		static int counter= 0;
-		char tstr[FILE_MAXDIR+FILE_MAXFILE];
+		char filepath[FILE_MAXDIR+FILE_MAXFILE];
 		char numstr[32];
-		
-		/* calculate current filename */
+		int fileflags = G.fileflags & ~(G_FILE_HISTORY); /* don't do file history on undo */
+
+		/* calculate current filepath */
 		counter++;
 		counter= counter % U.undosteps;	
 	
 		BLI_snprintf(numstr, sizeof(numstr), "%d.blend", counter);
-		BLI_make_file_string("/", tstr, btempdir, numstr);
+		BLI_make_file_string("/", filepath, btempdir, numstr);
 	
-		success= BLO_write_file(CTX_data_main(C), tstr, G.fileflags, NULL, NULL);
+		success= BLO_write_file(CTX_data_main(C), filepath, fileflags, NULL, NULL);
 		
-		BLI_strncpy(curundo->str, tstr, sizeof(curundo->str));
+		BLI_strncpy(curundo->str, filepath, sizeof(curundo->str));
 	}
 	else {
 		MemFile *prevfile=NULL;
@@ -615,24 +639,14 @@ void BKE_reset_undo(void)
 /* based on index nr it does a restore */
 void BKE_undo_number(bContext *C, int nr)
 {
-	UndoElem *uel;
-	int a=1;
-	
-	for(uel= undobase.first; uel; uel= uel->next, a++) {
-		if(a==nr) break;
-	}
-	curundo= uel;
+	curundo= BLI_findlink(&undobase, nr);
 	BKE_undo_step(C, 0);
 }
 
 /* go back to the last occurance of name in stack */
 void BKE_undo_name(bContext *C, const char *name)
 {
-	UndoElem *uel;
-
-	for(uel= undobase.last; uel; uel= uel->prev)
-		if(strcmp(name, uel->name)==0)
-			break;
+	UndoElem *uel= BLI_rfindstring(&undobase, name, offsetof(UndoElem, name));
 
 	if(uel && uel->prev) {
 		curundo= uel->prev;
@@ -644,18 +658,28 @@ void BKE_undo_name(bContext *C, const char *name)
 int BKE_undo_valid(const char *name)
 {
 	if(name) {
-		UndoElem *uel;
-		
-		for(uel= undobase.last; uel; uel= uel->prev)
-			if(strcmp(name, uel->name)==0)
-				break;
-		
+		UndoElem *uel= BLI_rfindstring(&undobase, name, offsetof(UndoElem, name));
 		return uel && uel->prev;
 	}
 	
 	return undobase.last != undobase.first;
 }
 
+/* get name of undo item, return null if no item with this index */
+/* if active pointer, set it to 1 if true */
+char *BKE_undo_get_name(int nr, int *active)
+{
+	UndoElem *uel= BLI_findlink(&undobase, nr);
+	
+	if(active) *active= 0;
+	
+	if(uel) {
+		if(active && uel==curundo)
+			*active= 1;
+		return uel->name;
+	}
+	return NULL;
+}
 
 char *BKE_undo_menu_string(void)
 {

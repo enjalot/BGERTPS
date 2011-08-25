@@ -236,6 +236,8 @@ Mesh *copy_mesh(Mesh *me)
 	}
 	
 	men->mselect= NULL;
+	men->edit_mesh= NULL;
+	men->pv= NULL; /* looks like this is no-longer supported but NULL just incase */
 
 	men->bb= MEM_dupallocN(men->bb);
 	
@@ -245,7 +247,7 @@ Mesh *copy_mesh(Mesh *me)
 	return men;
 }
 
-void make_local_tface(Mesh *me)
+static void make_local_tface(Main *bmain, Mesh *me)
 {
 	MTFace *tface;
 	Image *ima;
@@ -262,7 +264,7 @@ void make_local_tface(Mesh *me)
 					if(ima->id.lib) {
 						ima->id.lib= NULL;
 						ima->id.flag= LIB_LOCAL;
-						new_id(NULL, (ID *)ima, NULL);
+						new_id(&bmain->image, (ID *)ima, NULL);
 					}
 				}
 			}
@@ -270,58 +272,65 @@ void make_local_tface(Mesh *me)
 	}
 }
 
+static void expand_local_mesh(Main *bmain, Mesh *me)
+{
+	id_lib_extern((ID *)me->texcomesh);
+
+	if(me->mtface) {
+		/* why is this an exception? - should not really make local when extern'ing - campbell */
+		make_local_tface(bmain, me);
+	}
+
+	if(me->mat) {
+		extern_local_matarar(me->mat, me->totcol);
+	}
+}
+
 void make_local_mesh(Mesh *me)
 {
 	Main *bmain= G.main;
 	Object *ob;
-	Mesh *men;
 	int local=0, lib=0;
 
 	/* - only lib users: do nothing
-		* - only local users: set flag
-		* - mixed: make copy
-		*/
-	
+	 * - only local users: set flag
+	 * - mixed: make copy
+	 */
+
 	if(me->id.lib==NULL) return;
 	if(me->id.us==1) {
 		me->id.lib= NULL;
 		me->id.flag= LIB_LOCAL;
-		new_id(NULL, (ID *)me, NULL);
-		
-		if(me->mtface) make_local_tface(me);
-		
+
+		new_id(&bmain->mesh, (ID *)me, NULL);
+		expand_local_mesh(bmain, me);
 		return;
 	}
-	
-	ob= bmain->object.first;
-	while(ob) {
-		if( me==get_mesh(ob) ) {
+
+	for(ob= bmain->object.first; ob && ELEM(0, lib, local); ob= ob->id.next) {
+		if(me == ob->data) {
 			if(ob->id.lib) lib= 1;
 			else local= 1;
 		}
-		ob= ob->id.next;
 	}
-	
+
 	if(local && lib==0) {
 		me->id.lib= NULL;
 		me->id.flag= LIB_LOCAL;
-		new_id(NULL, (ID *)me, NULL);
-		
-		if(me->mtface) make_local_tface(me);
-		
+
+		new_id(&bmain->mesh, (ID *)me, NULL);
+		expand_local_mesh(bmain, me);
 	}
 	else if(local && lib) {
-		men= copy_mesh(me);
+		Mesh *men= copy_mesh(me);
 		men->id.us= 0;
-		
-		ob= bmain->object.first;
-		while(ob) {
-			if( me==get_mesh(ob) ) {				
+
+		for(ob= bmain->object.first; ob; ob= ob->id.next) {
+			if(me == ob->data) {
 				if(ob->id.lib==NULL) {
 					set_mesh(ob, men);
 				}
 			}
-			ob= ob->id.next;
 		}
 	}
 }
@@ -1245,10 +1254,10 @@ void mesh_to_curve(Scene *scene, Object *ob)
 
 void mesh_delete_material_index(Mesh *me, int index)
 {
+	MFace *mf;
 	int i;
 
-	for (i=0; i<me->totface; i++) {
-		MFace *mf = &((MFace*) me->mface)[i];
+	for (i=0, mf=me->mface; i<me->totface; i++, mf++) {
 		if (mf->mat_nr && mf->mat_nr>=index) 
 			mf->mat_nr--;
 	}
@@ -1463,7 +1472,7 @@ void create_vert_edge_map(ListBase **map, IndexNode **mem, const MEdge *medge, c
 	(*map) = MEM_callocN(sizeof(ListBase) * totvert, "vert edge map");
 	(*mem) = MEM_callocN(sizeof(IndexNode) * totedge * 2, "vert edge map mem");
 	node = *mem;
-       
+
 	/* Find the users */
 	for(i = 0; i < totedge; ++i){
 		for(j = 0; j < 2; ++j, ++node) {

@@ -35,6 +35,7 @@
 
 #include "DNA_ID.h"
 #include "DNA_vfont_types.h"
+#include "DNA_material_types.h"
 #include "DNA_object_types.h"
 
 #include "WM_types.h"
@@ -205,17 +206,17 @@ void rna_ID_fake_user_set(PointerRNA *ptr, int value)
 	}
 }
 
-IDProperty *rna_PropertyGroup_idprops(PointerRNA *ptr, int create)
+IDProperty *rna_PropertyGroup_idprops(PointerRNA *ptr, int UNUSED(create))
 {
 	return ptr->data;
 }
 
-void rna_PropertyGroup_unregister(const bContext *C, StructRNA *type)
+void rna_PropertyGroup_unregister(Main *UNUSED(bmain), StructRNA *type)
 {
 	RNA_struct_free(&BLENDER_RNA, type);
 }
 
-StructRNA *rna_PropertyGroup_register(bContext *C, ReportList *reports, void *data, const char *identifier, StructValidateFunc validate, StructCallbackFunc call, StructFreeFunc free)
+StructRNA *rna_PropertyGroup_register(Main *UNUSED(bmain), ReportList *reports, void *data, const char *identifier, StructValidateFunc validate, StructCallbackFunc UNUSED(call), StructFreeFunc UNUSED(free))
 {
 	PointerRNA dummyptr;
 
@@ -384,7 +385,7 @@ static void rna_def_ID_properties(BlenderRNA *brna)
 	RNA_def_struct_sdna(srna, "IDPropertyGroup");
 	RNA_def_struct_ui_text(srna, "ID Property Group", "Group of ID properties");
 	RNA_def_struct_idprops_func(srna, "rna_PropertyGroup_idprops");
-	RNA_def_struct_register_funcs(srna, "rna_PropertyGroup_register", "rna_PropertyGroup_unregister");
+	RNA_def_struct_register_funcs(srna, "rna_PropertyGroup_register", "rna_PropertyGroup_unregister", NULL);
 	RNA_def_struct_refine_func(srna, "rna_PropertyGroup_refine");
 
 	/* important so python types can have their name used in list views
@@ -410,15 +411,16 @@ static void rna_def_ID_materials(BlenderRNA *brna)
 	RNA_def_struct_ui_text(srna, "ID Materials", "Collection of materials");
 
 	func= RNA_def_function(srna, "append", "material_append_id");
-	RNA_def_function_ui_description(func, "Add a new material to Mesh.");
+	RNA_def_function_ui_description(func, "Add a new material to the data block.");
 	parm= RNA_def_pointer(func, "material", "Material", "", "Material to add.");
 	RNA_def_property_flag(parm, PROP_REQUIRED);
 	
 	func= RNA_def_function(srna, "pop", "material_pop_id");
-	RNA_def_function_ui_description(func, "Add a new material to Mesh.");
-	parm= RNA_def_int(func, "index", 0, 0, INT_MAX, "", "Frame number to set.", 0, INT_MAX);
+	RNA_def_function_ui_description(func, "Remove a material from the data block.");
+	parm= RNA_def_int(func, "index", 0, 0, MAXMAT, "", "Index of material to remove.", 0, MAXMAT);
 	RNA_def_property_flag(parm, PROP_REQUIRED);
-	parm= RNA_def_pointer(func, "material", "Material", "", "Material to add.");
+	RNA_def_boolean(func, "update_data", 0, "", "Update data by re-adjusting the material slots assigned.");
+	parm= RNA_def_pointer(func, "material", "Material", "", "Material to remove.");
 	RNA_def_function_return(func, parm);
 }
 
@@ -443,7 +445,7 @@ static void rna_def_ID(BlenderRNA *brna)
 	prop= RNA_def_property(srna, "name", PROP_STRING, PROP_NONE);
 	RNA_def_property_ui_text(prop, "Name", "Unique datablock ID name");
 	RNA_def_property_string_funcs(prop, "rna_ID_name_get", "rna_ID_name_length", "rna_ID_name_set");
-	RNA_def_property_string_maxlength(prop, sizeof(((ID*)NULL)->name)-2);
+	RNA_def_property_string_maxlength(prop, MAX_ID_NAME-2);
 	RNA_def_property_editable_func(prop, "rna_ID_name_editable");
 	RNA_def_property_update(prop, NC_ID|NA_RENAME, NULL);
 	RNA_def_struct_name_property(srna, prop);

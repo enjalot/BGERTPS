@@ -112,6 +112,7 @@ ModifierTypeInfo modifierType_Multires = {
 	/* structSize */        sizeof(MultiresModifierData),
 	/* type */              eModifierTypeType_Constructive,
 	/* flags */             eModifierTypeFlag_AcceptsMesh
+							| eModifierTypeFlag_SupportsMapping
 							| eModifierTypeFlag_RequiresOriginalData,
 
 	/* copyData */          copyData,
@@ -130,4 +131,5 @@ ModifierTypeInfo modifierType_Multires = {
 	/* dependsOnNormals */	NULL,
 	/* foreachObjectLink */ NULL,
 	/* foreachIDLink */     NULL,
+	/* foreachTexLink */    NULL,
 };

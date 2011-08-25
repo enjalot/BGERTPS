@@ -387,7 +387,7 @@ static void bokeh_single_image(bNode *node, CompBuf *new, CompBuf *img, float fa
 			float dist= sqrt(fj*fj + fi*fi);
 			
 		//*dgauss= hexagon_filter(fi, fj);
-			*dgauss= RE_filter_value(nbd->filtertype, 2.0f*dist - 1.0f);
+			*dgauss= RE_filter_value(nbd->filtertype, dist);
 
 			val+= *dgauss;
 		}
@@ -715,7 +715,7 @@ static void node_composit_exec_blur(void *data, bNode *node, bNodeStack **in, bN
 
 static void node_composit_init_blur(bNode* node)
 {
-   node->storage= MEM_callocN(sizeof(NodeBlurData), "node blur data");
+	node->storage= MEM_callocN(sizeof(NodeBlurData), "node blur data");
 }
 
 void register_node_type_cmp_blur(ListBase *lb)

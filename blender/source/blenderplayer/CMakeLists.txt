@@ -43,13 +43,25 @@ if(WIN32 AND NOT UNIX)
 	string(SUBSTRING ${BLENDER_VERSION} 0 1 bver1)
 	string(SUBSTRING ${BLENDER_VERSION} 2 1 bver2)
 	string(SUBSTRING ${BLENDER_VERSION} 3 1 bver3)
-	add_definitions(
-		-DBLEN_VER_RC_STR=${BLENDER_VERSION}
-		-DBLEN_VER_RC_1=${bver1}
-		-DBLEN_VER_RC_2=${bver2}
-		-DBLEN_VER_RC_3=${bver3}
-		-DBLEN_VER_RC_4=0
-	)
+	if(MINGW)
+		add_definitions(
+			-DWINDRES
+			-DBLEN_VER_RC_STR_M=${BLENDER_VERSION}
+			-DBLEN_VER_RC_1=${bver1}
+			-DBLEN_VER_RC_2=${bver2}
+			-DBLEN_VER_RC_3=${bver3}
+			-DBLEN_VER_RC_4=0
+		)
+	else()
+		add_definitions(
+			-DBLEN_VER_RC_STR=${BLENDER_VERSION}
+			-DBLEN_VER_RC_1=${bver1}
+			-DBLEN_VER_RC_2=${bver2}
+			-DBLEN_VER_RC_3=${bver3}
+			-DBLEN_VER_RC_4=0
+		)
+	endif()
+
 	add_executable(blenderplayer ${EXETYPE} ${CMAKE_CURRENT_BINARY_DIR}/dna.c ../icons/winblender.rc)
 else()
 	add_executable(blenderplayer ${CMAKE_CURRENT_BINARY_DIR}/dna.c)
@@ -98,7 +110,6 @@ endif()
 		bf_intern_smoke
 		bf_modifiers
 		bf_intern_moto 
-		bf_gen_system 
 		bf_nodes
 		bf_gpu
 		bf_imbuf
@@ -110,12 +121,13 @@ endif()
 		bf_intern_guardedalloc 
 		bf_intern_memutil 
 		bf_python_ext
+		bf_python_mathutils
 		bf_blenlib 
 		bf_imbuf_cineon
 		bf_imbuf_openexr 
-		extern_openjpeg 
+		extern_openjpeg
+		extern_redcode
 		bf_imbuf_dds
-		bf_readblenfile 
 		bf_dna
 		ge_videotex
 		bf_blenfont
@@ -127,6 +139,10 @@ endif()
 		bf_blenkernel # duplicate for linking
 		bf_intern_mikktspace
 	)
+
+	if(WITH_MOD_CLOTH_ELTOPO)
+		list(APPEND BLENDER_SORTED_LIBS extern_eltopo)
+	endif()
 
 	if(WITH_BUILTIN_GLEW)
 		list(APPEND BLENDER_SORTED_LIBS extern_glew)
@@ -172,6 +188,12 @@ endif()
 		message(STATUS "Player Skipping: (${REM_MSG})")
 	endif()
 	target_link_libraries(blenderplayer ${BLENDER_SORTED_LIBS})
+
+	unset(SEARCHLIB)
+	unset(SORTLIB)
+	unset(REMLIB)
+	unset(REM_MSG)
+
 # else()
 # 	target_link_libraries(blenderplayer ${BLENDER_LINK_LIBS})
 # endif()

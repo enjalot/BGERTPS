@@ -68,6 +68,7 @@ struct Mesh;
 struct ModifierData;
 struct MultiresModifierData;
 struct NodeBlurData;
+struct Nurb;
 struct Object;
 struct PBVHNode;
 struct Render;
@@ -135,7 +136,6 @@ int RE_RenderInProgress(struct Render *re){return 0;}
 struct Scene *RE_GetScene(struct Render *re){return (struct Scene *) NULL;}
 void RE_Database_Free(struct Render *re){}
 void RE_FreeRender(struct Render *re){}
-void RE_shade_external(struct Render *re, struct ShadeInput *shi, struct ShadeResult *shr){}
 void RE_DataBase_GetView(struct Render *re, float mat[][4]){}
 int externtex(struct MTex *mtex, float *vec, float *tin, float *tr, float *tg, float *tb, float *ta){return 0;}
 float texture_value_blend(float tex, float out, float fact, float facg, int blendtype, int flip){return 0.0f;}
@@ -169,7 +169,7 @@ void WM_main_add_notifier(unsigned int type, void *reference){}
 void ED_armature_bone_rename(struct bArmature *arm, char *oldnamep, char *newnamep){}
 struct wmEventHandler *WM_event_add_modal_handler(struct bContext *C, struct wmOperator *op){return (struct wmEventHandler *)NULL;}
 struct wmTimer *WM_event_add_timer(struct wmWindowManager *wm, struct wmWindow *win, int event_type, double timestep){return (struct wmTimer *)NULL;}
-void		WM_event_remove_timer(struct wmWindowManager *wm, struct wmWindow *win, struct wmTimer *timer){}
+void WM_event_remove_timer(struct wmWindowManager *wm, struct wmWindow *win, struct wmTimer *timer){}
 void ED_armature_edit_bone_remove(struct bArmature *arm, struct EditBone *exBone){}
 void object_test_constraints (struct Object *owner){}
 void ED_object_parent(struct Object *ob, struct Object *par, int type, const char *substr){}
@@ -192,7 +192,9 @@ int ED_space_image_show_paint(struct SpaceImage *sima){return 0;}
 void ED_space_image_paint_update(struct wmWindowManager *wm, struct ToolSettings *settings){}
 void ED_space_image_set(struct bContext *C, struct SpaceImage *sima, struct Scene *scene, struct Object *obedit, struct Image *ima){}
 struct ImBuf *ED_space_image_buffer(struct SpaceImage *sima){return (struct ImBuf *) NULL;}
-void	ED_screen_set_scene(struct bContext *C, struct Scene *scene){}
+void ED_screen_set_scene(struct bContext *C, struct Scene *scene){}
+
+void ED_area_tag_redraw_regiontype(struct ScrArea *sa, int regiontype){}
 
 struct PTCacheEdit *PE_get_current(struct Scene *scene, struct Object *ob){return (struct PTCacheEdit *) NULL;}
 void PE_current_changed(struct Scene *scene, struct Object *ob){}
@@ -206,10 +208,12 @@ struct wmKeyMap *WM_keymap_list_find(struct ListBase *lb, char *idname, int spac
 struct wmKeyConfig *WM_keyconfig_new(struct wmWindowManager *wm, char *idname){return (struct wmKeyConfig *) NULL;}
 struct wmKeyConfig *WM_keyconfig_new_user(struct wmWindowManager *wm, char *idname){return (struct wmKeyConfig *) NULL;}
 void WM_keyconfig_remove(struct wmWindowManager *wm, char *idname){}
+void WM_keyconfig_set_active(struct wmWindowManager *wm, const char *idname) {}
 void WM_keymap_remove_item(struct wmKeyMap *keymap, struct wmKeyMapItem *kmi){}
 void WM_keymap_restore_to_default(struct wmKeyMap *keymap){}
 void WM_keymap_restore_item_to_default(struct bContext *C, struct wmKeyMap *keymap, struct wmKeyMapItem *kmi){}
 void WM_keymap_properties_reset(struct wmKeyMapItem *kmi){}
+void WM_keyconfig_update_tag(struct wmKeyMap *keymap, struct wmKeyMapItem *kmi) {}
 int WM_keymap_user_init(struct wmWindowManager *wm, struct wmKeyMap *keymap) {return 0;}
 int WM_keymap_item_compare(struct wmKeyMapItem *k1, struct wmKeyMapItem *k2){return 0;}
 
@@ -228,6 +232,7 @@ short ANIM_add_driver(struct ID *id, const char rna_path[], int array_index, sho
 short ANIM_remove_driver (struct ID *id, const char rna_path[], int array_index, short flag){return 0;}
 void ED_space_image_release_buffer(struct SpaceImage *sima, void *lock){}
 struct ImBuf *ED_space_image_acquire_buffer(struct SpaceImage *sima, void **lock_r){return (struct ImBuf *) NULL;}
+void ED_space_image_zoom(struct SpaceImage *sima, struct ARegion *ar, float *zoomx, float *zoomy) {}
 char *ED_info_stats_string(struct Scene *scene){return (char *) NULL;}
 void ED_area_tag_redraw(struct ScrArea *sa){}
 void ED_area_tag_refresh(struct ScrArea *sa){}
@@ -241,6 +246,8 @@ void ED_node_generic_update(struct Main *bmain, struct bNodeTree *ntree, struct 
 void ED_view3d_scene_layers_update(struct Main *bmain, struct Scene *scene){}
 int ED_view3d_scene_layer_set(int lay, const int *values){return 0;}
 void ED_view3d_quadview_update(struct ScrArea *sa, struct ARegion *ar){}
+void ED_view3d_from_m4(float mat[][4], float ofs[3], float quat[4], float *dist){}
+void view3d_apply_mat4(float mat[][4], float *ofs, float *quat, float *dist){}
 int text_file_modified(struct Text *text){return 0;}
 void ED_node_shader_default(struct Material *ma){}
 void ED_screen_animation_timer_update(struct bContext *C, int redraws){}
@@ -287,7 +294,8 @@ float ED_rollBoneToVector(struct EditBone *bone, float new_up_axis[3]){return 0.
 void ED_space_image_size(struct SpaceImage *sima, int *width, int *height){}
 
 struct ListBase *ED_curve_editnurbs(struct Curve *cu){return NULL;}
-void free_curve_editNurb (struct Curve *cu){};
+void free_curve_editNurb (struct Curve *cu){}
+void ED_nurb_set_spline_type(struct Nurb *nu, int type){}
 
 void EM_selectmode_set(struct EditMesh *em){}
 int EM_texFaceCheck(struct EditMesh *em){return 0;}
@@ -348,6 +356,7 @@ ListBase uiTemplateList(struct uiLayout *layout, struct bContext *C, struct Poin
 void uiTemplateRunningJobs(struct uiLayout *layout, struct bContext *C){}
 void uiTemplateOperatorSearch(struct uiLayout *layout){}
 void uiTemplateHeader3D(struct uiLayout *layout, struct bContext *C){}
+void uiTemplateEditModeSelection(struct uiLayout *layout, struct bContext *C){}
 void uiTemplateTextureImage(struct uiLayout *layout, struct bContext *C, struct Tex *tex){}
 void uiTemplateImage(struct uiLayout *layout, struct bContext *C, struct PointerRNA *ptr, char *propname, struct PointerRNA *userptr, int compact){}
 void uiTemplateDopeSheetFilter(struct uiLayout *layout, struct bContext *C, struct PointerRNA *ptr){}
@@ -371,10 +380,11 @@ void RE_AcquireResultImage(struct Render *re, struct RenderResult *rr){}
 void RE_ReleaseResult(struct Render *re){}
 void RE_ReleaseResultImage(struct Render *re){}
 int RE_engine_test_break(struct RenderEngine *engine){return 0;}
+void RE_engine_report(struct RenderEngine *engine, int type, const char *msg) {}
 
 /* python */
 struct wmOperatorType *WM_operatortype_find(const char *idname, int quiet){return (struct wmOperatorType *) NULL;}
-struct wmOperatorType *WM_operatortype_first(){return (struct wmOperatorType *) NULL;}
+struct GHashIterator *WM_operatortype_iter(){return (struct GHashIterator *) NULL;}
 struct wmOperatorType *WM_operatortype_exists(const char *idname){return (struct wmOperatorType *) NULL;}
 struct wmOperatorTypeMacro *WM_operatortype_macro_define(struct wmOperatorType *ot, const char *idname){return (struct wmOperatorTypeMacro *) NULL;}
 int WM_operator_call_py(struct bContext *C, struct wmOperatorType *ot, int context, struct PointerRNA *properties, struct ReportList *reports){return 0;}
@@ -417,7 +427,7 @@ void BPY_id_release(struct Text *text) {}
 int BPY_context_member_get(struct Context *C, const char *member, struct bContextDataResult *result) { return 0; }
 void BPY_pyconstraint_target(struct bPythonConstraint *con, struct bConstraintTarget *ct) {}
 float BPY_driver_exec(struct ChannelDriver *driver) {return 0.0f;} /* might need this one! */
-void	BPY_DECREF(void *pyob_ptr) {}
+void BPY_DECREF(void *pyob_ptr) {}
 void BPY_pyconstraint_exec(struct bPythonConstraint *con, struct bConstraintOb *cob, struct ListBase *targets) {}
 void macro_wrapper(struct wmOperatorType *ot, void *userdata) {} ;
 

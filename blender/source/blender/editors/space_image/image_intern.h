@@ -60,7 +60,7 @@ void IMAGE_OT_toolbox(struct wmOperatorType *ot);
 
 /* image_draw.c */
 void draw_image_main(struct SpaceImage *sima, struct ARegion *ar, struct Scene *scene);
-void draw_image_info(struct ARegion *ar, int channels, int x, int y, char *cp, float *fp, int *zp, float *zpf);
+void draw_image_info(struct ARegion *ar, int color_manage, int channels, int x, int y, char *cp, float *fp, int *zp, float *zpf);
 void draw_image_grease_pencil(struct bContext *C, short onlyv2d);
 
 /* image_ops.c */
@@ -73,6 +73,7 @@ void IMAGE_OT_view_zoom(struct wmOperatorType *ot);
 void IMAGE_OT_view_zoom_in(struct wmOperatorType *ot);
 void IMAGE_OT_view_zoom_out(struct wmOperatorType *ot);
 void IMAGE_OT_view_zoom_ratio(struct wmOperatorType *ot);
+void IMAGE_OT_view_ndof(struct wmOperatorType *ot);
 
 void IMAGE_OT_new(struct wmOperatorType *ot);
 void IMAGE_OT_open(struct wmOperatorType *ot);

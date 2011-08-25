@@ -172,11 +172,7 @@ static void cdDM_getVertCos(DerivedMesh *dm, float (*cos_r)[3])
 static void cdDM_getVertNo(DerivedMesh *dm, int index, float no_r[3])
 {
 	CDDerivedMesh *cddm = (CDDerivedMesh*) dm;
-	short *no = cddm->mvert[index].no;
-
-	no_r[0] = no[0]/32767.f;
-	no_r[1] = no[1]/32767.f;
-	no_r[2] = no[2]/32767.f;
+	normal_short_to_float_v3(no_r, cddm->mvert[index].no);
 }
 
 static ListBase *cdDM_getFaceMap(Object *ob, DerivedMesh *dm)
@@ -197,8 +193,20 @@ static int can_pbvh_draw(Object *ob, DerivedMesh *dm)
 {
 	CDDerivedMesh *cddm = (CDDerivedMesh*) dm;
 	Mesh *me= ob->data;
+	int deformed= 0;
 
-	if(ob->sculpt->modifiers_active) return 0;
+	/* active modifiers means extra deformation, which can't be handled correct
+	   on bith of PBVH and sculpt "layer" levels, so use PBVH only for internal brush
+	   stuff and show final DerivedMesh so user would see actual object shape */
+	deformed|= ob->sculpt->modifiers_active;
+
+	/* as in case with modifiers, we can't synchronize deformation made against
+	   PBVH and non-locked keyblock, so also use PBVH only for brushes and
+	   final DM to give final result to user */
+	deformed|= ob->sculpt->kb && (ob->shapeflag&OB_SHAPE_LOCK) == 0;
+
+	if(deformed)
+		return 0;
 
 	return (cddm->mvert == me->mvert) || ob->sculpt->kb;
 }
@@ -223,19 +231,21 @@ static struct PBVH *cdDM_getPBVH(Object *ob, DerivedMesh *dm)
 	   this derivedmesh is just original mesh. it's the multires subsurf dm
 	   that this is actually for, to support a pbvh on a modified mesh */
 	if(!cddm->pbvh && ob->type == OB_MESH) {
+		SculptSession *ss= ob->sculpt;
 		Mesh *me= ob->data;
 		cddm->pbvh = BLI_pbvh_new();
 		cddm->pbvh_draw = can_pbvh_draw(ob, dm);
 		BLI_pbvh_build_mesh(cddm->pbvh, me->mface, me->mvert,
 				   me->totface, me->totvert);
 
-		if(ob->sculpt->modifiers_active) {
+		if(ss->modifiers_active && ob->derivedDeform) {
+			DerivedMesh *deformdm= ob->derivedDeform;
 			float (*vertCos)[3];
 			int totvert;
 
-			totvert= dm->getNumVerts(dm);
+			totvert= deformdm->getNumVerts(deformdm);
 			vertCos= MEM_callocN(3*totvert*sizeof(float), "cdDM_getPBVH vertCos");
-			dm->getVertCos(dm, vertCos);
+			deformdm->getVertCos(deformdm, vertCos);
 			BLI_pbvh_apply_vertCos(cddm->pbvh, vertCos);
 			MEM_freeN(vertCos);
 		}
@@ -274,8 +284,10 @@ static void cdDM_drawVerts(DerivedMesh *dm)
 	else {	/* use OpenGL VBOs or Vertex Arrays instead for better, faster rendering */
 		GPU_vertex_setup(dm);
 		if( !GPU_buffer_legacy(dm) ) {
-			if(dm->drawObject->nelements)	glDrawArrays(GL_POINTS,0, dm->drawObject->nelements);
-			else							glDrawArrays(GL_POINTS,0, dm->drawObject->nlooseverts);
+			if(dm->drawObject->tot_triangle_point)
+				glDrawArrays(GL_POINTS,0, dm->drawObject->tot_triangle_point);
+			else
+				glDrawArrays(GL_POINTS,0, dm->drawObject->tot_loose_point);
 		}
 		GPU_buffer_unbind();
 	}
@@ -537,9 +549,10 @@ static void cdDM_drawFacesSolid(DerivedMesh *dm,
 		GPU_normal_setup( dm );
 		if( !GPU_buffer_legacy(dm) ) {
 			glShadeModel(GL_SMOOTH);
-			for( a = 0; a < dm->drawObject->nmaterials; a++ ) {
+			for( a = 0; a < dm->drawObject->totmaterial; a++ ) {
 				if( setMaterial(dm->drawObject->materials[a].mat_nr+1, NULL) )
-					glDrawArrays(GL_TRIANGLES, dm->drawObject->materials[a].start, dm->drawObject->materials[a].end-dm->drawObject->materials[a].start);
+					glDrawArrays(GL_TRIANGLES, dm->drawObject->materials[a].start,
+						     dm->drawObject->materials[a].totpoint);
 			}
 		}
 		GPU_buffer_unbind( );
@@ -568,8 +581,9 @@ static void cdDM_drawFacesColored(DerivedMesh *dm, int useTwoSided, unsigned cha
 	/* there's a conflict here... twosided colors versus culling...? */
 	/* defined by history, only texture faces have culling option */
 	/* we need that as mesh option builtin, next to double sided lighting */
-	if(col1 && col2)
+	if(col2) {
 		glEnable(GL_CULL_FACE);
+	}
 
 	cdDM_update_normals_from_pbvh(dm);
 
@@ -585,26 +599,26 @@ static void cdDM_drawFacesColored(DerivedMesh *dm, int useTwoSided, unsigned cha
 				glBegin(glmode = new_glmode);
 			}
 				
-			glColor3ub(cp1[0], cp1[1], cp1[2]);
+			glColor3ubv(cp1+0);
 			glVertex3fv(mvert[mface->v1].co);
-			glColor3ub(cp1[4], cp1[5], cp1[6]);
+			glColor3ubv(cp1+4);
 			glVertex3fv(mvert[mface->v2].co);
-			glColor3ub(cp1[8], cp1[9], cp1[10]);
+			glColor3ubv(cp1+8);
 			glVertex3fv(mvert[mface->v3].co);
 			if(mface->v4) {
-				glColor3ub(cp1[12], cp1[13], cp1[14]);
+				glColor3ubv(cp1+12);
 				glVertex3fv(mvert[mface->v4].co);
 			}
 				
 			if(useTwoSided) {
-				glColor3ub(cp2[8], cp2[9], cp2[10]);
+				glColor3ubv(cp2+8);
 				glVertex3fv(mvert[mface->v3].co );
-				glColor3ub(cp2[4], cp2[5], cp2[6]);
+				glColor3ubv(cp2+4);
 				glVertex3fv(mvert[mface->v2].co );
-				glColor3ub(cp2[0], cp2[1], cp2[2]);
+				glColor3ubv(cp2+0);
 				glVertex3fv(mvert[mface->v1].co );
 				if(mface->v4) {
-					glColor3ub(cp2[12], cp2[13], cp2[14]);
+					glColor3ubv(cp2+12);
 					glVertex3fv(mvert[mface->v4].co );
 				}
 			}
@@ -618,13 +632,13 @@ static void cdDM_drawFacesColored(DerivedMesh *dm, int useTwoSided, unsigned cha
 		GPU_color_setup(dm);
 		if( !GPU_buffer_legacy(dm) ) {
 			glShadeModel(GL_SMOOTH);
-			glDrawArrays(GL_TRIANGLES, 0, dm->drawObject->nelements);
+			glDrawArrays(GL_TRIANGLES, 0, dm->drawObject->tot_triangle_point);
 
 			if( useTwoSided ) {
 				GPU_color4_upload(dm,cp2);
 				GPU_color_setup(dm);
 				glCullFace(GL_FRONT);
-				glDrawArrays(GL_TRIANGLES, 0, dm->drawObject->nelements);
+				glDrawArrays(GL_TRIANGLES, 0, dm->drawObject->tot_triangle_point);
 				glCullFace(GL_BACK);
 			}
 		}
@@ -761,10 +775,23 @@ static void cdDM_drawFacesTex_common(DerivedMesh *dm,
 		}
 
 		if( !GPU_buffer_legacy(dm) ) {
+			/* warning!, this logic is incorrect, see bug [#27175]
+			 * firstly, there are no checks for changes in context, such as texface image.
+			 * secondly, drawParams() sets the GL context, so checking if there is a change
+			 * from lastFlag is too late once glDrawArrays() runs, since drawing the arrays
+			 * will use the modified, OpenGL settings.
+			 * 
+			 * However its tricky to fix this without duplicating the internal logic
+			 * of drawParams(), perhaps we need an argument like...
+			 * drawParams(..., keep_gl_state_but_return_when_changed) ?.
+			 *
+			 * We could also just disable VBO's here, since texface may be deprecated - campbell.
+			 */
+			
 			glShadeModel( GL_SMOOTH );
 			lastFlag = 0;
-			for(i = 0; i < dm->drawObject->nelements/3; i++) {
-				int actualFace = dm->drawObject->faceRemap[i];
+			for(i = 0; i < dm->drawObject->tot_triangle_point/3; i++) {
+				int actualFace = dm->drawObject->triangle_to_mface[i];
 				int flag = 1;
 
 				if(drawParams) {
@@ -795,13 +822,13 @@ static void cdDM_drawFacesTex_common(DerivedMesh *dm,
 					startFace = i;
 				}
 			}
-			if( startFace < dm->drawObject->nelements/3 ) {
+			if( startFace < dm->drawObject->tot_triangle_point/3 ) {
 				if( lastFlag != 0 ) { /* if the flag is 0 it means the face is hidden or invisible */
 					if (lastFlag==1 && col)
 						GPU_color_switch(1);
 					else
 						GPU_color_switch(0);
-					glDrawArrays(GL_TRIANGLES,startFace*3,dm->drawObject->nelements-startFace*3);
+					glDrawArrays(GL_TRIANGLES, startFace*3, dm->drawObject->tot_triangle_point - startFace*3);
 				}
 			}
 		}
@@ -911,7 +938,7 @@ static void cdDM_drawMappedFaces(DerivedMesh *dm, int (*setDrawOptions)(void *us
 		if( useColors && mc )
 			GPU_color_setup(dm);
 		if( !GPU_buffer_legacy(dm) ) {
-			int tottri = dm->drawObject->nelements/3;
+			int tottri = dm->drawObject->tot_triangle_point/3;
 			glShadeModel(GL_SMOOTH);
 			
 			if(tottri == 0) {
@@ -923,17 +950,17 @@ static void cdDM_drawMappedFaces(DerivedMesh *dm, int (*setDrawOptions)(void *us
 			}
 			else {
 				/* we need to check if the next material changes */
-				int next_actualFace= dm->drawObject->faceRemap[0];
+				int next_actualFace= dm->drawObject->triangle_to_mface[0];
 				
 				for( i = 0; i < tottri; i++ ) {
-					//int actualFace = dm->drawObject->faceRemap[i];
+					//int actualFace = dm->drawObject->triangle_to_mface[i];
 					int actualFace = next_actualFace;
 					MFace *mface= mf + actualFace;
 					int drawSmooth= (mface->flag & ME_SMOOTH);
 					int draw = 1;
 
 					if(i != tottri-1)
-						next_actualFace= dm->drawObject->faceRemap[i+1];
+						next_actualFace= dm->drawObject->triangle_to_mface[i+1];
 
 					orig= (index==NULL) ? actualFace : index[actualFace];
 
@@ -964,6 +991,50 @@ static void cdDM_drawMappedFaces(DerivedMesh *dm, int (*setDrawOptions)(void *us
 static void cdDM_drawMappedFacesTex(DerivedMesh *dm, int (*setDrawOptions)(void *userData, int index), void *userData)
 {
 	cdDM_drawFacesTex_common(dm, NULL, setDrawOptions, userData);
+}
+
+static void cddm_draw_attrib_vertex(DMVertexAttribs *attribs, MVert *mvert, int a, int index, int vert, int smoothnormal)
+{
+	int b;
+
+	/* orco texture coordinates */
+	if(attribs->totorco) {
+		if(attribs->orco.glTexco)
+			glTexCoord3fv(attribs->orco.array[index]);
+		else
+			glVertexAttrib3fvARB(attribs->orco.glIndex, attribs->orco.array[index]);
+	}
+
+	/* uv texture coordinates */
+	for(b = 0; b < attribs->tottface; b++) {
+		MTFace *tf = &attribs->tface[b].array[a];
+
+		if(attribs->tface[b].glTexco)
+			glTexCoord2fv(tf->uv[vert]);
+		else
+			glVertexAttrib2fvARB(attribs->tface[b].glIndex, tf->uv[vert]);
+	}
+
+	/* vertex colors */
+	for(b = 0; b < attribs->totmcol; b++) {
+		MCol *cp = &attribs->mcol[b].array[a*4 + vert];
+		GLubyte col[4];
+		col[0]= cp->b; col[1]= cp->g; col[2]= cp->r; col[3]= cp->a;
+		glVertexAttrib4ubvARB(attribs->mcol[b].glIndex, col);
+	}
+
+	/* tangent for normal mapping */
+	if(attribs->tottang) {
+		float *tang = attribs->tang.array[a*4 + vert];
+		glVertexAttrib4fvARB(attribs->tang.glIndex, tang);
+	}
+
+	/* vertex normal */
+	if(smoothnormal)
+		glNormal3sv(mvert[index].no);
+	
+	/* vertex coordinate */
+	glVertex3fv(mvert[index].co);
 }
 
 static void cdDM_drawMappedFacesGLSL(DerivedMesh *dm, int (*setMaterial)(int, void *attribs), int (*setDrawOptions)(void *userData, int index), void *userData)
@@ -1056,37 +1127,14 @@ static void cdDM_drawMappedFacesGLSL(DerivedMesh *dm, int (*setMaterial)(int, vo
 				}
 			}
 
-#define PASSVERT(index, vert) {													\
-		if(attribs.totorco)															\
-			glVertexAttrib3fvARB(attribs.orco.glIndex, attribs.orco.array[index]);	\
-		for(b = 0; b < attribs.tottface; b++) {										\
-			MTFace *tf = &attribs.tface[b].array[a];								\
-			glVertexAttrib2fvARB(attribs.tface[b].glIndex, tf->uv[vert]);			\
-		}																			\
-		for(b = 0; b < attribs.totmcol; b++) {										\
-			MCol *cp = &attribs.mcol[b].array[a*4 + vert];							\
-			GLubyte col[4];															\
-			col[0]= cp->b; col[1]= cp->g; col[2]= cp->r; col[3]= cp->a;				\
-			glVertexAttrib4ubvARB(attribs.mcol[b].glIndex, col);					\
-		}																			\
-		if(attribs.tottang) {														\
-			float *tang = attribs.tang.array[a*4 + vert];							\
-			glVertexAttrib4fvARB(attribs.tang.glIndex, tang);						\
-		}																			\
-		if(smoothnormal)															\
-			glNormal3sv(mvert[index].no);											\
-		glVertex3fv(mvert[index].co);												\
-	}
+			cddm_draw_attrib_vertex(&attribs, mvert, a, mface->v1, 0, smoothnormal);
+			cddm_draw_attrib_vertex(&attribs, mvert, a, mface->v2, 1, smoothnormal);
+			cddm_draw_attrib_vertex(&attribs, mvert, a, mface->v3, 2, smoothnormal);
 
-			PASSVERT(mface->v1, 0);
-			PASSVERT(mface->v2, 1);
-			PASSVERT(mface->v3, 2);
 			if(mface->v4)
-				PASSVERT(mface->v4, 3)
+				cddm_draw_attrib_vertex(&attribs, mvert, a, mface->v4, 3, smoothnormal);
 			else
-				PASSVERT(mface->v3, 2)
-
-#undef PASSVERT
+				cddm_draw_attrib_vertex(&attribs, mvert, a, mface->v3, 2, smoothnormal);
 		}
 		glEnd();
 	}
@@ -1105,9 +1153,9 @@ static void cdDM_drawMappedFacesGLSL(DerivedMesh *dm, int (*setMaterial)(int, vo
 		GPU_normal_setup(dm);
 
 		if( !GPU_buffer_legacy(dm) ) {
-			for( i = 0; i < dm->drawObject->nelements/3; i++ ) {
+			for( i = 0; i < dm->drawObject->tot_triangle_point/3; i++ ) {
 
-				a = dm->drawObject->faceRemap[i];
+				a = dm->drawObject->triangle_to_mface[i];
 
 				mface = mf + a;
 				new_matnr = mface->mat_nr + 1;
@@ -1129,7 +1177,7 @@ static void cdDM_drawMappedFacesGLSL(DerivedMesh *dm, int (*setMaterial)(int, vo
 
 							if( numdata != 0 ) {
 
-								GPU_buffer_free(buffer, NULL);
+								GPU_buffer_free(buffer);
 
 								buffer = NULL;
 							}
@@ -1169,7 +1217,7 @@ static void cdDM_drawMappedFacesGLSL(DerivedMesh *dm, int (*setMaterial)(int, vo
 						}
 						if( numdata != 0 ) {
 							elementsize = GPU_attrib_element_size( datatypes, numdata );
-							buffer = GPU_buffer_alloc( elementsize*dm->drawObject->nelements, NULL );
+							buffer = GPU_buffer_alloc( elementsize*dm->drawObject->tot_triangle_point);
 							if( buffer == NULL ) {
 								GPU_buffer_unbind();
 								dm->drawObject->legacy = 1;
@@ -1178,7 +1226,7 @@ static void cdDM_drawMappedFacesGLSL(DerivedMesh *dm, int (*setMaterial)(int, vo
 							varray = GPU_buffer_lock_stream(buffer);
 							if( varray == NULL ) {
 								GPU_buffer_unbind();
-								GPU_buffer_free(buffer, NULL);
+								GPU_buffer_free(buffer);
 								dm->drawObject->legacy = 1;
 								return;
 							}
@@ -1260,6 +1308,7 @@ static void cdDM_drawMappedFacesGLSL(DerivedMesh *dm, int (*setMaterial)(int, vo
 						QUATCOPY((float *)&varray[elementsize*curface*3+offset+elementsize*2], tang);
 						offset += sizeof(float)*4;
 					}
+					(void)offset;
 				}
 				curface++;
 				if(mface->v4) {
@@ -1300,6 +1349,7 @@ static void cdDM_drawMappedFacesGLSL(DerivedMesh *dm, int (*setMaterial)(int, vo
 							QUATCOPY((float *)&varray[elementsize*curface*3+offset+elementsize*2], tang);
 							offset += sizeof(float)*4;
 						}
+						(void)offset;
 					}
 					curface++;
 					i++;
@@ -1317,7 +1367,7 @@ static void cdDM_drawMappedFacesGLSL(DerivedMesh *dm, int (*setMaterial)(int, vo
 			}
 			GPU_buffer_unbind();
 		}
-		GPU_buffer_free( buffer, NULL );
+		GPU_buffer_free(buffer);
 	}
 
 	glShadeModel(GL_FLAT);

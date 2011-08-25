@@ -64,13 +64,32 @@
 #include "texture.h"
 #include "voxeldata.h"
 
+static int is_vd_res_ok(VoxelData *vd)
+{
+	/* arbitrary large value so corrupt headers dont break */
+	const int min= 1, max= 100000;
+	return	(vd->resol[0] >= min && vd->resol[0] <= max) &&
+			(vd->resol[1] >= min && vd->resol[1] <= max) &&
+			(vd->resol[2] >= min && vd->resol[2] <= max);
+}
+
+/* use size_t because the result may exceed INT_MAX */
+static size_t vd_resol_size(VoxelData *vd)
+{
+	return (size_t)vd->resol[0] * (size_t)vd->resol[1] * (size_t)vd->resol[2];
+}
+
 static int load_frame_blendervoxel(VoxelData *vd, FILE *fp, int frame)
 {	
+	const size_t size = vd_resol_size(vd);
 	size_t offset = sizeof(VoxelDataHeader);
-	int size = (vd->resol[0])*(vd->resol[1])*(vd->resol[2]);
 	
+	if(is_vd_res_ok(vd) == FALSE)
+		return 0;
+
 	vd->dataset = MEM_mapallocN(sizeof(float)*size, "voxel dataset");
-	
+	if(vd->dataset == NULL) return 0;
+
 	if(fseek(fp, frame*size*sizeof(float)+offset, 0) == -1)
 		return 0;
 	if(fread(vd->dataset, sizeof(float), size, fp) != size)
@@ -83,19 +102,32 @@ static int load_frame_blendervoxel(VoxelData *vd, FILE *fp, int frame)
 
 static int load_frame_raw8(VoxelData *vd, FILE *fp, int frame)
 {
-	int size = (vd->resol[0])*(vd->resol[1])*(vd->resol[2]);
+	const size_t size = vd_resol_size(vd);
 	char *data_c;
 	int i;
-	
+
+	if(is_vd_res_ok(vd) == FALSE)
+		return 0;
+
 	vd->dataset = MEM_mapallocN(sizeof(float)*size, "voxel dataset");
+	if(vd->dataset == NULL) return 0;
 	data_c = (char *)MEM_mallocN(sizeof(char)*size, "temporary voxel file reading storage");
-	
+	if(data_c == NULL) {
+		MEM_freeN(vd->dataset);
+		vd->dataset= NULL;
+		return 0;
+	}
+
 	if(fseek(fp,(frame-1)*size*sizeof(char),0) == -1) {
 		MEM_freeN(data_c);
+		MEM_freeN(vd->dataset);
+		vd->dataset= NULL;
 		return 0;
 	}
 	if(fread(data_c, sizeof(char), size, fp) != size) {
 		MEM_freeN(data_c);
+		MEM_freeN(vd->dataset);
+		vd->dataset= NULL;
 		return 0;
 	}
 	
@@ -138,7 +170,7 @@ static void load_frame_image_sequence(VoxelData *vd, Tex *tex)
 	vd->resol[0] = ibuf->x;
 	vd->resol[1] = ibuf->y;
 	vd->resol[2] = iuser.frames;
-	vd->dataset = MEM_mapallocN(sizeof(float)*(vd->resol[0])*(vd->resol[1])*(vd->resol[2]), "voxel dataset");
+	vd->dataset = MEM_mapallocN(sizeof(float)*vd_resol_size(vd), "voxel dataset");
 	
 	for (z=0; z < iuser.frames; z++)
 	{	
@@ -188,6 +220,7 @@ static int read_voxeldata_header(FILE *fp, struct VoxelData *vd)
 
 static void init_frame_smoke(VoxelData *vd, float cfra)
 {
+#ifdef WITH_SMOKE
 	Object *ob;
 	ModifierData *md;
 	
@@ -205,12 +238,12 @@ static void init_frame_smoke(VoxelData *vd, float cfra)
 			if(cfra < smd->domain->point_cache[0]->startframe)
 				; /* don't show smoke before simulation starts, this could be made an option in the future */
 			else if (vd->smoked_type == TEX_VD_SMOKEHEAT) {
-				int totRes;
+				size_t totRes;
+				size_t i;
 				float *heat;
-				int i;
 
 				VECCOPY(vd->resol, smd->domain->res);
-				totRes = (vd->resol[0])*(vd->resol[1])*(vd->resol[2]);
+				totRes= vd_resol_size(vd);
 
 				// scaling heat values from -2.0-2.0 to 0.0-1.0
 				vd->dataset = MEM_mapallocN(sizeof(float)*(totRes), "smoke data");
@@ -226,12 +259,12 @@ static void init_frame_smoke(VoxelData *vd, float cfra)
 				//vd->dataset = smoke_get_heat(smd->domain->fluid);
 			}
 			else if (vd->smoked_type == TEX_VD_SMOKEVEL) {
-				int totRes;
+				size_t totRes;
+				size_t i;
 				float *xvel, *yvel, *zvel;
-				int i;
 
 				VECCOPY(vd->resol, smd->domain->res);
-				totRes = (vd->resol[0])*(vd->resol[1])*(vd->resol[2]);
+				totRes= vd_resol_size(vd);
 
 				// scaling heat values from -2.0-2.0 to 0.0-1.0
 				vd->dataset = MEM_mapallocN(sizeof(float)*(totRes), "smoke data");
@@ -247,7 +280,7 @@ static void init_frame_smoke(VoxelData *vd, float cfra)
 
 			}
 			else {
-				int totRes;
+				size_t totRes;
 				float *density;
 
 				if (smd->domain->flags & MOD_SMOKE_HIGHRES) {
@@ -258,8 +291,8 @@ static void init_frame_smoke(VoxelData *vd, float cfra)
 					density = smoke_get_density(smd->domain->fluid);
 				}
 
-				totRes = (vd->resol[0])*(vd->resol[1])*(vd->resol[2]);
-
+				/* TODO: is_vd_res_ok(rvd) doesnt check this resolution */
+				totRes= vd_resol_size(vd);
 				/* always store copy, as smoke internal data can change */
 				vd->dataset = MEM_mapallocN(sizeof(float)*(totRes), "smoke data");
 				memcpy(vd->dataset, density, sizeof(float)*totRes);
@@ -268,7 +301,13 @@ static void init_frame_smoke(VoxelData *vd, float cfra)
 	}
 	
 	vd->ok = 1;
-	return;
+
+#else // WITH_SMOKE
+	(void)vd;
+	(void)cfra;
+
+	vd->dataset= NULL;
+#endif
 }
 
 static void cache_voxeldata(struct Render *re, Tex *tex)
@@ -310,9 +349,8 @@ static void cache_voxeldata(struct Render *re, Tex *tex)
 			
 			if(read_voxeldata_header(fp, vd))
 				load_frame_blendervoxel(vd, fp, curframe-1);
-			else
-				fclose(fp);
-			
+
+			fclose(fp);
 			return;
 		case TEX_VD_RAW_8BIT:
 			BLI_path_abs(path, G.main->name);
@@ -320,11 +358,8 @@ static void cache_voxeldata(struct Render *re, Tex *tex)
 			fp = fopen(path,"rb");
 			if (!fp) return;
 			
-			if (load_frame_raw8(vd, fp, curframe))
-				;
-			else	
-				fclose(fp);
-			
+			load_frame_raw8(vd, fp, curframe);
+			fclose(fp);
 			return;
 	}
 }
@@ -378,9 +413,9 @@ int voxeldatatex(struct Tex *tex, float *texvec, struct TexResult *texres)
 		}
 		case TEX_REPEAT:
 		{
-			co[0] = co[0] - floor(co[0]);
-			co[1] = co[1] - floor(co[1]);
-			co[2] = co[2] - floor(co[2]);
+			co[0] = co[0] - floorf(co[0]);
+			co[1] = co[1] - floorf(co[1]);
+			co[2] = co[2] - floorf(co[2]);
 			break;
 		}
 		case TEX_EXTEND:

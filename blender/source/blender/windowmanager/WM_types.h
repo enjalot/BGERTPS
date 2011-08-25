@@ -61,6 +61,10 @@ struct ImBuf;
 #define OPTYPE_MACRO		8
 #define OPTYPE_GRAB_POINTER	16	/* */
 #define OPTYPE_PRESET		32	/* show preset menu */
+#define OPTYPE_INTERNAL		64	/* some operators are mainly for internal use
+								 * and don't make sense to be accessed from the
+								 * search menu, even if poll() returns TRUE.
+								 * currently only used for the search toolbox */
 
 /* context to call operator in for WM_operator_name_call */
 /* rna_ui.c contains EnumPropertyItem's of these, keep in sync */
@@ -335,8 +339,8 @@ typedef struct wmEvent {
 	
 	short type;			/* event code itself (short, is also in keymap) */
 	short val;			/* press, release, scrollvalue */
-	short x, y;			/* mouse pointer position, screen coord */
-	short mval[2];		/* region mouse position, name convention pre 2.5 :) */
+	int x, y;			/* mouse pointer position, screen coord */
+	int mval[2];		/* region mouse position, name convention pre 2.5 :) */
 	short unicode;		/* future, ghost? */
 	char ascii;			/* from ghost */
 	char pad;
@@ -344,9 +348,9 @@ typedef struct wmEvent {
 	/* previous state */
 	short prevtype;
 	short prevval;
-	short prevx, prevy;
+	int prevx, prevy;
 	double prevclicktime;
-	short prevclickx, prevclicky;
+	int prevclickx, prevclicky;
 	
 	/* modifier states */
 	short shift, ctrl, alt, oskey;	/* oskey is apple or windowskey, value denotes order of pressed */
@@ -373,6 +377,32 @@ typedef struct wmTabletData {
 	float Ytilt;		/* as above */
 } wmTabletData;
 
+typedef enum { // motion progress, for modal handlers
+	P_NOT_STARTED,
+	P_STARTING,    // <--
+	P_IN_PROGRESS, // <-- only these are sent for NDOF motion
+	P_FINISHING,   // <--
+	P_FINISHED
+	} wmProgress;
+
+typedef struct wmNDOFMotionData {
+	/* awfully similar to GHOST_TEventNDOFMotionData... */
+	// Each component normally ranges from -1 to +1, but can exceed that.
+	// These use blender standard view coordinates, with positive rotations being CCW about the axis.
+	union {
+		float tvec[3]; // translation
+		struct { float tx, ty, tz; };
+		};
+	union {
+		float rvec[3]; // rotation:
+		struct { float rx, ry, rz; };
+		};
+		// axis = (rx,ry,rz).normalized
+		// amount = (rx,ry,rz).magnitude [in revolutions, 1.0 = 360 deg]
+	float dt; // time since previous NDOF Motion event
+	wmProgress progress; // is this the first event, the last, or one of many in between?
+} wmNDOFMotionData;
+
 typedef struct wmTimer {
 	struct wmTimer *next, *prev;
 	
@@ -393,8 +423,6 @@ typedef struct wmTimer {
 
 
 typedef struct wmOperatorType {
-	struct wmOperatorType *next, *prev;
-
 	const char *name;		/* text for ui, undo */
 	const char *idname;		/* unique identifier */
 	const char *description;	/* tooltips and python docs */
@@ -494,7 +522,7 @@ typedef struct wmDrag {
 	
 	struct ImBuf *imb;						/* if no icon but imbuf should be drawn around cursor */
 	float scale;
-	short sx, sy;
+	int sx, sy;
 	
 	char opname[240]; /* FILE_MAX */			/* if set, draws operator name*/
 } wmDrag;

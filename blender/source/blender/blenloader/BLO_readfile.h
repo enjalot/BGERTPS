@@ -49,6 +49,8 @@ struct SpaceFile;
 struct SpaceImaSel;
 struct UserDef;
 struct bContext;
+struct BHead;
+struct FileData;
 
 typedef struct BlendHandle	BlendHandle;
 
@@ -79,12 +81,12 @@ typedef struct BlendFileData {
 	 * returns NULL and sets a report in the list if
 	 * it cannot open the file.
 	 * 
-	 * @param file The path of the file to open.
+	 * @param filepath The path of the file to open.
 	 * @param reports If the return value is NULL, errors
 	 * indicating the cause of the failure.
 	 * @return The data of the file.
 	 */
-BlendFileData*	BLO_read_from_file(const char *file, struct ReportList *reports);
+BlendFileData*	BLO_read_from_file(const char *filepath, struct ReportList *reports);
 
 	/**
 	 * Open a blender file from memory. The function
@@ -148,7 +150,7 @@ BLO_blendhandle_from_memory(
  * 
  * @param bh The blendhandle to access.
  * @param ofblocktype The type of names to get.
- * @param totnames The length of the returned list.
+ * @param tot_names The length of the returned list.
  * @return A BLI_linklist of strings. The string links
  * should be freed with malloc.
  */
@@ -156,7 +158,7 @@ BLO_blendhandle_from_memory(
 BLO_blendhandle_get_datablock_names(
 	BlendHandle *bh, 
 	int ofblocktype,
-	int *totnames);
+	int *tot_names);
 
 /**
  * Gets the previews of all the datablocks in a file
@@ -165,13 +167,15 @@ BLO_blendhandle_get_datablock_names(
  * 
  * @param bh The blendhandle to access.
  * @param ofblocktype The type of names to get.
+ * @param tot_prev The length of the returned list.
  * @return A BLI_linklist of PreviewImage. The PreviewImage links
  * should be freed with malloc.
  */
 	struct LinkNode*
 BLO_blendhandle_get_previews(
 	BlendHandle *bh, 
-	int ofblocktype);
+	int ofblocktype,
+	int *tot_prev);
 
 /**
  * Gets the names of all the datablock groups in a
@@ -207,26 +211,46 @@ int BLO_has_bfile_extension(char *str);
  */
 int BLO_is_a_library(const char *path, char *dir, char *group);
 
-struct Main* BLO_library_append_begin(const struct bContext *C, BlendHandle** bh, char *dir);
+
+/**
+ * Initialize the BlendHandle for appending or linking library data.
+ *
+ * @param mainvar The current main database eg G.main or CTX_data_main(C).
+ * @param bh A blender file handle as returned by BLO_blendhandle_from_file or BLO_blendhandle_from_memory.
+ * @param filepath Used for relative linking, copied to the lib->name
+ * @return the library Main, to be passed to BLO_library_append_named_part as mainl.
+ */
+struct Main* BLO_library_append_begin(struct Main *mainvar, BlendHandle** bh, const char *filepath);
+
 
 /**
  * Link/Append a named datablock from an external blend file.
  *
+ * @param mainl The main database to link from (not the active one).
+ * @param bh The blender file handle.
+ * @param idname The name of the datablock (without the 2 char ID prefix)
+ * @param idcode The kind of datablock to link.
+ * @return the appended ID when found.
+ */
+struct ID *BLO_library_append_named_part(struct Main *mainl, BlendHandle** bh, const char *idname, const int idcode);
+
+/**
+ * Link/Append a named datablock from an external blend file.
+ * optionally instance the object in the scene when the flags are set.
+ *
  * @param C The context, when NULL instancing object in the scene isnt done.
  * @param mainl The main database to link from (not the active one).
  * @param bh The blender file handle.
- * @param name The name of the datablock (without the 2 char ID prefix)
+ * @param idname The name of the datablock (without the 2 char ID prefix)
  * @param idcode The kind of datablock to link.
  * @param flag Options for linking, used for instancing.
- * @return Boolean, 0 when the datablock could not be found.
+ * @return the appended ID when found.
  */
-int BLO_library_append_named_part(const struct bContext *C, struct Main *mainl, BlendHandle** bh, const char *name, int idcode, short flag);
+struct ID *BLO_library_append_named_part_ex(const struct bContext *C, struct Main *mainl, BlendHandle** bh, const char *idname, const int idcode, const short flag);
+
 void BLO_library_append_end(const struct bContext *C, struct Main *mainl, BlendHandle** bh, int idcode, short flag);
 
-/* deprecated */
-#if 1
-void BLO_script_library_append(BlendHandle **bh, char *dir, char *name, int idcode, short flag, struct Main *mainvar, struct Scene *scene, struct ReportList *reports);
-#endif
+void *BLO_library_read_struct(struct FileData *fd, struct BHead *bh, const char *blockname);
 
 BlendFileData* blo_read_blendafterruntime(int file, char *name, int actualsize, struct ReportList *reports);
 

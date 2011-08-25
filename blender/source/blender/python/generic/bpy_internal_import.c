@@ -34,9 +34,6 @@
 #include <Python.h>
 #include <stddef.h>
 
-#include "compile.h"	/* for the PyCodeObject */
-#include "eval.h"		/* for PyEval_EvalCode */
-
 #include "bpy_internal_import.h"
 
 #include "MEM_guardedalloc.h"
@@ -51,7 +48,6 @@
  /* UNUSED */	
 #include "BKE_text.h" /* txt_to_buf */	
 #include "BKE_main.h"
-#include "BKE_global.h" /* grr, only for G.main->name */
 
 static Main *bpy_import_main= NULL;
 
@@ -97,7 +93,7 @@ void bpy_import_main_set(struct Main *maggie)
 /* returns a dummy filename for a textblock so we can tell what file a text block comes from */
 void bpy_text_filename_get(char *fn, size_t fn_len, Text *text)
 {
-	BLI_snprintf(fn, fn_len, "%s%c%s", text->id.lib ? text->id.lib->filepath : G.main->name, SEP, text->id.name+2);
+	BLI_snprintf(fn, fn_len, "%s%c%s", text->id.lib ? text->id.lib->filepath : bpy_import_main->name, SEP, text->id.name+2);
 }
 
 PyObject *bpy_text_import(Text *text)
@@ -132,7 +128,7 @@ PyObject *bpy_text_import(Text *text)
 PyObject *bpy_text_import_name(char *name, int *found)
 {
 	Text *text;
-	char txtname[22]; /* 21+NULL */
+	char txtname[MAX_ID_NAME-2];
 	int namelen= strlen(name);
 //XXX	Main *maggie= bpy_import_main ? bpy_import_main:G.main;
 	Main *maggie= bpy_import_main;
@@ -144,7 +140,7 @@ PyObject *bpy_text_import_name(char *name, int *found)
 		return NULL;
 	}
 	
-	if (namelen>21-3) return NULL; /* we know this cant be importable, the name is too long for blender! */
+	if (namelen >= (MAX_ID_NAME-2) - 3) return NULL; /* we know this cant be importable, the name is too long for blender! */
 	
 	memcpy(txtname, name, namelen);
 	memcpy(&txtname[namelen], ".py", 4);
@@ -221,7 +217,7 @@ PyObject *bpy_text_reimport(PyObject *module, int *found)
 }
 
 
-static PyObject *blender_import(PyObject *UNUSED(self), PyObject *args, PyObject * kw)
+static PyObject *blender_import(PyObject *UNUSED(self), PyObject *args, PyObject *kw)
 {
 	PyObject *exception, *err, *tb;
 	char *name;
@@ -274,7 +270,7 @@ static PyObject *blender_import(PyObject *UNUSED(self), PyObject *args, PyObject
  * our reload() module, to handle reloading in-memory scripts
  */
 
-static PyObject *blender_reload(PyObject *UNUSED(self), PyObject * module)
+static PyObject *blender_reload(PyObject *UNUSED(self), PyObject *module)
 {
 	PyObject *exception, *err, *tb;
 	PyObject *newmodule= NULL;
@@ -304,7 +300,7 @@ static PyObject *blender_reload(PyObject *UNUSED(self), PyObject * module)
 	}
 	else {
 		/* no blender text was found that could import the module
-		 * rause the original error from PyImport_ImportModuleEx */
+		 * reuse the original error from PyImport_ImportModuleEx */
 		PyErr_Restore(exception, err, tb);
 	}
 
@@ -326,8 +322,8 @@ PyMethodDef bpy_reload_meth= {"bpy_reload_meth", (PyCFunction)blender_reload, ME
  * it wont reload scripts between loading different blend files or while making the game.
  * - use 'clear_all' arg in this case.
  *
- * Since pythons bultins include a full path even for win32.
- * even if we remove a python module a reimport will bring it back again.
+ * Since pythons built-ins include a full path even for win32.
+ * even if we remove a python module a re-import will bring it back again.
  */
 
 #if 0 // not used anymore but may still come in handy later

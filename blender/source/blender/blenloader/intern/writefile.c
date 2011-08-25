@@ -717,31 +717,48 @@ static void write_renderinfo(WriteData *wd, Main *mainvar)		/* for renderdeamon 
 	}
 }
 
+static void write_keymapitem(WriteData *wd, wmKeyMapItem *kmi)
+{
+	writestruct(wd, DATA, "wmKeyMapItem", 1, kmi);
+	if(kmi->properties)
+		IDP_WriteProperty(kmi->properties, wd);
+}
+
 static void write_userdef(WriteData *wd)
 {
 	bTheme *btheme;
 	wmKeyMap *keymap;
 	wmKeyMapItem *kmi;
+	wmKeyMapDiffItem *kmdi;
 	bAddon *bext;
-
+	uiStyle *style;
+	
 	writestruct(wd, USER, "UserDef", 1, &U);
 
 	for(btheme= U.themes.first; btheme; btheme=btheme->next)
 		writestruct(wd, DATA, "bTheme", 1, btheme);
 
-	for(keymap= U.keymaps.first; keymap; keymap=keymap->next) {
+	for(keymap= U.user_keymaps.first; keymap; keymap=keymap->next) {
 		writestruct(wd, DATA, "wmKeyMap", 1, keymap);
 
-		for(kmi=keymap->items.first; kmi; kmi=kmi->next) {
-			writestruct(wd, DATA, "wmKeyMapItem", 1, kmi);
-
-			if(kmi->properties)
-				IDP_WriteProperty(kmi->properties, wd);
+		for(kmdi=keymap->diff_items.first; kmdi; kmdi=kmdi->next) {
+			writestruct(wd, DATA, "wmKeyMapDiffItem", 1, kmdi);
+			if(kmdi->remove_item)
+				write_keymapitem(wd, kmdi->remove_item);
+			if(kmdi->add_item)
+				write_keymapitem(wd, kmdi->add_item);
 		}
+
+		for(kmi=keymap->items.first; kmi; kmi=kmi->next)
+			write_keymapitem(wd, kmi);
 	}
 
 	for(bext= U.addons.first; bext; bext=bext->next)
 		writestruct(wd, DATA, "bAddon", 1, bext);
+	
+	for(style= U.uistyles.first; style; style= style->next) {
+		writestruct(wd, DATA, "uiStyle", 1, style);
+	}
 }
 
 static void write_boid_state(WriteData *wd, BoidState *state)
@@ -832,6 +849,7 @@ static void write_particlesettings(WriteData *wd, ListBase *idbase)
 {
 	ParticleSettings *part;
 	ParticleDupliWeight *dw;
+	GroupObject *go;
 	int a;
 
 	part= idbase->first;
@@ -846,8 +864,18 @@ static void write_particlesettings(WriteData *wd, ListBase *idbase)
 			writestruct(wd, DATA, "EffectorWeights", 1, part->effector_weights);
 
 			dw = part->dupliweights.first;
-			for(; dw; dw=dw->next)
+			for(; dw; dw=dw->next) {
+				/* update indices */
+				dw->index = 0;
+				if(part->dup_group) { /* can be NULL if lining fails or set to None */
+					go = part->dup_group->gobject.first;
+					while(go && go->ob != dw->ob) {
+						go=go->next;
+						dw->index++;
+					}
+				}
 				writestruct(wd, DATA, "ParticleDupliWeight", 1, dw);
+			}
 
 			if(part->boids && part->phystype == PART_PHYS_BOIDS) {
 				BoidState *state = part->boids->states.first;
@@ -1274,6 +1302,12 @@ static void write_modifiers(WriteData *wd, ListBase *modbase)
 			writestruct(wd, DATA, "MDefInfluence", mmd->totinfluence, mmd->dyninfluences);
 			writedata(wd, DATA, sizeof(int)*mmd->totvert, mmd->dynverts);
 		}
+		else if (md->type==eModifierType_Warp) {
+			WarpModifierData *tmd = (WarpModifierData*) md;
+			if(tmd->curfalloff) {
+				write_curvemapping(wd, tmd->curfalloff);
+			}
+		}
 	}
 }
 
@@ -1698,6 +1732,7 @@ static void write_textures(WriteData *wd, ListBase *idbase)
 			if(tex->type == TEX_POINTDENSITY && tex->pd) {
 				writestruct(wd, DATA, "PointDensity", 1, tex->pd);
 				if(tex->pd->coba) writestruct(wd, DATA, "ColorBand", 1, tex->pd->coba);
+				if(tex->pd->falloff_curve) write_curvemapping(wd, tex->pd->falloff_curve);
 			}
 			if(tex->type == TEX_VOXELDATA && tex->vd) writestruct(wd, DATA, "VoxelData", 1, tex->vd);
 			
@@ -2091,7 +2126,11 @@ static void write_screens(WriteData *wd, ListBase *scrbase)
 					writestruct(wd, DATA, "SpaceButs", 1, sl);
 				}
 				else if(sl->spacetype==SPACE_FILE) {
+					SpaceFile *sfile= (SpaceFile *)sl;
+
 					writestruct(wd, DATA, "SpaceFile", 1, sl);
+					if(sfile->params)
+						writestruct(wd, DATA, "FileSelectParams", 1, sfile->params);
 				}
 				else if(sl->spacetype==SPACE_SEQ) {
 					writestruct(wd, DATA, "SpaceSeq", 1, sl);
@@ -2123,8 +2162,8 @@ static void write_screens(WriteData *wd, ListBase *scrbase)
 					writestruct(wd, DATA, "SpaceText", 1, sl);
 				}
 				else if(sl->spacetype==SPACE_SCRIPT) {
-					SpaceScript *sc = (SpaceScript*)sl;
-					sc->but_refs = NULL;
+					SpaceScript *scr = (SpaceScript*)sl;
+					scr->but_refs = NULL;
 					writestruct(wd, DATA, "SpaceScript", 1, sl);
 				}
 				else if(sl->spacetype==SPACE_ACTION) {
@@ -2424,7 +2463,7 @@ static void write_global(WriteData *wd, int fileflags, Main *mainvar)
 	fg.subversion= BLENDER_SUBVERSION;
 	fg.minversion= BLENDER_MINVERSION;
 	fg.minsubversion= BLENDER_MINSUBVERSION;
-#ifdef NAN_BUILDINFO
+#ifdef WITH_BUILDINFO
 	{
 		extern char build_rev[];
 		fg.revision= atoi(build_rev);
@@ -2513,15 +2552,50 @@ static int write_file_handle(Main *mainvar, int handle, MemFile *compare, MemFil
 	return endwrite(wd);
 }
 
+/* do reverse file history: .blend1 -> .blend2, .blend -> .blend1 */
+/* return: success(0), failure(1) */
+static int do_history(const char *name, ReportList *reports)
+{
+	char tempname1[FILE_MAXDIR+FILE_MAXFILE], tempname2[FILE_MAXDIR+FILE_MAXFILE];
+	int hisnr= U.versions;
+	
+	if(U.versions==0) return 0;
+	if(strlen(name)<2) {
+		BKE_report(reports, RPT_ERROR, "Unable to make version backup: filename too short");
+		return 1;
+	}
+		
+	while(hisnr > 1) {
+		BLI_snprintf(tempname1, sizeof(tempname1), "%s%d", name, hisnr-1);
+		BLI_snprintf(tempname2, sizeof(tempname2), "%s%d", name, hisnr);
+	
+		if(BLI_rename(tempname1, tempname2)) {
+			BKE_report(reports, RPT_ERROR, "Unable to make version backup");
+			return 1;
+		}	
+		hisnr--;
+	}
+
+	/* is needed when hisnr==1 */
+	BLI_snprintf(tempname1, sizeof(tempname1), "%s%d", name, hisnr);
+
+	if(BLI_rename(name, tempname1)) {
+		BKE_report(reports, RPT_ERROR, "Unable to make version backup");
+		return 1;
+	}
+
+	return 0;
+}
+
 /* return: success (1) */
-int BLO_write_file(Main *mainvar, char *dir, int write_flags, ReportList *reports, int *thumb)
+int BLO_write_file(Main *mainvar, const char *filepath, int write_flags, ReportList *reports, int *thumb)
 {
 	char userfilename[FILE_MAXDIR+FILE_MAXFILE];
 	char tempname[FILE_MAXDIR+FILE_MAXFILE+1];
 	int file, err, write_user_block;
 
 	/* open temporary file, so we preserve the original in case we crash */
-	BLI_snprintf(tempname, sizeof(tempname), "%s@", dir);
+	BLI_snprintf(tempname, sizeof(tempname), "%s@", filepath);
 
 	file = open(tempname,O_BINARY+O_WRONLY+O_CREAT+O_TRUNC, 0666);
 	if(file == -1) {
@@ -2533,68 +2607,83 @@ int BLO_write_file(Main *mainvar, char *dir, int write_flags, ReportList *report
 	if(write_flags & G_FILE_RELATIVE_REMAP) {
 		char dir1[FILE_MAXDIR+FILE_MAXFILE];
 		char dir2[FILE_MAXDIR+FILE_MAXFILE];
-		BLI_split_dirfile(dir, dir1, NULL);
+		BLI_split_dirfile(filepath, dir1, NULL);
 		BLI_split_dirfile(mainvar->name, dir2, NULL);
 
 		/* just incase there is some subtle difference */
 		BLI_cleanup_dir(mainvar->name, dir1);
 		BLI_cleanup_dir(mainvar->name, dir2);
 
-		if(strcmp(dir1, dir2)==0)
+		if(BLI_path_cmp(dir1, dir2)==0) {
 			write_flags &= ~G_FILE_RELATIVE_REMAP;
-		else
-			makeFilesAbsolute(mainvar, G.main->name, NULL);
+		}
+		else {
+			if(G.relbase_valid) {
+				/* blend may not have been saved before. Tn this case
+				 * we should not have any relative paths, but if there
+				 * is somehow, an invalid or empty G.main->name it will
+				 * print an error, dont try make the absolute in this case. */
+				makeFilesAbsolute(mainvar, G.main->name, NULL);
+			}
+		}
 	}
 
 	BLI_make_file_string(G.main->name, userfilename, BLI_get_folder_create(BLENDER_USER_CONFIG, NULL), BLENDER_STARTUP_FILE);
-	write_user_block= (BLI_path_cmp(dir, userfilename) == 0);
+	write_user_block= (BLI_path_cmp(filepath, userfilename) == 0);
 
 	if(write_flags & G_FILE_RELATIVE_REMAP)
-		makeFilesRelative(mainvar, dir, NULL); /* note, making relative to something OTHER then G.main->name */
+		makeFilesRelative(mainvar, filepath, NULL); /* note, making relative to something OTHER then G.main->name */
 
 	/* actual file writing */
 	err= write_file_handle(mainvar, file, NULL,NULL, write_user_block, write_flags, thumb);
 	close(file);
 
-	/* rename/compress */
-	if(!err) {
-		if(write_flags & G_FILE_COMPRESS) {
-			/* compressed files have the same ending as regular files... only from 2.4!!! */
-			char gzname[FILE_MAXDIR+FILE_MAXFILE+4];
-			int ret;
-
-			/* first write compressed to separate @.gz */
-			BLI_snprintf(gzname, sizeof(gzname), "%s@.gz", dir);
-			ret = BLI_gzip(tempname, gzname);
-			
-			if(0==ret) {
-				/* now rename to real file name, and delete temp @ file too */
-				if(BLI_rename(gzname, dir) != 0) {
-					BKE_report(reports, RPT_ERROR, "Can't change old file. File saved with @.");
-					return 0;
-				}
-
-				BLI_delete(tempname, 0, 0);
-			}
-			else if(-1==ret) {
-				BKE_report(reports, RPT_ERROR, "Failed opening .gz file.");
-				return 0;
-			}
-			else if(-2==ret) {
-				BKE_report(reports, RPT_ERROR, "Failed opening .blend file for compression.");
-				return 0;
-			}
-		}
-		else if(BLI_rename(tempname, dir) != 0) {
-			BKE_report(reports, RPT_ERROR, "Can't change old file. File saved with @");
-			return 0;
-		}
-		
-	}
-	else {
+	if (err) {
 		BKE_report(reports, RPT_ERROR, strerror(errno));
 		remove(tempname);
 
+		return 0;
+	}
+
+	/* file save to temporary file was successful */
+	/* now do reverse file history (move .blend1 -> .blend2, .blend -> .blend1) */
+	if (write_flags & G_FILE_HISTORY) { 
+		int err_hist = do_history(filepath, reports);
+		if (err_hist) {
+			BKE_report(reports, RPT_ERROR, "Version backup failed. File saved with @");
+			return 0;
+		}
+	}
+
+	if(write_flags & G_FILE_COMPRESS) {
+		/* compressed files have the same ending as regular files... only from 2.4!!! */
+		char gzname[FILE_MAXDIR+FILE_MAXFILE+4];
+		int ret;
+
+		/* first write compressed to separate @.gz */
+		BLI_snprintf(gzname, sizeof(gzname), "%s@.gz", filepath);
+		ret = BLI_gzip(tempname, gzname);
+		
+		if(0==ret) {
+			/* now rename to real file name, and delete temp @ file too */
+			if(BLI_rename(gzname, filepath) != 0) {
+				BKE_report(reports, RPT_ERROR, "Can't change old file. File saved with @.");
+				return 0;
+			}
+
+			BLI_delete(tempname, 0, 0);
+		}
+		else if(-1==ret) {
+			BKE_report(reports, RPT_ERROR, "Failed opening .gz file.");
+			return 0;
+		}
+		else if(-2==ret) {
+			BKE_report(reports, RPT_ERROR, "Failed opening .blend file for compression.");
+			return 0;
+		}
+	}
+	else if(BLI_rename(tempname, filepath) != 0) {
+		BKE_report(reports, RPT_ERROR, "Can't change old file. File saved with @");
 		return 0;
 	}
 
@@ -2611,187 +2700,3 @@ int BLO_write_file_mem(Main *mainvar, MemFile *compare, MemFile *current, int wr
 	if(err==0) return 1;
 	return 0;
 }
-
-
-	/* Runtime writing */
-
-static char *get_runtime_path(char *exename) {
-	char *installpath= get_install_dir();
-
-	if (!installpath) {
-		return NULL;
-	}
-	else {
-		char *path= BLI_sprintfN("%s%c%s", installpath, SEP, exename);
-
-		if (path == NULL) {
-			MEM_freeN(installpath);
-			return NULL;
-		}
-
-		MEM_freeN(installpath);
-
-		return path;
-	}
-}
-
-#ifdef __APPLE__
-
-static int recursive_copy_runtime(const char *outname, char *exename, ReportList *reports)
-{
-	char *runtime = get_runtime_path(exename);
-	char command[2 * (FILE_MAXDIR+FILE_MAXFILE) + 32];
-	int progfd = -1, error= 0;
-
-	if (!runtime) {
-		BKE_report(reports, RPT_ERROR, "Unable to find runtime");
-		error= 1;
-		goto cleanup;
-	}
-	//printf("runtimepath %s\n", runtime);
-		
-	progfd= open(runtime, O_BINARY|O_RDONLY, 0);
-	if (progfd==-1) {
-		BKE_report(reports, RPT_ERROR, "Unable to find runtime");
-		error= 1;
-		goto cleanup;
-	}
-
-	sprintf(command, "/bin/cp -R \"%s\" \"%s\"", runtime, outname);
-	//printf("command %s\n", command);
-	if (system(command) == -1) {
-		BKE_report(reports, RPT_ERROR, "Couldn't copy runtime");
-		error= 1;
-	}
-
-cleanup:
-	if (progfd!=-1)
-		close(progfd);
-	if (runtime)
-		MEM_freeN(runtime);
-
-	return !error;
-}
-
-int BLO_write_runtime(Main *mainvar, const char *file, char *exename, ReportList *reports) 
-{
-	char gamename[FILE_MAXDIR+FILE_MAXFILE];
-	int outfd = -1, error= 0;
-
-	// remove existing file / bundle
-	//printf("Delete file %s\n", file);
-	BLI_delete(file, 0, TRUE);
-
-	if (!recursive_copy_runtime(file, exename, reports)) {
-		error= 1;
-		goto cleanup;
-	}
-
-	BLI_snprintf(gamename, sizeof(gamename), "%s/Contents/Resources/game.blend", file);
-	//printf("gamename %s\n", gamename);
-	outfd= open(gamename, O_BINARY|O_WRONLY|O_CREAT|O_TRUNC, 0777);
-	if (outfd != -1) {
-
-		write_file_handle(mainvar, outfd, NULL,NULL, 0, G.fileflags, NULL);
-
-		if (write(outfd, " ", 1) != 1) {
-			BKE_report(reports, RPT_ERROR, "Unable to write to output file.");
-			error= 1;
-			goto cleanup;
-		}
-	} else {
-		BKE_report(reports, RPT_ERROR, "Unable to open blenderfile.");
-		error= 1;
-	}
-
-cleanup:
-	if (outfd!=-1)
-		close(outfd);
-
-	BKE_reports_prepend(reports, "Unable to make runtime: ");
-	return !error;
-}
-
-#else /* !__APPLE__ */
-
-static int handle_append_runtime(int handle, char *exename, ReportList *reports)
-{
-	char *runtime= get_runtime_path(exename);
-	unsigned char buf[1024];
-	int count, progfd= -1, error= 0;
-
-	if (!BLI_exists(runtime)) {
-		BKE_report(reports, RPT_ERROR, "Unable to find runtime.");
-		error= 1;
-		goto cleanup;
-	}
-
-	progfd= open(runtime, O_BINARY|O_RDONLY, 0);
-	if (progfd==-1) {
-		BKE_report(reports, RPT_ERROR, "Unable to find runtime.@");
-		error= 1;
-		goto cleanup;
-	}
-
-	while ((count= read(progfd, buf, sizeof(buf)))>0) {
-		if (write(handle, buf, count)!=count) {
-			BKE_report(reports, RPT_ERROR, "Unable to write to output file.");
-			error= 1;
-			goto cleanup;
-		}
-	}
-
-cleanup:
-	if (progfd!=-1)
-		close(progfd);
-	if (runtime)
-		MEM_freeN(runtime);
-
-	return !error;
-}
-
-static int handle_write_msb_int(int handle, int i) 
-{
-	unsigned char buf[4];
-	buf[0]= (i>>24)&0xFF;
-	buf[1]= (i>>16)&0xFF;
-	buf[2]= (i>>8)&0xFF;
-	buf[3]= (i>>0)&0xFF;
-
-	return (write(handle, buf, 4)==4);
-}
-
-int BLO_write_runtime(Main *mainvar, const char *file, char *exename, ReportList *reports)
-{
-	int outfd= open(file, O_BINARY|O_WRONLY|O_CREAT|O_TRUNC, 0777);
-	int datastart, error= 0;
-
-	if (!outfd) {
-		BKE_report(reports, RPT_ERROR, "Unable to open output file.");
-		error= 1;
-		goto cleanup;
-	}
-	if (!handle_append_runtime(outfd, exename, reports)) {
-		error= 1;
-		goto cleanup;
-	}
-
-	datastart= lseek(outfd, 0, SEEK_CUR);
-
-	write_file_handle(mainvar, outfd, NULL,NULL, 0, G.fileflags, NULL);
-
-	if (!handle_write_msb_int(outfd, datastart) || (write(outfd, "BRUNTIME", 8)!=8)) {
-		BKE_report(reports, RPT_ERROR, "Unable to write to output file.");
-		error= 1;
-		goto cleanup;
-	}
-
-cleanup:
-	if (outfd!=-1)
-		close(outfd);
-
-	BKE_reports_prepend(reports, "Unable to make runtime: ");
-	return !error;
-}
-
-#endif /* !__APPLE__ */

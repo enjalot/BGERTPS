@@ -32,8 +32,10 @@
  */
 
 
-#ifdef WITH_PYTHON
-#include <Python.h>
+#if 0 /* pynodes commented for now */
+#  ifdef WITH_PYTHON
+#    include <Python.h>
+#  endif
 #endif
 
 #include "MEM_guardedalloc.h"
@@ -56,7 +58,6 @@
 #include "BKE_fcurve.h"
 #include "BKE_node.h"
 #include "BKE_utildefines.h"
-#include "BKE_node.h"
 
 #include "PIL_time.h"
 
@@ -351,7 +352,7 @@ static bNodeType ntype_group;
 /* groups display their internal tree name as label */
 static const char *group_label(bNode *node)
 {
-	return node->id->name+2;
+	return (node->id)? node->id->name+2: "Missing Datablock";
 }
 
 void register_node_type_group(ListBase *lb)
@@ -968,6 +969,11 @@ bNode *nodeAddNodeType(bNodeTree *ntree, int type, bNodeTree *ngroup, ID *id)
 	} else
 		ntype= node_get_type(ntree, type, id);
 
+	if(ntype == NULL) {
+		printf("nodeAddNodeType() error: '%d' type invalid\n", type);
+		return NULL;
+	}
+
 	node= MEM_callocN(sizeof(bNode), "new node");
 	BLI_addtail(&ntree->nodes, node);
 	node->typeinfo= ntype;
@@ -1189,7 +1195,9 @@ bNodeTree *ntreeCopyTree(bNodeTree *ntree)
 		newtree= MEM_dupallocN(ntree);
 		copy_libblock_data(&newtree->id, &ntree->id, TRUE); /* copy animdata and ID props */
 	}
-	
+
+	id_us_plus((ID *)newtree->gpd);
+
 	/* in case a running nodetree is copied */
 	newtree->init &= ~(NTREE_EXEC_INIT);
 	newtree->threadstack= NULL;
@@ -1430,6 +1438,8 @@ void ntreeFreeTree(bNodeTree *ntree)
 	ntreeEndExecTree(ntree);	/* checks for if it is still initialized */
 	
 	BKE_free_animdata((ID *)ntree);
+
+	id_us_min((ID *)ntree->gpd);
 
 	BLI_freelistN(&ntree->links);	/* do first, then unlink_node goes fast */
 	
@@ -1998,11 +2008,23 @@ static void node_group_execute(bNodeStack *stack, void *data, bNode *gnode, bNod
 	if (ntree->type==NTREE_COMPOSIT) {
 		bNodeSocket *sock;
 		bNodeStack *ns;
+		
+		/* clear hasoutput on all local stack data,
+		 * only the group output will be used from now on
+		 */
+		for (node=ntree->nodes.first; node; node=node->next) {
+			for (sock=node->outputs.first; sock; sock=sock->next) {
+				if (sock->stack_type==SOCK_STACK_LOCAL) {
+					ns= get_socket_stack(stack, sock, in);
+					ns->hasoutput = 0;
+				}
+			}
+		}
+		/* use the hasoutput flag to tag external sockets */
 		for (sock=ntree->outputs.first; sock; sock=sock->next) {
-			/* use the hasoutput flag to tag external sockets */
 			if (sock->stack_type==SOCK_STACK_LOCAL) {
 				ns= get_socket_stack(stack, sock, in);
-				ns->hasoutput = 0;
+				ns->hasoutput = 1;
 			}
 		}
 		/* now free all stacks that are not used from outside */
@@ -2010,11 +2032,9 @@ static void node_group_execute(bNodeStack *stack, void *data, bNode *gnode, bNod
 			for (sock=node->outputs.first; sock; sock=sock->next) {
 				if (sock->stack_type==SOCK_STACK_LOCAL ) {
 					ns= get_socket_stack(stack, sock, in);
-					if (ns->hasoutput!=0 && ns->data) {
+					if (ns->hasoutput==0 && ns->data) {
 						free_compbuf(ns->data);
 						ns->data = NULL;
-						/* reset the flag */
-						ns->hasoutput = 1;
 					}
 				}
 			}
@@ -2054,11 +2074,12 @@ static int set_stack_indexes_group(bNode *node, int index)
 	bNodeTree *ngroup= (bNodeTree*)node->id;
 	bNodeSocket *sock;
 	
-	if((ngroup->init & NTREE_TYPE_INIT)==0)
+	if(ngroup && (ngroup->init & NTREE_TYPE_INIT)==0)
 		ntreeInitTypes(ngroup);
 	
 	node->stack_index = index;
-	index += ntree_begin_exec_tree(ngroup);
+	if(ngroup)
+		index += ntree_begin_exec_tree(ngroup);
 	
 	for (sock=node->inputs.first; sock; sock=sock->next) {
 		if (sock->link && sock->link->fromsock) {
@@ -2181,7 +2202,7 @@ static void composit_begin_exec(bNodeTree *ntree, bNodeStack *stack)
 			if(node->type==CMP_NODE_CURVE_RGB)
 				curvemapping_premultiply(node->storage, 0);
 		}
-		if(node->type==NODE_GROUP)
+		if(node->type==NODE_GROUP && node->id)
 			composit_begin_exec((bNodeTree *)node->id, stack + node->stack_index);
 
 	}
@@ -2207,7 +2228,7 @@ static void composit_end_exec(bNodeTree *ntree, bNodeStack *stack)
 		if(node->type==CMP_NODE_CURVE_RGB)
 			curvemapping_premultiply(node->storage, 1);
 		
-		if(node->type==NODE_GROUP)
+		if(node->type==NODE_GROUP && node->id)
 			composit_end_exec((bNodeTree *)node->id, stack + node->stack_index);
 
 		node->need_exec= 0;
@@ -2230,9 +2251,37 @@ static void group_tag_used_outputs(bNode *gnode, bNodeStack *stack, bNodeStack *
 			}
 		}
 		
+		/* non-composite trees do all nodes by default */
+		if (ntree->type!=NTREE_COMPOSIT)
+			node->need_exec = 1;
+		
+		for(sock= node->inputs.first; sock; sock= sock->next) {
+			bNodeStack *ns = get_socket_stack(stack, sock, gin);
+			if (ns) {
+				ns->hasoutput = 1;
+				
+				/* sock type is needed to detect rgba or value or vector types */
+				if(sock->link && sock->link->fromsock)
+					ns->sockettype= sock->link->fromsock->type;
+				else
+					sock->ns.sockettype= sock->type;
+			}
+			
+			if(sock->link) {
+				bNodeLink *link= sock->link;
+				/* this is the test for a cyclic case */
+				if(link->fromnode && link->tonode) {
+					if(link->fromnode->level >= link->tonode->level && link->tonode->level!=0xFFF);
+					else {
+						node->need_exec= 0;
+					}
+				}
+			}
+		}
+		
 		/* set stack types (for local stack entries) */
 		for(sock= node->outputs.first; sock; sock= sock->next) {
-			bNodeStack *ns = get_socket_stack(stack, sock, NULL);
+			bNodeStack *ns = get_socket_stack(stack, sock, gin);
 			if (ns)
 				ns->sockettype = sock->type;
 		}
@@ -2282,13 +2331,18 @@ static void tex_end_exec(bNodeTree *ntree)
 	bNodeStack *ns;
 	int th, a;
 	
-	if(ntree->threadstack)
-		for(th=0; th<BLENDER_MAX_THREADS; th++)
-			for(nts=ntree->threadstack[th].first; nts; nts=nts->next)
-				for(ns= nts->stack, a=0; a<ntree->stacksize; a++, ns++)
-					if(ns->data)
+	if(ntree->threadstack) {
+		for(th=0; th<BLENDER_MAX_THREADS; th++) {
+			for(nts=ntree->threadstack[th].first; nts; nts=nts->next) {
+				for(ns= nts->stack, a=0; a<ntree->stacksize; a++, ns++) {
+					if(ns->data) {
 						MEM_freeN(ns->data);
-						
+						ns->data= NULL;
+					}
+				}
+			}
+		}
+	}
 }
 
 void ntreeBeginExecTree(bNodeTree *ntree)
@@ -2321,7 +2375,7 @@ void ntreeBeginExecTree(bNodeTree *ntree)
 		for(node= ntree->nodes.first; node; node= node->next) {
 			bNodeSocket *sock;
 			
-			/* composite has own need_exec tag handling */
+			/* non-composite trees do all nodes by default */
 			if(ntree->type!=NTREE_COMPOSIT)
 				node->need_exec= 1;
 
@@ -2364,6 +2418,11 @@ void ntreeBeginExecTree(bNodeTree *ntree)
 		
 		if(ntree->type==NTREE_COMPOSIT)
 			composit_begin_exec(ntree, ntree->stack);
+		
+		/* ensures only a single output node is enabled, texnode allows multiple though */
+		if(ntree->type!=NTREE_TEXTURE)
+			ntreeSetOutput(ntree);
+		
 	}
 	
 	ntree->init |= NTREE_EXEC_INIT;
@@ -2710,9 +2769,6 @@ void ntreeCompositExecTree(bNodeTree *ntree, RenderData *rd, int do_preview)
 	
 	/* fixed seed, for example noise texture */
 	BLI_srandom(rd->cfra);
-
-	/* ensures only a single output node is enabled */
-	ntreeSetOutput(ntree);
 
 	/* sets need_exec tags in nodes */
 	curnode = totnode= setExecutableNodes(ntree, &thdata);
@@ -3102,6 +3158,8 @@ static void force_hidden_passes(bNode *node, int passflag)
 	if(!(passflag & SCE_PASS_INDIRECT)) sock->flag |= SOCK_UNAVAIL;
 	sock= BLI_findlink(&node->outputs, RRES_OUT_INDEXOB);
 	if(!(passflag & SCE_PASS_INDEXOB)) sock->flag |= SOCK_UNAVAIL;
+	sock= BLI_findlink(&node->outputs, RRES_OUT_INDEXMA);
+	if(!(passflag & SCE_PASS_INDEXMA)) sock->flag |= SOCK_UNAVAIL;
 	sock= BLI_findlink(&node->outputs, RRES_OUT_MIST);
 	if(!(passflag & SCE_PASS_MIST)) sock->flag |= SOCK_UNAVAIL;
 	sock= BLI_findlink(&node->outputs, RRES_OUT_EMIT);
@@ -3185,7 +3243,7 @@ static int node_animation_properties(bNodeTree *ntree, bNode *node)
 		int driven, len=1, index;
 		prop = (PropertyRNA *)link;
 		
-		if (RNA_property_array_check(&ptr, prop))
+		if (RNA_property_array_check(prop))
 			len = RNA_property_array_length(&ptr, prop);
 		
 		for (index=0; index<len; index++) {
@@ -3203,7 +3261,7 @@ static int node_animation_properties(bNodeTree *ntree, bNode *node)
 		RNA_pointer_create((ID *)ntree, &RNA_NodeSocket, sock, &ptr);
 		prop = RNA_struct_find_property(&ptr, "default_value");
 		
-		if (RNA_property_array_check(&ptr, prop))
+		if (RNA_property_array_check(prop))
 			len = RNA_property_array_length(&ptr, prop);
 		
 		for (index=0; index<len; index++) {

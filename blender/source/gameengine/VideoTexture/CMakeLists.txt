@@ -26,25 +26,29 @@
 
 set(INC
 	.
-	../../../source/gameengine/Ketsji
-	../../../source/gameengine/Expressions
-	../../../source/gameengine/GameLogic
-	../../../source/gameengine/SceneGraph
-	../../../source/gameengine/Rasterizer
-	../../../source/gameengine/Rasterizer/RAS_OpenGLRasterizer
-	../../../source/gameengine/BlenderRoutines
-	../../../source/blender/blenlib
-	../../../source/blender/blenkernel
-	../../../source/blender/makesdna
-	../../../source/blender/editors/include
-	../../../source/blender/imbuf
-	../../../source/blender/python
-	../../../source/blender/python/generic
-	../../../source/blender/gpu
-	../../../source/kernel/gen_system
-	../../../intern/string
-	../../../intern/moto/include
+	../BlenderRoutines
+	../Expressions
+	../GameLogic
+	../Ketsji
+	../Rasterizer
+	../Rasterizer/RAS_OpenGLRasterizer
+	../SceneGraph
+	../../blender/blenkernel
+	../../blender/blenlib
+	../../blender/editors/include
+	../../blender/gpu
+	../../blender/imbuf
+	../../blender/makesdna
+	../../blender/python
+	../../blender/python/generic
+	../../../intern/container
+	../../../intern/ffmpeg
 	../../../intern/guardedalloc
+	../../../intern/moto/include
+	../../../intern/string
+)
+
+set(INC_SYS
 	${GLEW_INCLUDE_PATH}
 )
 
@@ -90,9 +94,12 @@ IF(WITH_OPENCL)
 ENDIF(WITH_OPENCL)
 
 if(WITH_CODEC_FFMPEG)
-	set(INC ${INC} ${FFMPEG_INC} ${PTHREADS_INC})
+	list(APPEND INC_SYS
+		${FFMPEG_INCLUDE_DIRS}
+		${PTHREADS_INCLUDE_DIRS}
+	)
 	add_definitions(-DWITH_FFMPEG)
 	add_definitions(-D__STDC_CONSTANT_MACROS)
 endif()
 
-blender_add_lib(ge_videotex "${SRC}" "${INC}")
+blender_add_lib(ge_videotex "${SRC}" "${INC}" "${INC_SYS}")

@@ -288,21 +288,6 @@ extern GHOST_TSuccess GHOST_SetProgressBar(GHOST_WindowHandle windowhandle, floa
  * @param windowhandle The handle to the window
  */
 extern GHOST_TSuccess GHOST_EndProgressBar(GHOST_WindowHandle windowhandle);
-	
-	
-/***************************************************************************************
- ** N-degree of freedom device management functionality
- ***************************************************************************************/
- 
-/**
-* Open N-degree of freedom devices
- */
-extern int GHOST_OpenNDOF(GHOST_SystemHandle systemhandle, 
-                           GHOST_WindowHandle windowhandle,
-                          GHOST_NDOFLibraryInit_fp setNdofLibraryInit, 
-                          GHOST_NDOFLibraryShutdown_fp setNdofLibraryShutdown,
-                          GHOST_NDOFDeviceOpen_fp setNdofDeviceOpen
-                          );
 
 /***************************************************************************************
  ** Cursor management functionality
@@ -844,6 +829,18 @@ extern GHOST_TUns8* GHOST_getClipboard(int selection);
  */
 extern void GHOST_putClipboard(GHOST_TInt8 *buffer, int selection);
 
+
+
+/**
+ * Toggles console
+ * @action	0 - Hides
+ *			1 - Shows
+ *			2 - Toggles
+ *			3 - Hides if it runs not from  command line
+ *			* - Does nothing
+ * @return current status (1 -visible, 0 - hidden)
+ */
+extern int GHOST_toggleConsole(int action);
 
 #ifdef __cplusplus
 }

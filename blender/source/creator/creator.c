@@ -64,6 +64,7 @@
 #include "BLI_threads.h"
 #include "BLI_scanfill.h" // for BLI_setErrorCallBack, TODO, move elsewhere
 #include "BLI_utildefines.h"
+#include "BLI_callbacks.h"
 
 #include "DNA_ID.h"
 #include "DNA_scene_types.h"
@@ -108,8 +109,7 @@
 
 /* for passing information between creator and gameengine */
 #ifdef WITH_GAMEENGINE
-#include "GEN_messaging.h"
-#include "SYS_System.h"
+#include "BL_System.h"
 #else /* dummy */
 #define SYS_SystemHandle int
 #endif
@@ -152,7 +152,7 @@ char btempdir[FILE_MAX];
 
 #define BLEND_VERSION_STRING_FMT "Blender %d.%02d (sub %d)\n", BLENDER_VERSION/100, BLENDER_VERSION%100, BLENDER_SUBVERSION
 
-/* Initialise callbacks for the modules that need them */
+/* Initialize callbacks for the modules that need them */
 static void setCallbacks(void); 
 
 /* set breakpoints here when running in debug mode, useful to catch floating point errors */
@@ -179,20 +179,6 @@ static void blender_esc(int sig)
 		printf("\nSent an internal break event. Press ^C again to kill Blender\n");
 		count++;
 	}
-}
-#endif
-
-/* buildinfo can have quotes */
-#ifdef BUILD_DATE
-static void strip_quotes(char *str)
-{
-    if(str[0] == '"') {
-        int len= strlen(str) - 1;
-        memmove(str, str+1, len);
-        if(str[len-1] == '"') {
-            str[len-1]= '\0';
-        }
-    }
 }
 #endif
 
@@ -315,7 +301,6 @@ static int print_help(int UNUSED(argc), const char **UNUSED(argv), void *data)
 
 	printf ("\nEnvironment Variables:\n");
 	printf ("  $BLENDER_USER_CONFIG      Directory for user configuration files.\n");
-	printf ("  $BLENDER_SYSTEM_CONFIG    Directory for system wide configuration files.\n");
 	printf ("  $BLENDER_USER_SCRIPTS     Directory for user scripts.\n");
 	printf ("  $BLENDER_SYSTEM_SCRIPTS   Directory for system wide scripts.\n");
 	printf ("  $BLENDER_USER_DATAFILES   Directory for user data files (icons, translations, ..).\n");
@@ -338,18 +323,6 @@ static int print_help(int UNUSED(argc), const char **UNUSED(argv), void *data)
 
 
 double PIL_check_seconds_timer(void);
-
-/* XXX This was here to fix a crash when running python scripts
- * with -P that used the screen.
- *
- * static void main_init_screen( void )
-{
-	setscreen(G.curscreen);
-	
-	if(G.main->scene.first==0) {
-		set_scene( add_scene("1") );
-	}
-}*/
 
 static int end_arguments(int UNUSED(argc), const char **UNUSED(argv), void *UNUSED(data))
 {
@@ -382,9 +355,9 @@ static int debug_mode(int UNUSED(argc), const char **UNUSED(argv), void *data)
 	printf(BLEND_VERSION_STRING_FMT);
 	MEM_set_memory_debug();
 
-#ifdef NAN_BUILDINFO
+#ifdef WITH_BUILDINFO
 	printf("Build: %s %s %s %s\n", build_date, build_time, build_platform, build_type);
-#endif // NAN_BUILDINFO
+#endif // WITH_BUILDINFO
 
 	BLI_argsPrint(data);
 	return 0;
@@ -404,7 +377,7 @@ static int set_fpe(int UNUSED(argc), const char **UNUSED(argv), void *UNUSED(dat
 	/* OSX uses SSE for floating point by default, so here 
 	 * use SSE instructions to throw floating point exceptions */
 	_MM_SET_EXCEPTION_MASK(_MM_MASK_MASK &~
-						   (_MM_MASK_OVERFLOW|_MM_MASK_INVALID|_MM_MASK_DIV_ZERO));
+			(_MM_MASK_OVERFLOW|_MM_MASK_INVALID|_MM_MASK_DIV_ZERO));
 # endif	/* OSX_SSE_FPE */
 # if defined(_WIN32) && defined(_MSC_VER)
 	_controlfp_s(NULL, 0, _MCW_EM); /* enables all fp exceptions */
@@ -447,9 +420,12 @@ static int playback_mode(int UNUSED(argc), const char **UNUSED(argv), void *UNUS
 {
 	/* not if -b was given first */
 	if (G.background == 0) {
-
-// XXX				playanim(argc, argv); /* not the same argc and argv as before */
+#if 0	/* TODO, bring player back? */
+		playanim(argc, argv); /* not the same argc and argv as before */
+#else
+		fprintf(stderr, "Playback mode not supported in blender 2.5x\n");
 		exit(0);
+#endif
 	}
 
 	return -2;
@@ -552,7 +528,7 @@ static int set_output(int argc, const char **argv, void *data)
 	if (argc >= 1){
 		if (CTX_data_scene(C)) {
 			Scene *scene= CTX_data_scene(C);
-			BLI_strncpy(scene->r.pic, argv[1], FILE_MAXDIR);
+			BLI_strncpy(scene->r.pic, argv[1], sizeof(scene->r.pic));
 		} else {
 			printf("\nError: no blend loaded. cannot use '-o / --render-output'.\n");
 		}
@@ -642,7 +618,7 @@ static int set_image_type(int argc, const char **argv, void *data)
 			else if (!strcmp(imtype,"CINEON")) scene->r.imtype = R_CINEON;
 			else if (!strcmp(imtype,"DPX")) scene->r.imtype = R_DPX;
 #endif
-#if WITH_OPENJPEG
+#ifdef WITH_OPENJPEG
 			else if (!strcmp(imtype,"JP2")) scene->r.imtype = R_JP2;
 #endif
 			else printf("\nError: Format from '-F / --render-format' not known or not compiled in this release.\n");
@@ -781,7 +757,9 @@ static int render_frame(int argc, const char **argv, void *data)
 
 			frame = MIN2(MAXFRAME, MAX2(MINAFRAME, frame));
 
-			RE_BlenderAnim(re, bmain, scene, scene->lay, frame, frame, scene->r.frame_step, &reports);
+			RE_SetReports(re, &reports);
+			RE_BlenderAnim(re, bmain, scene, NULL, scene->lay, frame, frame, scene->r.frame_step);
+			RE_SetReports(re, NULL);
 			return 1;
 		} else {
 			printf("\nError: frame number must follow '-f / --render-frame'.\n");
@@ -802,7 +780,9 @@ static int render_animation(int UNUSED(argc), const char **UNUSED(argv), void *d
 		Render *re= RE_NewRender(scene->id.name);
 		ReportList reports;
 		BKE_reports_init(&reports, RPT_PRINT);
-		RE_BlenderAnim(re, bmain, scene, scene->lay, scene->r.sfra, scene->r.efra, scene->r.frame_step, &reports);
+		RE_SetReports(re, &reports);
+		RE_BlenderAnim(re, bmain, scene, NULL, scene->lay, scene->r.sfra, scene->r.efra, scene->r.frame_step);
+		RE_SetReports(re, NULL);
 	} else {
 		printf("\nError: no blend loaded. cannot use '-a'.\n");
 	}
@@ -1004,6 +984,7 @@ static int load_file(int UNUSED(argc), const char **argv, void *data)
 #ifdef WITH_PYTHON
 		/* run any texts that were loaded in and flagged as modules */
 		BPY_driver_reset();
+		BPY_app_handlers_reset();
 		BPY_modules_load_user(C);
 #endif
 
@@ -1061,7 +1042,7 @@ static void setupArguments(bContext *C, bArgs *ba, SYS_SystemHandle *syshandle)
 	static char debug_doc[] = "\n\tTurn debugging on\n"
 		"\n\t* Prints every operator call and their arguments"
 		"\n\t* Disables mouse grab (to interact with a debugger in some cases)"
-		"\n\t* Keeps python sys.stdin rather then setting it to None";
+		"\n\t* Keeps python sys.stdin rather than setting it to None";
 
 	//BLI_argsAdd(ba, pass, short_arg, long_arg, doc, cb, C);
 
@@ -1074,10 +1055,22 @@ static void setupArguments(bContext *C, bArgs *ba, SYS_SystemHandle *syshandle)
 	BLI_argsAdd(ba, 1, "/?", NULL, "\n\tPrint this help text and exit (windows only)", print_help, ba);
 
 	BLI_argsAdd(ba, 1, "-v", "--version", "\n\tPrint Blender version and exit", print_version, NULL);
+	
+	/* only to give help message */
+#ifndef WITH_PYTHON_SECURITY /* default */
+#  define 	PY_ENABLE_AUTO ", (default)"
+#  define 	PY_DISABLE_AUTO ""
+#else
+#  define 	PY_ENABLE_AUTO ""
+#  define 	PY_DISABLE_AUTO ", (compiled as non-standard default)"
+#endif
 
-	BLI_argsAdd(ba, 1, "-y", "--enable-autoexec", "\n\tEnable automatic python script execution (default)", enable_python, NULL);
-	BLI_argsAdd(ba, 1, "-Y", "--disable-autoexec", "\n\tDisable automatic python script execution (pydrivers, pyconstraints, pynodes)", disable_python, NULL);
+	BLI_argsAdd(ba, 1, "-y", "--enable-autoexec", "\n\tEnable automatic python script execution" PY_ENABLE_AUTO, enable_python, NULL);
+	BLI_argsAdd(ba, 1, "-Y", "--disable-autoexec", "\n\tDisable automatic python script execution (pydrivers, pyconstraints, pynodes)" PY_DISABLE_AUTO, disable_python, NULL);
 
+#undef PY_ENABLE_AUTO
+#undef PY_DISABLE_AUTO
+	
 	BLI_argsAdd(ba, 1, "-b", "--background", "<file>\n\tLoad <file> in background (often used for UI-less rendering)", background_mode, NULL);
 
 	BLI_argsAdd(ba, 1, "-a", NULL, playback_doc, playback_mode, NULL);
@@ -1088,7 +1081,6 @@ static void setupArguments(bContext *C, bArgs *ba, SYS_SystemHandle *syshandle)
 	BLI_argsAdd(ba, 1, NULL, "--factory-startup", "\n\tSkip reading the "STRINGIFY(BLENDER_STARTUP_FILE)" in the users home directory", set_factory_startup, NULL);
 
 	/* TODO, add user env vars? */
-	BLI_argsAdd(ba, 1, NULL, "--env-system-config",		"\n\tSet the "STRINGIFY_ARG(BLENDER_SYSTEM_CONFIG)" environment variable", set_env, NULL);
 	BLI_argsAdd(ba, 1, NULL, "--env-system-datafiles",	"\n\tSet the "STRINGIFY_ARG(BLENDER_SYSTEM_DATAFILES)" environment variable", set_env, NULL);
 	BLI_argsAdd(ba, 1, NULL, "--env-system-scripts",	"\n\tSet the "STRINGIFY_ARG(BLENDER_SYSTEM_SCRIPTS)" environment variable", set_env, NULL);
 	BLI_argsAdd(ba, 1, NULL, "--env-system-plugins",	"\n\tSet the "STRINGIFY_ARG(BLENDER_SYSTEM_PLUGINS)" environment variable", set_env, NULL);
@@ -1131,7 +1123,8 @@ static void setupArguments(bContext *C, bArgs *ba, SYS_SystemHandle *syshandle)
 
 #ifdef WITH_PYTHON_MODULE
 /* allow python module to call main */
-#define main main_python
+#define main main_python_enter
+static void *evil_C= NULL;
 #endif
 
 int main(int argc, const char **argv)
@@ -1142,6 +1135,7 @@ int main(int argc, const char **argv)
 
 #ifdef WITH_PYTHON_MODULE
 #undef main
+	evil_C= C;
 #endif
 
 #ifdef WITH_BINRELOC
@@ -1173,18 +1167,6 @@ int main(int argc, const char **argv)
 	// need this.
 
 	BLI_where_am_i(bprogname, sizeof(bprogname), argv[0]);
-	
-#ifdef BUILD_DATE	
-	strip_quotes(build_date);
-	strip_quotes(build_time);
-	strip_quotes(build_rev);
-	strip_quotes(build_platform);
-	strip_quotes(build_type);
-	strip_quotes(build_cflags);
-	strip_quotes(build_cxxflags);
-	strip_quotes(build_linkflags);
-	strip_quotes(build_system);
-#endif
 
 	BLI_threadapi_init();
 
@@ -1202,9 +1184,10 @@ int main(int argc, const char **argv)
 
 	IMB_init();
 
+	BLI_cb_init();
+
 #ifdef WITH_GAMEENGINE
 	syshandle = SYS_GetSystem();
-	GEN_init_messaging_system();
 #else
 	syshandle= 0;
 #endif
@@ -1219,7 +1202,7 @@ int main(int argc, const char **argv)
 	setuid(getuid()); /* end superuser */
 #endif
 
-#ifdef WITH_PYTHON_MODULE
+#if defined(WITH_PYTHON_MODULE) || defined(WITH_HEADLESS)
 	G.background= 1; /* python module mode ALWAYS runs in background mode (for now) */
 #else
 	/* for all platforms, even windos has it! */
@@ -1308,6 +1291,14 @@ int main(int argc, const char **argv)
 
 	return 0;
 } /* end of int main(argc,argv)	*/
+
+#ifdef WITH_PYTHON_MODULE
+void main_python_exit(void)
+{
+	WM_exit((bContext *)evil_C);
+	evil_C= NULL;
+}
+#endif
 
 static void error_cb(const char *err)
 {

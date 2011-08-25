@@ -1002,7 +1002,7 @@ static float dtar_get_prop_val (ChannelDriver *driver, DriverTarget *dtar)
 	
 	/* get property to read from, and get value as appropriate */
 	if (RNA_path_resolve_full(&id_ptr, dtar->rna_path, &ptr, &prop, &index)) {
-		if(RNA_property_array_check(&ptr, prop)) {
+		if(RNA_property_array_check(prop)) {
 			/* array */
 			if (index < RNA_property_array_length(&ptr, prop)) {	
 				switch (RNA_property_type(prop)) {
@@ -2039,7 +2039,7 @@ float evaluate_fcurve (FCurve *fcu, float evaltime)
 	 * here so that the curve can be sampled correctly
 	 */
 	if (fcu->flag & FCURVE_INT_VALUES)
-		cvalue= (float)((int)cvalue);
+		cvalue= floorf(cvalue + 0.5f);
 	
 	/* return evaluated value */
 	return cvalue;

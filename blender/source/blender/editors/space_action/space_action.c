@@ -58,6 +58,7 @@
 #include "UI_view2d.h"
 
 #include "ED_space_api.h"
+#include "ED_screen.h"
 #include "ED_anim_api.h"
 #include "ED_markers.h"
 
@@ -112,7 +113,7 @@ static SpaceLink *action_new(const bContext *C)
 	
 	ar->v2d.max[0]= MAXFRAMEF;
 	ar->v2d.max[1]= FLT_MAX;
- 	
+
 	ar->v2d.minzoom= 0.01f;
 	ar->v2d.maxzoom= 50;
 	ar->v2d.scroll = (V2D_SCROLL_BOTTOM|V2D_SCROLL_SCALE_HORIZONTAL);
@@ -365,8 +366,13 @@ static void action_listener(ScrArea *sa, wmNotifier *wmn)
 			}
 			break;
 		case NC_ANIMATION:
+			/* for NLA tweakmode enter/exit, need complete refresh */
+			if (wmn->data == ND_NLA_ACTCHANGE) {
+				saction->flag |= SACTION_TEMP_NEEDCHANSYNC;
+				ED_area_tag_refresh(sa);
+			}
 			/* for selection changes of animation data, we can just redraw... otherwise autocolor might need to be done again */
-			if (ELEM(wmn->data, ND_KEYFRAME, ND_ANIMCHAN) && (wmn->action == NA_SELECTED))
+			else if (ELEM(wmn->data, ND_KEYFRAME, ND_ANIMCHAN) && (wmn->action == NA_SELECTED))
 				ED_area_tag_redraw(sa);
 			else
 				ED_area_tag_refresh(sa);
@@ -416,9 +422,9 @@ static void action_listener(ScrArea *sa, wmNotifier *wmn)
 static void action_header_area_listener(ARegion *ar, wmNotifier *wmn)
 {
 	/* context changes */
-	switch(wmn->category) {
+	switch (wmn->category) {
 		case NC_SCENE:
-			switch(wmn->data) {
+			switch (wmn->data) {
 				case ND_OB_ACTIVE:
 					ED_region_tag_redraw(ar);
 					break;

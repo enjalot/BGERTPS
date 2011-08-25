@@ -33,13 +33,17 @@ if len(sys.argv) < 2:
     sys.exit(1)
 
 builder = sys.argv[1]
+branch = ''
+
+if len(sys.argv) >= 3:
+    branch = sys.argv[2]
 
 # scons does own packaging
 if builder.find('scons') != -1:
     os.chdir('../blender')
-    scons_options = ['BF_QUICK=slnt', 'buildslave']
+    scons_options = ['BF_QUICK=slnt', 'BUILDBOT_BRANCH=' + branch, 'buildslave']
 
-    if builder.startswith('linux'):
+    if builder.find('linux') != -1:
         buildbot_dir = os.path.dirname(os.path.realpath(__file__))
         config_dir = os.path.join(buildbot_dir, 'config')
         build_dir = os.path.join('..', 'build', builder)
@@ -52,9 +56,9 @@ if builder.find('scons') != -1:
 
         config = None
 
-        if builder == 'linux_x86_64_scons':
+        if builder.endswith('linux_x86_64_scons'):
             config = 'user-config-x86_64.py'
-        elif builder == 'linux_i386_scons':
+        elif builder.endswith('linux_i386_scons'):
             config = 'user-config-x86_64.py'
 
         if config is not None:
@@ -68,6 +72,14 @@ if builder.find('scons') != -1:
         retcode = subprocess.call(['python', 'scons/scons.py'] + scons_options)
         sys.exit(retcode)
     else:
+        if builder.find('win') != -1:
+            bitness = '32'
+
+            if builder.find('win64') != -1:
+                bitness = '64'
+
+            scons_options.append('BF_BITNESS=' + bitness)
+
         retcode = subprocess.call(['python', 'scons/scons.py'] + scons_options)
         sys.exit(retcode)
 

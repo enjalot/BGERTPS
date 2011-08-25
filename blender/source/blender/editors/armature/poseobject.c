@@ -1169,7 +1169,7 @@ void POSE_OT_paste (wmOperatorType *ot)
 	
 	/* properties */
 	RNA_def_boolean(ot->srna, "flipped", 0, "Flipped on X-Axis", "Paste the stored pose flipped on to current pose");
-	RNA_def_boolean(ot->srna, "selected_mask", 0, "On Selected Only", "Only paste the stored post on to selected bones in the current pose");
+	RNA_def_boolean(ot->srna, "selected_mask", 0, "On Selected Only", "Only paste the stored pose on to selected bones in the current pose");
 }
 
 /* ********************************************** */
@@ -1509,7 +1509,7 @@ static int pose_group_deselect_exec (bContext *C, wmOperator *UNUSED(op))
 void POSE_OT_group_deselect (wmOperatorType *ot)
 {
 	/* identifiers */
-	ot->name= "Deselecte Bone Group";
+	ot->name= "Deselect Bone Group";
 	ot->idname= "POSE_OT_group_deselect";
 	ot->description= "Deselect bones of active Bone Group";
 	

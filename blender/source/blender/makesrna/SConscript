@@ -42,10 +42,6 @@ if env['WITH_BF_QUICKTIME']:
     defs.append('WITH_QUICKTIME')
     incs += ' ../quicktime'
 
-if env['WITH_BF_LCMS']:
-    defs.append('WITH_LCMS')
-    incs += ' ' + env['BF_LCMS_INC']
-    
 if env['WITH_BF_GAMEENGINE']:
     defs.append('WITH_GAMEENGINE')
 
@@ -58,7 +54,7 @@ if env['WITH_BF_PYTHON']:
 if env['WITH_BF_COLLADA']:
     defs.append('WITH_COLLADA')
 
-if env['OURPLATFORM'] == 'linux2':
+if env['OURPLATFORM'] == 'linux':
     cflags='-pthread'
     incs += ' ../../../extern/binreloc/include'
 

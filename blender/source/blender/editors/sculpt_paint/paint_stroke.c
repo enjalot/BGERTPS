@@ -333,7 +333,7 @@ static int project_brush_radius(RegionView3D* rv3d, float radius, float location
 {
 	float view[3], nonortho[3], ortho[3], offset[3], p1[2], p2[2];
 
-	viewvector(rv3d, location, view);
+	ED_view3d_global_to_vector(rv3d, location, view);
 
 	// create a vector that is not orthogonal to view
 
@@ -832,6 +832,13 @@ int paint_stroke_modal(bContext *C, wmOperator *op, wmEvent *event)
 	float mouse[2];
 	int first= 0;
 
+	// let NDOF motion pass through to the 3D view so we can paint and rotate simultaneously!
+	// this isn't perfect... even when an extra MOUSEMOVE is spoofed, the stroke discards it
+	// since the 2D deltas are zero -- code in this file needs to be updated to use the
+	// post-NDOF_MOTION MOUSEMOVE
+	if (event->type == NDOF_MOTION)
+		return OPERATOR_PASS_THROUGH;
+
 	if(!stroke->stroke_started) {
 		stroke->last_mouse_position[0] = event->x;
 		stroke->last_mouse_position[1] = event->y;
@@ -896,15 +903,37 @@ int paint_stroke_exec(bContext *C, wmOperator *op)
 {
 	PaintStroke *stroke = op->customdata;
 
+	/* only when executed for the first time */
+	if(stroke->stroke_started == 0) {
+		/* XXX stroke->last_mouse_position is unset, this may cause problems */
+		stroke->test_start(C, op, NULL);
+		stroke->stroke_started= 1;
+	}
+
 	RNA_BEGIN(op->ptr, itemptr, "stroke") {
 		stroke->update_step(C, stroke, &itemptr);
 	}
 	RNA_END;
 
+	stroke->done(C, stroke);
+
 	MEM_freeN(stroke);
 	op->customdata = NULL;
 
 	return OPERATOR_FINISHED;
+}
+
+int paint_stroke_cancel(bContext *C, wmOperator *op)
+{
+	PaintStroke *stroke = op->customdata;
+
+	if(stroke->done)
+		stroke->done(C, stroke);
+
+	MEM_freeN(stroke);
+	op->customdata = NULL;
+
+	return OPERATOR_CANCELLED;
 }
 
 ViewContext *paint_stroke_view_context(PaintStroke *stroke)

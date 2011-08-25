@@ -275,23 +275,6 @@ GHOST_TSuccess GHOST_EndProgressBar(GHOST_WindowHandle windowhandle)
 }
 
 
-int GHOST_OpenNDOF(GHOST_SystemHandle systemhandle, GHOST_WindowHandle windowhandle,
-   GHOST_NDOFLibraryInit_fp setNdofLibraryInit, 
-    GHOST_NDOFLibraryShutdown_fp setNdofLibraryShutdown,
-    GHOST_NDOFDeviceOpen_fp setNdofDeviceOpen)
-  //original patch only
-  /*  GHOST_NDOFEventHandler_fp setNdofEventHandler)*/
-{
-	GHOST_ISystem* system = (GHOST_ISystem*) systemhandle;
-
-    return system->openNDOF((GHOST_IWindow*) windowhandle,
-        setNdofLibraryInit, setNdofLibraryShutdown, setNdofDeviceOpen);
-//	original patch
-//        setNdofLibraryInit, setNdofLibraryShutdown, setNdofDeviceOpen, setNdofEventHandler);
-}
-
-
-
 GHOST_TStandardCursor GHOST_GetCursorShape(GHOST_WindowHandle windowhandle)
 {
 	GHOST_IWindow* window = (GHOST_IWindow*) windowhandle;
@@ -403,7 +386,7 @@ GHOST_TSuccess GHOST_GetModifierKeyState(GHOST_SystemHandle systemhandle,
 {
 	GHOST_ISystem* system = (GHOST_ISystem*) systemhandle;
 	GHOST_TSuccess result;
-	bool isdown;
+	bool isdown= false;
 	
 	result = system->getModifierKeyState(mask, isdown);
 	*isDown = (int) isdown;
@@ -419,7 +402,7 @@ GHOST_TSuccess GHOST_GetButtonState(GHOST_SystemHandle systemhandle,
 {
 	GHOST_ISystem* system = (GHOST_ISystem*) systemhandle;
 	GHOST_TSuccess result;
-	bool isdown;
+	bool isdown= false;
 	
 	result = system->getButtonState(mask, isdown);
 	*isDown = (int) isdown;
@@ -876,4 +859,10 @@ void GHOST_putClipboard(GHOST_TInt8 *buffer, int selection)
 {
 	GHOST_ISystem* system = GHOST_ISystem::getSystem();
 	system->putClipboard(buffer, selection);
+}
+
+int GHOST_toggleConsole(int action)
+{
+	GHOST_ISystem* system = GHOST_ISystem::getSystem();
+	return system->toggleConsole(action);
 }

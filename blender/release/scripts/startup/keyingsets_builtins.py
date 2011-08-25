@@ -215,10 +215,14 @@ class BUILTIN_KSI_VisualLocRot(bpy.types.KeyingSetInfo):
 class BUILTIN_KSI_Available(bpy.types.KeyingSetInfo):
     bl_label = "Available"
 
-    # poll - use predefined callback for selected objects
-    # TODO: this should really check whether the selected object (or datablock)
-    #         has any animation data defined yet
-    poll = keyingsets_utils.RKS_POLL_selected_objects
+    # poll - selected objects or selected object with animation data
+    def poll(ksi, context):
+        ob = context.active_object
+        if ob:
+            # TODO: this fails if one animation-less object is active, but many others are selected
+            return ob.animation_data and ob.animation_data.action
+        else:
+            return bool(context.selected_objects)
 
     # iterator - use callback for selected bones/objects
     iterator = keyingsets_utils.RKS_ITER_selected_item
@@ -403,7 +407,7 @@ class BUILTIN_KSI_DeltaRotation(bpy.types.KeyingSetInfo):
         # add the property name to the base path
         #   rotation mode affects the property used
         if data.rotation_mode == 'QUATERNION':
-            path = path_add_property(base_path, "delta_rotation_quaternion")
+            path = keyingsets_utils.path_add_property(base_path, "delta_rotation_quaternion")
         elif data.rotation_mode == 'AXIS_ANGLE':
             # XXX: for now, this is not available yet
             #path = path_add_property(base_path, "delta_rotation_axis_angle")

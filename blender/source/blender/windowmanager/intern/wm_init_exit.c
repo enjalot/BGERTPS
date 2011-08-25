@@ -48,6 +48,7 @@
 
 #include "BKE_blender.h"
 #include "BKE_context.h"
+#include "BKE_screen.h"
 #include "BKE_curve.h"
 #include "BKE_displist.h"
 #include "BKE_DerivedMesh.h"
@@ -72,9 +73,10 @@
 #endif
 
 #ifdef WITH_GAMEENGINE
-#include "SYS_System.h"
+#include "BL_System.h"
 #endif
 #include "GHOST_Path-api.h"
+#include "GHOST_C-api.h"
 
 #include "RNA_define.h"
 
@@ -104,7 +106,6 @@
 
 #include "BKE_depsgraph.h"
 #include "BKE_sound.h"
-#include "GHOST_C-api.h"
 
 static void wm_init_reports(bContext *C)
 {
@@ -120,19 +121,14 @@ int wm_start_with_console = 0;
 /* only called once, for startup */
 void WM_init(bContext *C, int argc, const char **argv)
 {
-
 	if (!G.background) {
 		wm_ghost_init(C);	/* note: it assigns C to ghost! */
 		wm_init_cursor_data();
-#ifdef WIN32
-		if (IsConsoleEmpty()) /* never hide if the console window pre-existed */
-			WM_console_toggle(C, wm_start_with_console);
-#endif
 	}
 	GHOST_CreateSystemPaths();
-
 	wm_operatortype_init();
-	
+	WM_menutype_init();
+
 	set_free_windowmanager_cb(wm_close_and_free);	/* library.c */
 	set_blender_test_break_cb(wm_window_testbreak); /* blender.c */
 	DAG_editors_update_cb(ED_render_id_flush_update); /* depsgraph.c */
@@ -144,7 +140,6 @@ void WM_init(bContext *C, int argc, const char **argv)
 	
 	BLF_init(11, U.dpi); /* Please update source/gamengine/GamePlayer/GPG_ghost.cpp if you change this */
 	BLF_lang_init();
-	
 	/* get the default database, plus a wm */
 	WM_read_homefile(C, NULL, G.factory_startup);
 
@@ -161,17 +156,23 @@ void WM_init(bContext *C, int argc, const char **argv)
 	BPY_python_start(argc, argv);
 
 	BPY_driver_reset();
+	BPY_app_handlers_reset(); /* causes addon callbacks to be freed [#28068],
+	                           * but this is actually what we want. */
 	BPY_modules_load_user(C);
 #else
 	(void)argc; /* unused */
 	(void)argv; /* unused */
 #endif
 
+	if (!G.background && !wm_start_with_console)
+		GHOST_toggleConsole(3);
+
 	wm_init_reports(C); /* reports cant be initialized before the wm */
 
 	if (!G.background) {
 		GPU_extensions_init();
 		GPU_set_mipmap(!(U.gameflags & USER_DISABLE_MIPMAP));
+		GPU_set_anisotropic(U.anisotropic_filter);
 	
 		UI_init();
 	}
@@ -183,8 +184,6 @@ void WM_init(bContext *C, int argc, const char **argv)
 		
 	ED_preview_init_dbase();
 	
-	G.ndofdevice = -1;	/* XXX bad initializer, needs set otherwise buttons show! */
-	
 	WM_read_history();
 
 	/* allow a path of "", this is what happens when making a new file */
@@ -194,7 +193,6 @@ void WM_init(bContext *C, int argc, const char **argv)
 	*/
 
 	BLI_strncpy(G.lib, G.main->name, FILE_MAX);
-
 }
 
 void WM_init_splash(bContext *C)
@@ -252,15 +250,7 @@ int WM_init_game(bContext *C)
 		CTX_wm_window_set(C, win);
 
 	sa = biggest_view3d(C);
-
-	if(sa)
-	{
-		for(ar=sa->regionbase.first; ar; ar=ar->next) {
-			if(ar->regiontype == RGN_TYPE_WINDOW) {
-				break;
-			}
-		}
-	}
+	ar= BKE_area_find_region_type(sa, RGN_TYPE_WINDOW);
 
 	// if we have a valid 3D view
 	if (sa && ar) {
@@ -340,7 +330,6 @@ static void free_openrecent(void)
 
 /* bad stuff*/
 
-extern ListBase editelems;
 extern wchar_t *copybuf;
 extern wchar_t *copybufinfo;
 
@@ -357,9 +346,6 @@ void WM_exit(bContext *C)
 
 	sound_exit();
 
-#ifdef WIN32
-	WM_console_toggle(C, 1); /* never leave behind invisible consoles */
-#endif
 
 	/* first wrap up running stuff, we assume only the active WM is running */
 	/* modal handlers are on window level freed, others too? */
@@ -395,7 +381,6 @@ void WM_exit(bContext *C)
 	
 	BKE_freecubetable();
 	
-	fastshade_free_render();	/* shaded view */
 	ED_preview_free_dbase();	/* frees a Main dbase, before free_blender! */
 
 	if(C && CTX_wm_manager(C))
@@ -409,10 +394,6 @@ void WM_exit(bContext *C)
 	free_anim_drivers_copybuf();
 	free_fmodifiers_copybuf();
 	free_posebuf();
-//	free_vertexpaint();
-//	free_imagepaint();
-	
-//	fsmenu_free();
 
 	BLF_exit();
 	
@@ -435,11 +416,7 @@ void WM_exit(bContext *C)
 	BPY_python_end();
 #endif
 
-	if (!G.background) {
-// XXX		UI_filelist_free_icons();
-	}
-	
-	GPU_buffer_pool_free(NULL);
+	GPU_global_buffer_pool_free();
 	GPU_free_unused_buffers();
 	GPU_extensions_exit();
 	
@@ -481,7 +458,6 @@ void WM_exit(bContext *C)
 		getchar();
 	}
 #endif 
-	
 	exit(G.afbreek==1);
 }
 

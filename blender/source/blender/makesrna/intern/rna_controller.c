@@ -56,24 +56,24 @@ static struct StructRNA* rna_Controller_refine(struct PointerRNA *ptr)
 	bController *controller= (bController*)ptr->data;
 
 	switch(controller->type) {
-		case CONT_LOGIC_AND:
-			return &RNA_AndController;
-		case CONT_LOGIC_OR:
-			return &RNA_OrController;
-		case CONT_LOGIC_NAND:
-			return &RNA_NandController;
-		case CONT_LOGIC_NOR:
-			return &RNA_NorController;
-		case CONT_LOGIC_XOR:
-			return &RNA_XorController;
-		case CONT_LOGIC_XNOR:
-			return &RNA_XnorController;
-		 case CONT_EXPRESSION:
-			return &RNA_ExpressionController;
-		case CONT_PYTHON:
-			return &RNA_PythonController;
-		default:
-			return &RNA_Controller;
+	case CONT_LOGIC_AND:
+		return &RNA_AndController;
+	case CONT_LOGIC_OR:
+		return &RNA_OrController;
+	case CONT_LOGIC_NAND:
+		return &RNA_NandController;
+	case CONT_LOGIC_NOR:
+		return &RNA_NorController;
+	case CONT_LOGIC_XOR:
+		return &RNA_XorController;
+	case CONT_LOGIC_XNOR:
+		return &RNA_XnorController;
+	case CONT_EXPRESSION:
+		return &RNA_ExpressionController;
+	case CONT_PYTHON:
+		return &RNA_PythonController;
+	default:
+		return &RNA_Controller;
 	}
 }
 
@@ -85,6 +85,20 @@ static void rna_Controller_type_set(struct PointerRNA *ptr, int value)
 		cont->type = value;
 		init_controller(cont);
 	}
+}
+
+static void rna_Controller_mode_set(struct PointerRNA *ptr, int value)
+{
+	bController *cont= (bController *)ptr->data;
+	bPythonCont *pycon= (bPythonCont *)cont->data;
+
+	// if mode changed and previous mode were Script
+	if (value != pycon->mode && pycon->mode == CONT_PY_SCRIPT)
+	{
+		// clear script to avoid it to get linked with the controller
+		pycon->text = NULL;
+	}
+	pycon->mode = value;
 }
 
 static int rna_Controller_state_number_get(struct PointerRNA *ptr)
@@ -222,6 +236,7 @@ void RNA_def_controller(BlenderRNA *brna)
 
 	prop= RNA_def_property(srna, "mode", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_items(prop, python_controller_modes);
+	RNA_def_property_enum_funcs(prop, NULL, "rna_Controller_mode_set", NULL);
 	RNA_def_property_ui_text(prop, "Execution Method", "Python script type (textblock or module - faster)");
 	RNA_def_property_update(prop, NC_LOGIC, NULL);
 

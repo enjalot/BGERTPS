@@ -134,6 +134,12 @@ static void foreachIDLink(ModifierData *md, Object *ob,
 	foreachObjectLink(md, ob, (ObjectWalkFunc)walk, userData);
 }
 
+static void foreachTexLink(ModifierData *md, Object *ob,
+					   TexWalkFunc walk, void *userData)
+{
+	walk(userData, ob, md, "texture");
+}
+
 static int isDisabled(ModifierData *md, int UNUSED(useRenderParams))
 {
 	DisplaceModifierData *dmd = (DisplaceModifierData*) md;
@@ -162,92 +168,6 @@ static void updateDepgraph(ModifierData *md, DagForest *forest,
 	
 }
 
-static void get_texture_coords(DisplaceModifierData *dmd, Object *ob,
-				   DerivedMesh *dm,
-	  float (*co)[3], float (*texco)[3],
-		  int numVerts)
-{
-	int i;
-	int texmapping = dmd->texmapping;
-	float mapob_imat[4][4];
-
-	if(texmapping == MOD_DISP_MAP_OBJECT) {
-		if(dmd->map_object)
-			invert_m4_m4(mapob_imat, dmd->map_object->obmat);
-		else /* if there is no map object, default to local */
-			texmapping = MOD_DISP_MAP_LOCAL;
-	}
-
-	/* UVs need special handling, since they come from faces */
-	if(texmapping == MOD_DISP_MAP_UV) {
-		if(CustomData_has_layer(&dm->faceData, CD_MTFACE)) {
-			MFace *mface = dm->getFaceArray(dm);
-			MFace *mf;
-			char *done = MEM_callocN(sizeof(*done) * numVerts,
-					"get_texture_coords done");
-			int numFaces = dm->getNumFaces(dm);
-			char uvname[32];
-			MTFace *tf;
-
-			validate_layer_name(&dm->faceData, CD_MTFACE, dmd->uvlayer_name, uvname);
-			tf = CustomData_get_layer_named(&dm->faceData, CD_MTFACE, uvname);
-
-			/* verts are given the UV from the first face that uses them */
-			for(i = 0, mf = mface; i < numFaces; ++i, ++mf, ++tf) {
-				if(!done[mf->v1]) {
-					texco[mf->v1][0] = tf->uv[0][0];
-					texco[mf->v1][1] = tf->uv[0][1];
-					texco[mf->v1][2] = 0;
-					done[mf->v1] = 1;
-				}
-				if(!done[mf->v2]) {
-					texco[mf->v2][0] = tf->uv[1][0];
-					texco[mf->v2][1] = tf->uv[1][1];
-					texco[mf->v2][2] = 0;
-					done[mf->v2] = 1;
-				}
-				if(!done[mf->v3]) {
-					texco[mf->v3][0] = tf->uv[2][0];
-					texco[mf->v3][1] = tf->uv[2][1];
-					texco[mf->v3][2] = 0;
-					done[mf->v3] = 1;
-				}
-				if(!done[mf->v4]) {
-					texco[mf->v4][0] = tf->uv[3][0];
-					texco[mf->v4][1] = tf->uv[3][1];
-					texco[mf->v4][2] = 0;
-					done[mf->v4] = 1;
-				}
-			}
-
-			/* remap UVs from [0, 1] to [-1, 1] */
-			for(i = 0; i < numVerts; ++i) {
-				texco[i][0] = texco[i][0] * 2 - 1;
-				texco[i][1] = texco[i][1] * 2 - 1;
-			}
-
-			MEM_freeN(done);
-			return;
-		} else /* if there are no UVs, default to local */
-			texmapping = MOD_DISP_MAP_LOCAL;
-	}
-
-	for(i = 0; i < numVerts; ++i, ++co, ++texco) {
-		switch(texmapping) {
-			case MOD_DISP_MAP_LOCAL:
-				copy_v3_v3(*texco, *co);
-				break;
-			case MOD_DISP_MAP_GLOBAL:
-				mul_v3_m4v3(*texco, ob->obmat, *co);
-				break;
-			case MOD_DISP_MAP_OBJECT:
-				mul_v3_m4v3(*texco, ob->obmat, *co);
-				mul_m4_v3(mapob_imat, *texco);
-				break;
-		}
-	}
-}
-
 /* dm must be a CDDerivedMesh */
 static void displaceModifier_do(
 				DisplaceModifierData *dmd, Object *ob,
@@ -255,36 +175,28 @@ static void displaceModifier_do(
 {
 	int i;
 	MVert *mvert;
-	MDeformVert *dvert = NULL;
+	MDeformVert *dvert;
 	int defgrp_index;
 	float (*tex_co)[3];
+	float weight= 1.0f; /* init value unused but some compilers may complain */
 
 	if(!dmd->texture) return;
-
-	defgrp_index = defgroup_name_index(ob, dmd->defgrp_name);
+	if(dmd->strength == 0.0f) return;
 
 	mvert = CDDM_get_verts(dm);
-	if(defgrp_index >= 0)
-		dvert = dm->getVertDataArray(dm, CD_MDEFORMVERT);
+	modifier_get_vgroup(ob, dm, dmd->defgrp_name, &dvert, &defgrp_index);
 
 	tex_co = MEM_callocN(sizeof(*tex_co) * numVerts,
 				 "displaceModifier_do tex_co");
-	get_texture_coords(dmd, ob, dm, vertexCos, tex_co, numVerts);
+	get_texture_coords((MappingInfoModifierData *)dmd, ob, dm, vertexCos, tex_co, numVerts);
 
 	for(i = 0; i < numVerts; ++i) {
 		TexResult texres;
 		float delta = 0, strength = dmd->strength;
-		MDeformWeight *def_weight = NULL;
 
 		if(dvert) {
-			int j;
-			for(j = 0; j < dvert[i].totweight; ++j) {
-				if(dvert[i].dw[j].def_nr == defgrp_index) {
-					def_weight = &dvert[i].dw[j];
-					break;
-				}
-			}
-			if(!def_weight) continue;
+			weight= defvert_find_weight(dvert + i, defgrp_index);
+			if(weight == 0.0f) continue;
 		}
 
 		texres.nor = NULL;
@@ -292,9 +204,10 @@ static void displaceModifier_do(
 
 		delta = texres.tin - dmd->midlevel;
 
-		if(def_weight) strength *= def_weight->weight;
+		if(dvert) strength *= weight;
 
 		delta *= strength;
+		CLAMP(delta, -10000, 10000);
 
 		switch(dmd->direction) {
 			case MOD_DISP_DIR_X:
@@ -312,9 +225,9 @@ static void displaceModifier_do(
 				vertexCos[i][2] += (texres.tb - dmd->midlevel) * strength;
 				break;
 			case MOD_DISP_DIR_NOR:
-				vertexCos[i][0] += delta * mvert[i].no[0] / 32767.0f;
-				vertexCos[i][1] += delta * mvert[i].no[1] / 32767.0f;
-				vertexCos[i][2] += delta * mvert[i].no[2] / 32767.0f;
+				vertexCos[i][0] += delta * (mvert[i].no[0] / 32767.0f);
+				vertexCos[i][1] += delta * (mvert[i].no[1] / 32767.0f);
+				vertexCos[i][2] += delta * (mvert[i].no[2] / 32767.0f);
 				break;
 		}
 	}
@@ -376,4 +289,5 @@ ModifierTypeInfo modifierType_Displace = {
 	/* dependsOnNormals */	dependsOnNormals,
 	/* foreachObjectLink */ foreachObjectLink,
 	/* foreachIDLink */     foreachIDLink,
+	/* foreachTexLink */    foreachTexLink,
 };

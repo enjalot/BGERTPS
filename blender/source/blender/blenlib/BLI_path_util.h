@@ -50,11 +50,7 @@ char *BLI_get_folder_version(const int id, const int ver, const int do_check);
 /* folder_id */
 
 /* general, will find based on user/local/system priority */
-#define BLENDER_CONFIG				1
 #define BLENDER_DATAFILES			2
-#define BLENDER_SCRIPTS				3
-#define BLENDER_PLUGINS				4
-#define BLENDER_PYTHON				5
 
 /* user-specific */
 #define BLENDER_USER_CONFIG			31
@@ -64,7 +60,6 @@ char *BLI_get_folder_version(const int id, const int ver, const int do_check);
 #define BLENDER_USER_AUTOSAVE		35
 
 /* system */
-#define BLENDER_SYSTEM_CONFIG		51	/* optional */
 #define BLENDER_SYSTEM_DATAFILES	52
 #define BLENDER_SYSTEM_SCRIPTS		53
 #define BLENDER_SYSTEM_PLUGINS		54
@@ -88,7 +83,7 @@ char *BLI_get_folder_version(const int id, const int ver, const int do_check);
 #ifdef WIN32
 #define BLENDER_USER_FORMAT		"%s\\Blender Foundation\\Blender\\%s"
 #define BLENDER_SYSTEM_FORMAT		"%s\\Blender Foundation\\Blender\\%s"
-#elif __APPLE__
+#elif defined(__APPLE__)
 #define BLENDER_USER_FORMAT			"%s/Blender/%s"
 #define BLENDER_SYSTEM_FORMAT			"%s/Blender/%s"
 #else
@@ -111,15 +106,15 @@ void BLI_make_file_string(const char *relabase, char *string,  const char *dir, 
 void BLI_make_exist(char *dir);
 void BLI_make_existing_file(const char *name);
 void BLI_split_dirfile(const char *string, char *dir, char *file);
-void BLI_join_dirfile(char *string, const int maxlen, const char *dir, const char *file);
+void BLI_join_dirfile(char *string, const size_t maxlen, const char *dir, const char *file);
 char *BLI_path_basename(char *path);
-int BKE_rebase_path(char *abs, int abs_size, char *rel, int rel_size, const char *base_dir, const char *src_dir, const char *dest_dir);
+int BKE_rebase_path(char *abs, size_t abs_len, char *rel, size_t rel_len, const char *base_dir, const char *src_dir, const char *dest_dir);
 char *BLI_last_slash(const char *string);
 int	  BLI_add_slash(char *string);
 void  BLI_del_slash(char *string);
 char *BLI_first_slash(char *string);
 
-void BLI_getlastdir(const char* dir, char *last, int maxlen);
+void BLI_getlastdir(const char* dir, char *last, const size_t maxlen);
 int BLI_testextensie(const char *str, const char *ext);
 int BLI_testextensie_array(const char *str, const char **ext_array);
 int BLI_testextensie_glob(const char *str, const char *ext_fnmatch);
@@ -197,9 +192,8 @@ void BLI_char_switch(char *string, char from, char to);
 	 * @param fullname The full path and full name of the executable
 	 * @param name The name of the executable (usually argv[0]) to be checked
 	 */
-void BLI_where_am_i(char *fullname, const int maxlen, const char *name);
+void BLI_where_am_i(char *fullname, const size_t maxlen, const char *name);
 
-char *get_install_dir(void);
 	/**
 	 * Gets the temp directory when blender first runs.
 	 * If the default path is not found, use try $TEMP
@@ -208,7 +202,7 @@ char *get_install_dir(void);
 	 *
 	 * @param fullname The full path to the temp directory
 	 */
-void BLI_where_is_temp(char *fullname, const int maxlen, int usertemp);
+void BLI_where_is_temp(char *fullname, const size_t maxlen, int usertemp);
 
 
 #ifdef WITH_ICONV

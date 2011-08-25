@@ -50,7 +50,7 @@
 #include "KX_PolygonMaterial.h"
 
 
-#include "SYS_System.h"
+#include "BL_System.h"
 
 #include "DummyPhysicsEnvironment.h"
 
@@ -950,7 +950,6 @@ bool KX_BlenderSceneConverter::LinkBlendFilePath(const char *path, char *group, 
 
 bool KX_BlenderSceneConverter::LinkBlendFile(BlendHandle *bpy_openlib, const char *path, char *group, KX_Scene *scene_merge, char **err_str, short options)
 {
-	bContext *C;
 	Main *main_newlib; /* stored as a dynamic 'main' until we free it */
 	Main *main_tmp= NULL; /* created only for linking, then freed */
 	LinkNode *names = NULL;
@@ -981,12 +980,10 @@ bool KX_BlenderSceneConverter::LinkBlendFile(BlendHandle *bpy_openlib, const cha
 	}
 	
 	main_newlib= (Main *)MEM_callocN( sizeof(Main), "BgeMain");
-	C= CTX_create();
-	CTX_data_main_set(C, main_newlib);
 	BKE_reports_init(&reports, RPT_STORE);	
 
 	/* here appending/linking starts */
-	main_tmp = BLO_library_append_begin(C, &bpy_openlib, (char *)path);
+	main_tmp = BLO_library_append_begin(main_newlib, &bpy_openlib, (char *)path);
 
 	int totnames_dummy;
 	names = BLO_blendhandle_get_datablock_names( bpy_openlib, idcode, &totnames_dummy);
@@ -994,17 +991,17 @@ bool KX_BlenderSceneConverter::LinkBlendFile(BlendHandle *bpy_openlib, const cha
 	int i=0;
 	LinkNode *n= names;
 	while(n) {
-		BLO_library_append_named_part(C, main_tmp, &bpy_openlib, (char *)n->link, idcode, 0);
+		BLO_library_append_named_part(main_tmp, &bpy_openlib, (char *)n->link, idcode);
 		n= (LinkNode *)n->next;
 		i++;
 	}
 	BLI_linklist_free(names, free);	/* free linklist *and* each node's data */
 	
-	BLO_library_append_end(C, main_tmp, &bpy_openlib, idcode, flag);
+	BLO_library_append_end(NULL, main_tmp, &bpy_openlib, idcode, flag);
 
 	/* now do another round of linking for Scenes so all actions are properly loaded */
 	if (idcode==ID_SCE && options & LIB_LOAD_LOAD_ACTIONS) {
-		main_tmp = BLO_library_append_begin(C, &bpy_openlib, (char *)path);
+		main_tmp = BLO_library_append_begin(main_newlib, &bpy_openlib, (char *)path);
 
 		int totnames_dummy;
 		names = BLO_blendhandle_get_datablock_names( bpy_openlib, ID_AC, &totnames_dummy);
@@ -1012,18 +1009,17 @@ bool KX_BlenderSceneConverter::LinkBlendFile(BlendHandle *bpy_openlib, const cha
 		int i=0;
 		LinkNode *n= names;
 		while(n) {
-			BLO_library_append_named_part(C, main_tmp, &bpy_openlib, (char *)n->link, ID_AC, 0);
+			BLO_library_append_named_part(main_tmp, &bpy_openlib, (char *)n->link, ID_AC);
 			n= (LinkNode *)n->next;
 			i++;
 		}
 		BLI_linklist_free(names, free);	/* free linklist *and* each node's data */
 	
-		BLO_library_append_end(C, main_tmp, &bpy_openlib, ID_AC, flag);
+		BLO_library_append_end(NULL, main_tmp, &bpy_openlib, ID_AC, flag);
 	}
 	
 	BLO_blendhandle_close(bpy_openlib);
-	
-	CTX_free(C);
+
 	BKE_reports_clear(&reports);
 	/* done linking */	
 	
@@ -1126,7 +1122,7 @@ bool KX_BlenderSceneConverter::FreeBlendFile(struct Main *maggie)
 			
 			/* incase the mesh might be refered to later */
 			{
-				GEN_Map<STR_HashedString,void*> &mapStringToMeshes = scene->GetLogicManager()->GetMeshMap();
+				CTR_Map<STR_HashedString,void*> &mapStringToMeshes = scene->GetLogicManager()->GetMeshMap();
 				
 				for(int i=0; i<mapStringToMeshes.size(); i++)
 				{
@@ -1143,7 +1139,7 @@ bool KX_BlenderSceneConverter::FreeBlendFile(struct Main *maggie)
 
 			/* Now unregister actions */
 			{
-				GEN_Map<STR_HashedString,void*> &mapStringToActions = scene->GetLogicManager()->GetActionMap();
+				CTR_Map<STR_HashedString,void*> &mapStringToActions = scene->GetLogicManager()->GetActionMap();
 
 				for(int i=0; i<mapStringToActions.size(); i++)
 				{

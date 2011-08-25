@@ -102,6 +102,21 @@ MINLINE void swap_v4_v4(float a[4], float b[4])
 
 /********************************* Arithmetic ********************************/
 
+MINLINE void add_v3_fl(float r[3], float f)
+{
+	r[0] += f;
+	r[1] += f;
+	r[2] += f;
+}
+
+MINLINE void add_v4_fl(float r[4], float f)
+{
+	r[0] += f;
+	r[1] += f;
+	r[2] += f;
+	r[3] += f;
+}
+
 MINLINE void add_v2_v2(float *r, const float *a)
 {
 	r[0] += a[0];
@@ -315,7 +330,7 @@ MINLINE float dot_v3v3(const float a[3], const float b[3])
 
 MINLINE float cross_v2v2(const float a[2], const float b[2])
 {
-	 return a[0]*b[1] - a[1]*b[0];
+	return a[0]*b[1] - a[1]*b[0];
 }
 
 MINLINE void cross_v3_v3v3(float r[3], const float a[3], const float b[3])
@@ -424,14 +439,14 @@ MINLINE float normalize_v3(float n[3])
 	return normalize_v3_v3(n, n);
 }
 
-MINLINE void normal_short_to_float_v3(float *out, const short *in)
+MINLINE void normal_short_to_float_v3(float out[3], const short in[3])
 {
 	out[0] = in[0]*(1.0f/32767.0f);
 	out[1] = in[1]*(1.0f/32767.0f);
 	out[2] = in[2]*(1.0f/32767.0f);
 }
 
-MINLINE void normal_float_to_short_v3(short *out, const float *in)
+MINLINE void normal_float_to_short_v3(short out[3], const float in[3])
 {
 	out[0] = (short)(in[0]*32767.0f);
 	out[1] = (short)(in[1]*32767.0f);

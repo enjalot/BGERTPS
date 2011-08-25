@@ -64,6 +64,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <ctype.h>
 
 /* for events */
 #define NOTACTIVEFILE			0
@@ -205,9 +206,10 @@ static FileSelect file_select(bContext* C, const rcti* rect, FileSelType select,
 	SpaceFile *sfile= CTX_wm_space_file(C);
 	FileSelect retval = FILE_SELECT_NOTHING;
 	FileSelection sel= file_selection_get(C, rect, fill); /* get the selection */
+	const FileCheckType check_type= (sfile->params->flag & FILE_DIRSEL_ONLY) ? CHECK_DIRS : CHECK_ALL;
 	
 	/* flag the files as selected in the filelist */
-	filelist_select(sfile->files, &sel, select, SELECTED_FILE, CHECK_ALL);
+	filelist_select(sfile->files, &sel, select, SELECTED_FILE, check_type);
 	
 	/* Don't act on multiple selected files */
 	if (sel.first != sel.last) select = 0;
@@ -216,7 +218,7 @@ static FileSelect file_select(bContext* C, const rcti* rect, FileSelType select,
 	if ( (sel.last >= 0) && ((select == FILE_SEL_ADD) || (select == FILE_SEL_TOGGLE)) )
 	{
 		/* Check last selection, if selected, act on the file or dir */
-		if (filelist_is_selected(sfile->files, sel.last, CHECK_ALL)) {
+		if (filelist_is_selected(sfile->files, sel.last, check_type)) {
 			retval = file_select_do(C, sel.last);
 		}
 	}
@@ -301,6 +303,7 @@ void FILE_OT_select_border(wmOperatorType *ot)
 	ot->exec= file_border_select_exec;
 	ot->modal= file_border_select_modal;
 	ot->poll= ED_operator_file_active;
+	ot->cancel= WM_border_select_cancel;
 
 	/* rna */
 	WM_operator_properties_gesture_border(ot, 0);
@@ -318,8 +321,8 @@ static int file_select_invoke(bContext *C, wmOperator *op, wmEvent *event)
 	if(ar->regiontype != RGN_TYPE_WINDOW)
 		return OPERATOR_CANCELLED;
 
-	rect.xmin = rect.xmax = event->x - ar->winrct.xmin;
-	rect.ymin = rect.ymax = event->y - ar->winrct.ymin;
+	rect.xmin = rect.xmax = event->mval[0];
+	rect.ymin = rect.ymax = event->mval[1];
 
 	if(!BLI_in_rcti(&ar->v2d.mask, rect.xmin, rect.ymin))
 		return OPERATOR_CANCELLED;
@@ -363,7 +366,7 @@ static int file_select_all_exec(bContext *C, wmOperator *UNUSED(op))
 	int numfiles = filelist_numfiles(sfile->files);
 	int i;
 	int is_selected = 0;
-    
+
 	sel.first = 0; 
 	sel.last = numfiles-1;
 
@@ -377,8 +380,10 @@ static int file_select_all_exec(bContext *C, wmOperator *UNUSED(op))
 	/* select all only if previously no file was selected */
 	if (is_selected) {
 		filelist_select(sfile->files, &sel, FILE_SEL_REMOVE, SELECTED_FILE, CHECK_ALL);
-	} else {
-		filelist_select(sfile->files, &sel, FILE_SEL_ADD, SELECTED_FILE, CHECK_FILES);
+	}
+	else {
+		const FileCheckType check_type= (sfile->params->flag & FILE_DIRSEL_ONLY) ? CHECK_DIRS : CHECK_FILES;
+		filelist_select(sfile->files, &sel, FILE_SEL_ADD, SELECTED_FILE, check_type);
 	}
 	ED_area_tag_redraw(sa);
 	return OPERATOR_FINISHED;
@@ -616,25 +621,31 @@ void file_sfile_to_operator(wmOperator *op, SpaceFile *sfile, char *filepath)
 	}
 	
 	/* some ops have multiple files to select */
+	/* this is called on operators check() so clear collections first since
+	 * they may be already set. */
 	{
 		PointerRNA itemptr;
+		PropertyRNA *prop_files= RNA_struct_find_property(op->ptr, "files");
+		PropertyRNA *prop_dirs= RNA_struct_find_property(op->ptr, "dirs");
 		int i, numfiles = filelist_numfiles(sfile->files);
 
-		if(RNA_struct_find_property(op->ptr, "files")) {
+		if(prop_files) {
+			RNA_property_collection_clear(op->ptr, prop_files);
 			for (i=0; i<numfiles; i++) {
 				if (filelist_is_selected(sfile->files, i, CHECK_FILES)) {
 					struct direntry *file= filelist_file(sfile->files, i);
-					RNA_collection_add(op->ptr, "files", &itemptr);
+					RNA_property_collection_add(op->ptr, prop_files, &itemptr);
 					RNA_string_set(&itemptr, "name", file->relname);
 				}
 			}
 		}
-		
-		if(RNA_struct_find_property(op->ptr, "dirs")) {
+
+		if(prop_dirs) {
+			RNA_property_collection_clear(op->ptr, prop_dirs);
 			for (i=0; i<numfiles; i++) {
 				if (filelist_is_selected(sfile->files, i, CHECK_DIRS)) {
 					struct direntry *file= filelist_file(sfile->files, i);
-					RNA_collection_add(op->ptr, "dirs", &itemptr);
+					RNA_property_collection_add(op->ptr, prop_dirs, &itemptr);
 					RNA_string_set(&itemptr, "name", file->relname);
 				}
 			}
@@ -854,7 +865,7 @@ int file_next_exec(bContext *C, wmOperator *UNUSED(unused))
 		folderlist_pushdir(sfile->folders_prev, sfile->params->dir);
 		folderlist_popdir(sfile->folders_next, sfile->params->dir);
 
-		// update folder_prev so we can check for it in folderlist_clear_next()
+		// update folders_prev so we can check for it in folderlist_clear_next()
 		folderlist_pushdir(sfile->folders_prev, sfile->params->dir);
 
 		file_change_dir(C, 1);
@@ -1075,8 +1086,18 @@ static void file_expand_directory(bContext *C)
 		}
 
 #ifdef WIN32
-		if (sfile->params->dir[0] == '\0')
+		if (sfile->params->dir[0] == '\0') {
 			get_default_root(sfile->params->dir);
+		}
+		/* change "C:" --> "C:\", [#28102] */
+		else if (   (isalpha(sfile->params->dir[0]) &&
+		            (sfile->params->dir[1] == ':')) &&
+		            (sfile->params->dir[2] == '\0')
+
+		) {
+			sfile->params->dir[2]= '\\';
+			sfile->params->dir[3]= '\0';
+		}
 #endif
 	}
 }
@@ -1144,6 +1165,13 @@ int file_filename_exec(bContext *C, wmOperator *UNUSED(unused))
 	return OPERATOR_FINISHED;
 }
 
+/* TODO, directory operator is non-functional while a library is loaded
+ * until this is properly supported just disable it. */
+static int file_directory_poll(bContext *C)
+{
+	return ED_operator_file_active(C) && filelist_lib(CTX_wm_space_file(C)->files) == NULL;
+}
+
 void FILE_OT_directory(struct wmOperatorType *ot)
 {
 	/* identifiers */
@@ -1154,7 +1182,7 @@ void FILE_OT_directory(struct wmOperatorType *ot)
 	/* api callbacks */
 	ot->invoke= file_directory_invoke;
 	ot->exec= file_directory_exec;
-	ot->poll= ED_operator_file_active; /* <- important, handler is on window level */
+	ot->poll= file_directory_poll; /* <- important, handler is on window level */
 }
 
 void FILE_OT_refresh(struct wmOperatorType *ot)
@@ -1275,7 +1303,7 @@ void FILE_OT_filenum(struct wmOperatorType *ot)
 	ot->poll= ED_operator_file_active; /* <- important, handler is on window level */
 
 	/* props */
-	RNA_def_int(ot->srna, "increment", 1, 0, 100, "Increment", "", 0,100);
+	RNA_def_int(ot->srna, "increment", 1, -100, 100, "Increment", "", -100,100);
 }
 
 static int file_rename_exec(bContext *C, wmOperator *UNUSED(op))

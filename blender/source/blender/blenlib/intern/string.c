@@ -117,6 +117,49 @@ char *BLI_sprintfN(const char *format, ...)
 	return n;
 }
 
+
+/* match pythons string escaping, assume double quotes - (")
+ * TODO: should be used to create RNA animation paths.
+ * TODO: support more fancy string escaping. current code is primitive
+ *    this basically is an ascii version of PyUnicode_EncodeUnicodeEscape()
+ *    which is a useful reference. */
+size_t BLI_strescape(char *dst, const char *src, const size_t maxlen)
+{
+	size_t len= 0;
+	while(len < maxlen) {
+		switch(*src) {
+			case '\0':
+				*dst= '\0';
+				break;
+			case '\\':
+			case '"':
+
+				/* less common but should also be support */
+			case '\t':
+			case '\n':
+			case '\r':
+				if(len + 1 <  maxlen) {
+					*dst++ = '\\';
+					len++;
+				}
+				else {
+					/* not enough space to escape */
+					*dst= '\0';
+					break;
+				}
+				/* intentionally pass through */
+			default:
+				*dst = *src;
+		}
+		dst++;
+		src++;
+		len++;
+	}
+
+	return len;
+}
+
+
 /* Makes a copy of the text within the "" that appear after some text 'blahblah'
  * i.e. for string 'pose["apples"]' with prefix 'pose[', it should grab "apples"
  * 
@@ -211,11 +254,6 @@ char *BLI_replacestr(char *str, const char *oldText, const char *newText)
 		return BLI_strdup(str);
 	}
 } 
-
-int BLI_streq(const char *a, const char *b) 
-{
-	return (strcmp(a, b)==0);
-}
 
 int BLI_strcaseeq(const char *a, const char *b) 
 {
@@ -381,64 +419,64 @@ static const char trailingBytesForUTF8[256] = {
 
 int BLI_utf8_invalid_byte(const char *str, int length)
 {
-    const unsigned char *p, *pend = (unsigned char*)str + length;
-    unsigned char c;
-    int ab;
+	const unsigned char *p, *pend = (unsigned char*)str + length;
+	unsigned char c;
+	int ab;
 
-    for (p = (unsigned char*)str; p < pend; p++) {
-        c = *p;
-        if (c < 128)
-            continue;
-        if ((c & 0xc0) != 0xc0)
-            goto utf8_error;
-        ab = trailingBytesForUTF8[c];
-        if (length < ab)
-            goto utf8_error;
-        length -= ab;
+	for (p = (unsigned char*)str; p < pend; p++) {
+		c = *p;
+		if (c < 128)
+			continue;
+		if ((c & 0xc0) != 0xc0)
+			goto utf8_error;
+		ab = trailingBytesForUTF8[c];
+		if (length < ab)
+			goto utf8_error;
+		length -= ab;
 
-        p++;
-        /* Check top bits in the second byte */
-        if ((*p & 0xc0) != 0x80)
-            goto utf8_error;
+		p++;
+		/* Check top bits in the second byte */
+		if ((*p & 0xc0) != 0x80)
+			goto utf8_error;
 
-        /* Check for overlong sequences for each different length */
-        switch (ab) {
-            /* Check for xx00 000x */
-        case 1:
-            if ((c & 0x3e) == 0) goto utf8_error;
-            continue;   /* We know there aren't any more bytes to check */
+		/* Check for overlong sequences for each different length */
+		switch (ab) {
+			/* Check for xx00 000x */
+		case 1:
+			if ((c & 0x3e) == 0) goto utf8_error;
+			continue;   /* We know there aren't any more bytes to check */
 
-            /* Check for 1110 0000, xx0x xxxx */
-        case 2:
-            if (c == 0xe0 && (*p & 0x20) == 0) goto utf8_error;
-            break;
+			/* Check for 1110 0000, xx0x xxxx */
+		case 2:
+			if (c == 0xe0 && (*p & 0x20) == 0) goto utf8_error;
+			break;
 
-            /* Check for 1111 0000, xx00 xxxx */
-        case 3:
-            if (c == 0xf0 && (*p & 0x30) == 0) goto utf8_error;
-            break;
+			/* Check for 1111 0000, xx00 xxxx */
+		case 3:
+			if (c == 0xf0 && (*p & 0x30) == 0) goto utf8_error;
+			break;
 
-            /* Check for 1111 1000, xx00 0xxx */
-        case 4:
-            if (c == 0xf8 && (*p & 0x38) == 0) goto utf8_error;
-            break;
+			/* Check for 1111 1000, xx00 0xxx */
+		case 4:
+			if (c == 0xf8 && (*p & 0x38) == 0) goto utf8_error;
+			break;
 
-            /* Check for leading 0xfe or 0xff,
-               and then for 1111 1100, xx00 00xx */
-        case 5:
-            if (c == 0xfe || c == 0xff ||
-                (c == 0xfc && (*p & 0x3c) == 0)) goto utf8_error;
-            break;
-        }
+			/* Check for leading 0xfe or 0xff,
+			   and then for 1111 1100, xx00 00xx */
+		case 5:
+			if (c == 0xfe || c == 0xff ||
+				(c == 0xfc && (*p & 0x3c) == 0)) goto utf8_error;
+			break;
+		}
 
-        /* Check for valid bytes after the 2nd, if any; all must start 10 */
-        while (--ab > 0) {
-            if ((*(p+1) & 0xc0) != 0x80) goto utf8_error;
+		/* Check for valid bytes after the 2nd, if any; all must start 10 */
+		while (--ab > 0) {
+			if ((*(p+1) & 0xc0) != 0x80) goto utf8_error;
 			p++; /* do this after so we get usable offset - campbell */
-        }
-    }
+		}
+	}
 
-    return -1;
+	return -1;
 
 utf8_error:
 
@@ -467,5 +505,23 @@ int BLI_utf8_invalid_strip(char *str, int length)
 	}
 
 	return tot;
+}
+
+void BLI_ascii_strtolower(char *str, int len)
+{
+	int i;
+
+	for(i=0; i<len; i++)
+		if(str[i] >= 'A' && str[i] <= 'Z')
+			str[i] += 'a' - 'A';
+}
+
+void BLI_ascii_strtoupper(char *str, int len)
+{
+	int i;
+
+	for(i=0; i<len; i++)
+		if(str[i] >= 'a' && str[i] <= 'z')
+			str[i] -= 'a' - 'A';
 }
 

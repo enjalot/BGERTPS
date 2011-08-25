@@ -92,9 +92,6 @@ typedef struct Global {
     
 	/* save the allowed windowstate of blender when using -W or -w */
 	int windowstate;
-
-	/* ndof device found ? */
-	int ndofdevice;
 } Global;
 
 /* **************** GLOBAL ********************* */
@@ -145,6 +142,7 @@ typedef struct Global {
 #define G_FILE_IGNORE_DEPRECATION_WARNINGS	(1 << 22)	/* deprecated */
 #define G_FILE_RECOVER			 (1 << 23)
 #define G_FILE_RELATIVE_REMAP	 (1 << 24)
+#define G_FILE_HISTORY			 (1 << 25)
 
 /* G.windowstate */
 #define G_WINDOWSTATE_USERDEF		0
@@ -173,5 +171,3 @@ extern Global G;
 #endif
 	
 #endif
-
-

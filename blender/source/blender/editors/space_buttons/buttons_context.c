@@ -218,7 +218,7 @@ static int buttons_context_path_modifier(ButsContextPath *path)
 	return 0;
 }
 
-static int buttons_context_path_material(ButsContextPath *path)
+static int buttons_context_path_material(ButsContextPath *path, int for_texture)
 {
 	Object *ob;
 	PointerRNA *ptr= &path->ptr[path->len-1];
@@ -236,6 +236,9 @@ static int buttons_context_path_material(ButsContextPath *path)
 			ma= give_current_material(ob, ob->actcol);
 			RNA_id_pointer_create(&ma->id, &path->ptr[path->len]);
 			path->len++;
+
+			if(for_texture && give_current_material_texture_node(ma))
+				return 1;
 			
 			ma= give_node_material(ma);
 			if(ma) {
@@ -432,7 +435,7 @@ static int buttons_context_path_texture(ButsContextPath *path)
 		}
 	}
 	/* try material */
-	if(buttons_context_path_material(path)) {
+	if(buttons_context_path_material(path, 1)) {
 		ma= path->ptr[path->len-1].data;
 
 		if(ma) {
@@ -524,7 +527,7 @@ static int buttons_context_path(const bContext *C, ButsContextPath *path, int ma
 			found= buttons_context_path_particle(path);
 			break;
 		case BCONTEXT_MATERIAL:
-			found= buttons_context_path_material(path);
+			found= buttons_context_path_material(path, 0);
 			break;
 		case BCONTEXT_TEXTURE:
 			found= buttons_context_path_texture(path);
@@ -901,6 +904,7 @@ void buttons_context_draw(const bContext *C, uiLayout *layout)
 	block= uiLayoutGetBlock(row);
 	uiBlockSetEmboss(block, UI_EMBOSSN);
 	but= uiDefIconButBitC(block, ICONTOG, SB_PIN_CONTEXT, 0, ICON_UNPINNED, 0, 0, UI_UNIT_X, UI_UNIT_Y, &sbuts->flag, 0, 0, 0, 0, "Follow context or keep fixed datablock displayed");
+	uiButClearFlag(but, UI_BUT_UNDO); /* skip undo on screen buttons */
 	uiButSetFunc(but, pin_cb, NULL, NULL);
 
 	for(a=0; a<path->len; a++) {

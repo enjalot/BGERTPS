@@ -298,22 +298,6 @@ public:
 	 */
 	virtual GHOST_TSuccess removeEventConsumer(GHOST_IEventConsumer* consumer) = 0;
 
-	 /***************************************************************************************
-	 ** N-degree of freedom device management functionality
-	 ***************************************************************************************/
-
-   /**
-    * Starts the N-degree of freedom device manager
-    */
-   virtual int openNDOF(GHOST_IWindow*,
-       GHOST_NDOFLibraryInit_fp setNdofLibraryInit, 
-       GHOST_NDOFLibraryShutdown_fp setNdofLibraryShutdown,
-       GHOST_NDOFDeviceOpen_fp setNdofDeviceOpen
-       // original patch only
-      // GHOST_NDOFEventHandler_fp setNdofEventHandler
-       ) = 0;
-
-
 	/***************************************************************************************
 	 ** Cursor management functionality
 	 ***************************************************************************************/
@@ -355,6 +339,16 @@ public:
 	 */
 	virtual GHOST_TSuccess getButtonState(GHOST_TButtonMask mask, bool& isDown) const = 0;
 
+	/**
+	 * Toggles console
+	 * @action	0 - Hides
+	 *			1 - Shows
+	 *			2 - Toggles
+	 *			3 - Hides if it runs not from  command line
+	 *			* - Does nothing
+	 * @return current status (1 -visible, 0 - hidden)
+	 */
+	virtual int toggleConsole(int action) = 0;
 	
 	/***************************************************************************************
 	 ** Access to clipboard.

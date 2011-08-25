@@ -203,11 +203,6 @@ public:
 		return m_display;
 	}	
 
-		void *
-	prepareNdofInfo(
-		volatile GHOST_TEventNDOFData *current_values
-	);
-
 	/* Helped function for get data from the clipboard. */
 	void getClipboard_xcout(XEvent evt, Atom sel, Atom target,
 			 unsigned char **txt, unsigned long *len,
@@ -226,6 +221,11 @@ public:
 	 * @param selection	Set the selection into the clipboard, X11 only feature
 	 */
 	void putClipboard(GHOST_TInt8 *buffer, bool selection) const;
+
+	/**
+	 * @see GHOST_ISystem
+	 */
+	int toggleConsole(int action) { return 0; }
 
 	/**
 	 * Atom used for ICCCM, WM-spec and Motif.
@@ -295,12 +295,6 @@ private :
 		bool
 	generateWindowExposeEvents(
  	);
- 
-		GHOST_TKey
-	convertXKey(
-		KeySym key
-	);
-
 };
 
 #endif

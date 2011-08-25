@@ -516,6 +516,7 @@ static int  ptcache_cloth_totpoint(void *cloth_v, int UNUSED(cfra))
 	return clmd->clothObject ? clmd->clothObject->numverts : 0;
 }
 
+#ifdef WITH_SMOKE
 /* Smoke functions */
 static int  ptcache_smoke_totpoint(void *smoke_v, int UNUSED(cfra))
 {
@@ -652,6 +653,11 @@ static void ptcache_smoke_read(PTCacheFile *pf, void *smoke_v)
 		}
 	}
 }
+#else // WITH_SMOKE
+static int  ptcache_smoke_totpoint(void *UNUSED(smoke_v), int UNUSED(cfra)) { return 0; };
+static void ptcache_smoke_read(PTCacheFile *UNUSED(pf), void *UNUSED(smoke_v)) {}
+static int  ptcache_smoke_write(PTCacheFile *UNUSED(pf), void *UNUSED(smoke_v)) { return 0; }
+#endif // WITH_SMOKE
 
 /* Creating ID's */
 void BKE_ptcache_id_from_softbody(PTCacheID *pid, Object *ob, SoftBody *sb)
@@ -938,7 +944,7 @@ static int ptcache_filename(PTCacheID *pid, char *filename, int cfra, short do_p
 		len = ptcache_path(pid, filename);
 		newname += len;
 	}
-	if(strcmp(pid->cache->name, "")==0 && (pid->cache->flag & PTCACHE_EXTERNAL)==0) {
+	if(pid->cache->name[0] == '\0' && (pid->cache->flag & PTCACHE_EXTERNAL)==0) {
 		idname = (pid->ob->id.name+2);
 		/* convert chars to hex so they are always a valid filename */
 		while('\0' != *idname) {
@@ -1003,15 +1009,15 @@ static PTCacheFile *ptcache_file_open(PTCacheID *pid, int mode, int cfra)
 		fp = fopen(filename, "rb+");
 	}
 
-	 if (!fp)
-		 return NULL;
-	
+	if (!fp)
+		return NULL;
+
 	pf= MEM_mallocN(sizeof(PTCacheFile), "PTCacheFile");
 	pf->fp= fp;
 	pf->old_format = 0;
 	pf->frame = cfra;
- 	
-	 return pf;
+
+	return pf;
 }
 static void ptcache_file_close(PTCacheFile *pf)
 {
@@ -1308,8 +1314,8 @@ static void ptcache_data_copy(void *from[], void *to[])
 {
 	int i;
 	for(i=0; i<BPHYS_TOT_DATA; i++) {
-        /* note, durian file 03.4b_comp crashes if to[i] is not tested
-         * its NULL, not sure if this should be fixed elsewhere but for now its needed */
+	/* note, durian file 03.4b_comp crashes if to[i] is not tested
+	 * its NULL, not sure if this should be fixed elsewhere but for now its needed */
 		if(from[i] && to[i])
 			memcpy(to[i], from[i], ptcache_data_size[i]);
 	}
@@ -1373,14 +1379,16 @@ static void ptcache_find_frames_around(PTCacheID *pid, unsigned int frame, int *
 		while(pm->next && pm->next->frame < frame)
 			pm= pm->next;
 
-		if(pm2 && pm2->frame < frame)
+		if(pm2->frame < frame) {
 			pm2 = NULL;
+		}
 		else {
-			while(pm2->prev && pm2->prev->frame > frame)
+			while(pm2->prev && pm2->prev->frame > frame) {
 				pm2= pm2->prev;
+			}
 		}
 
-		if(pm && !pm2) {
+		if(!pm2) {
 			*fra1 = 0;
 			*fra2 = pm->frame;
 		}
@@ -1842,7 +1850,8 @@ static int ptcache_write(PTCacheID *pid, int cfra, int overwrite)
 	if(cache->flag & PTCACHE_DISK_CACHE) {
 		error += !ptcache_mem_frame_to_disk(pid, pm);
 
-		if(pm) {
+		// if(pm) /* pm is always set */
+		{
 			ptcache_data_free(pm);
 			ptcache_extra_free(pm);
 			MEM_freeN(pm);
@@ -2121,7 +2130,8 @@ void BKE_ptcache_id_time(PTCacheID *pid, Scene *scene, float cfra, int *startfra
 {
 	Object *ob;
 	PointCache *cache;
-	float offset, time, nexttime;
+	/* float offset; unused for now */
+	float time, nexttime;
 
 	/* TODO: this has to be sorter out once bsystem_time gets redone, */
 	/*       now caches can handle interpolating etc. too - jahka */
@@ -2149,13 +2159,18 @@ void BKE_ptcache_id_time(PTCacheID *pid, Scene *scene, float cfra, int *startfra
 		*startframe= cache->startframe;
 		*endframe= cache->endframe;
 
-		// XXX ipoflag is depreceated - old animation system stuff
-		if (/*(ob->ipoflag & OB_OFFS_PARENT) &&*/ (ob->partype & PARSLOW)==0) {
+		/* TODO: time handling with object offsets and simulated vs. cached
+		 * particles isn't particularly easy, so for now what you see is what
+		 * you get. In the future point cache could handle the whole particle
+		 * system timing. */
+#if 0
+		if ((ob->partype & PARSLOW)==0) {
 			offset= give_timeoffset(ob);
 
 			*startframe += (int)(offset+0.5f);
 			*endframe += (int)(offset+0.5f);
 		}
+#endif
 	}
 
 	/* verify cached_frames array is up to date */

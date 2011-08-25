@@ -28,6 +28,7 @@
 
 
 #include <stdlib.h>
+#include <assert.h>
 
 #include "RNA_define.h"
 
@@ -111,12 +112,12 @@ static void rna_Brush_reset_icon(Brush *br, const char *UNUSED(type))
 	if(id->icon_id >= BIFICONID_LAST) {
 		BKE_icon_delete(id);
 		BKE_previewimg_free_id(id);
- 	}
+	}
 
 	id->icon_id = 0;
 }
 
-static void rna_Brush_update(Main *bmain, Scene *scene, PointerRNA *ptr)
+static void rna_Brush_update(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
 {
 	Brush *br= (Brush*)ptr->data;
 	WM_main_add_notifier(NC_BRUSH|NA_EDITED, br);
@@ -144,7 +145,7 @@ static void rna_Brush_imagepaint_tool_update(Main *bmain, Scene *scene, PointerR
 	rna_Brush_update(bmain, scene, ptr);
 }
 
-static void rna_Brush_icon_update(Main *bmain, Scene *scene, PointerRNA *ptr)
+static void rna_Brush_icon_update(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
 {
 	Brush *br= (Brush*)ptr->data;
 
@@ -166,6 +167,17 @@ static void rna_Brush_icon_update(Main *bmain, Scene *scene, PointerRNA *ptr)
 static void rna_Brush_set_size(PointerRNA *ptr, int value)
 {
 	Brush* me = (Brush*)(ptr->data);
+
+	float size= (float)brush_size(me);
+	float unprojected_radius;
+
+	// paranoia: previous checks should make sure we don't divide by zero
+	assert(size != 0);
+
+	// set unprojected radius, so it remains consistent with size
+	unprojected_radius= (float)(brush_unprojected_radius(me) * value / size);
+	brush_set_unprojected_radius(me, unprojected_radius);
+
 	brush_set_size(me, value);
 }
 
@@ -214,6 +226,17 @@ static int rna_Brush_get_use_alpha_pressure(PointerRNA *ptr)
 static void rna_Brush_set_unprojected_radius(PointerRNA *ptr, float value)
 {
 	Brush* me = (Brush*)(ptr->data);
+
+	float unprojected_radius= brush_unprojected_radius(me);
+	int size;
+
+	// paranoia: previous checks should make sure we don't divide by zero
+	assert(unprojected_radius != 0.0f);
+
+	// set size, so that it is consistent with unprojected_radius
+	size= (int)((float)brush_size(me) * value / unprojected_radius);
+	brush_set_size(me, size);
+
 	brush_set_unprojected_radius(me, value);
 }
 
@@ -235,7 +258,7 @@ static float rna_Brush_get_alpha(PointerRNA *ptr)
 	return brush_alpha(me);
 }
 
-static EnumPropertyItem *rna_Brush_direction_itemf(bContext *C, PointerRNA *ptr, int *free)
+static EnumPropertyItem *rna_Brush_direction_itemf(bContext *UNUSED(C), PointerRNA *ptr, PropertyRNA *UNUSED(prop), int *UNUSED(free))
 {
 	static EnumPropertyItem prop_default_items[]= {
 		{0, NULL, 0, NULL, NULL}};
@@ -342,22 +365,22 @@ static void rna_def_brush(BlenderRNA *brna)
 		{0, NULL, 0, NULL, NULL}};
 	
 	static EnumPropertyItem brush_stroke_method_items[] = {
-		{0, "DOTS", 0, "Dots", ""},
-		{BRUSH_RESTORE_MESH, "DRAG_DOT", 0, "Drag Dot", ""},
-		{BRUSH_SPACE, "SPACE", 0, "Space", ""},
-		{BRUSH_ANCHORED, "ANCHORED", 0, "Anchored", ""},
-		{BRUSH_AIRBRUSH, "AIRBRUSH", 0, "Airbrush", ""},
+		{0, "DOTS", 0, "Dots", "Apply paint on each mouse move step"},
+		{BRUSH_RESTORE_MESH, "DRAG_DOT", 0, "Drag Dot", "Allows a single dot to be carefully positioned"},
+		{BRUSH_SPACE, "SPACE", 0, "Space", "Limit brush application to the distance specified by spacing"},
+		{BRUSH_ANCHORED, "ANCHORED", 0, "Anchored", "Keep the brush anchored to the initial location"},
+		{BRUSH_AIRBRUSH, "AIRBRUSH", 0, "Airbrush", "Keep applying paint effect while holding mouse (spray)"},
 		{0, NULL, 0, NULL, NULL}};
 
 	static EnumPropertyItem texture_angle_source_items[] = {
-		{0, "USER", 0, "User", ""},
-		{BRUSH_RAKE, "RAKE", 0, "Rake", ""},
-		{BRUSH_RANDOM_ROTATION, "RANDOM", 0, "Random", ""},
+		{0, "USER", 0, "User", "Rotate the brush texture by given angle"},
+		{BRUSH_RAKE, "RAKE", 0, "Rake", "Rotate the brush texture to match the stroke direction"},
+		{BRUSH_RANDOM_ROTATION, "RANDOM", 0, "Random", "Rotate the brush texture at random"},
 		{0, NULL, 0, NULL, NULL}};
 
 	static EnumPropertyItem texture_angle_source_no_random_items[] = {
-		{0, "USER", 0, "User", ""},
-		{BRUSH_RAKE, "RAKE", 0, "Rake", ""},
+		{0, "USER", 0, "User", "Rotate the brush texture by given angle"},
+		{BRUSH_RAKE, "RAKE", 0, "Rake", "Rotate the brush texture to match the stroke direction"},
 		{0, NULL, 0, NULL, NULL}};
 
 	static EnumPropertyItem brush_sculpt_plane_items[] = {

@@ -25,17 +25,21 @@
 # ***** END GPL LICENSE BLOCK *****
 
 set(INC
-	../../../../source/kernel/gen_system
-	../../../../intern/string
+	..
+	../../BlenderRoutines
+	../../Ketsji
+	../../SceneGraph
+	../../../blender/blenkernel
+	../../../blender/blenlib
+	../../../blender/blenloader
+	../../../blender/gpu
+	../../../blender/makesdna
+	../../../../intern/container
 	../../../../intern/moto/include
-	../../../../source/gameengine/Rasterizer
-	../../../../source/gameengine/Ketsji
-	../../../../source/gameengine/SceneGraph
-	../../../../source/blender/gpu
-	../../../../source/blender/makesdna
-	../../../../source/blender/blenkernel
-	../../../../source/blender/blenlib
-	../../../../source/blender/blenloader
+	../../../../intern/string
+)
+
+set(INC_SYS
 	${GLEW_INCLUDE_PATH}
 )
 
@@ -58,4 +62,4 @@ IF(WITH_OPENCL)
 	LIST(APPEND INC ${RTPS_INCLUDE_DIR})  
 ENDIF(WITH_OPENCL)
 
-blender_add_lib(ge_oglrasterizer "${SRC}" "${INC}")
+blender_add_lib(ge_oglrasterizer "${SRC}" "${INC}" "${INC_SYS}")

@@ -70,6 +70,7 @@
 
 #include "view3d_intern.h"
 
+extern float originmat[3][3];	/* XXX object.c */
 
 /* ************************************************** */
 /* ********************* old transform stuff ******** */
@@ -451,7 +452,6 @@ static void make_trans_verts(Object *obedit, float *min, float *max, int mode)
 
 static int snap_sel_to_grid(bContext *C, wmOperator *UNUSED(op))
 {
-	extern float originmat[3][3];	/* XXX object.c */
 	Main *bmain= CTX_data_main(C);
 	Object *obedit= CTX_data_edit_object(C);
 	Scene *scene= CTX_data_scene(C);
@@ -588,7 +588,6 @@ void VIEW3D_OT_snap_selected_to_grid(wmOperatorType *ot)
 
 static int snap_sel_to_curs(bContext *C, wmOperator *UNUSED(op))
 {
-	extern float originmat[3][3];	/* XXX object.c */
 	Main *bmain= CTX_data_main(C);
 	Object *obedit= CTX_data_edit_object(C);
 	Scene *scene= CTX_data_scene(C);
@@ -788,9 +787,7 @@ static int snap_curs_to_sel(bContext *C, wmOperator *UNUSED(op))
 			VECCOPY(curs, centroid);
 		}
 		else {
-			curs[0]= (min[0]+max[0])/2;
-			curs[1]= (min[1]+max[1])/2;
-			curs[2]= (min[2]+max[2])/2;
+			mid_v3_v3v3(curs, min, max);
 		}
 		MEM_freeN(transvmain);
 		transvmain= NULL;
@@ -828,9 +825,7 @@ static int snap_curs_to_sel(bContext *C, wmOperator *UNUSED(op))
 				VECCOPY(curs, centroid);
 			}
 			else {
-				curs[0]= (min[0]+max[0])/2;
-				curs[1]= (min[1]+max[1])/2;
-				curs[2]= (min[2]+max[2])/2;
+				mid_v3_v3v3(curs, min, max);
 			}
 		}
 	}

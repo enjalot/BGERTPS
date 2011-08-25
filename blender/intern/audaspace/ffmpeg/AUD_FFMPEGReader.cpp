@@ -39,6 +39,7 @@
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
+#include "ffmpeg_compat.h"
 }
 
 int AUD_FFMPEGReader::decode(AVPacket* packet, AUD_Buffer& buffer)
@@ -52,6 +53,10 @@ int AUD_FFMPEGReader::decode(AVPacket* packet, AUD_Buffer& buffer)
 
 	int read_length, data_size;
 
+	AVPacket tmp_pkt;
+	
+	av_init_packet(&tmp_pkt);
+
 	// as long as there is still data in the package
 	while(audio_pkg_size > 0)
 	{
@@ -64,15 +69,14 @@ int AUD_FFMPEGReader::decode(AVPacket* packet, AUD_Buffer& buffer)
 
 		// read samples from the packet
 		data_size = buf_size - buf_pos;
-		/*read_length = avcodec_decode_audio3(m_codecCtx,
-			(int16_t*)(((data_t*)buffer.getBuffer())+buf_pos),
-			&data_size,
-			packet);*/
-		read_length = avcodec_decode_audio2(m_codecCtx,
-						(int16_t*)(((data_t*)buffer.getBuffer()) + buf_pos),
-						&data_size,
-						audio_pkg_data,
-						audio_pkg_size);
+
+		tmp_pkt.data = audio_pkg_data;
+		tmp_pkt.size = audio_pkg_size;
+
+		read_length = avcodec_decode_audio3(
+			m_codecCtx,
+			(int16_t*)(((data_t*)buffer.getBuffer()) + buf_pos),
+			&data_size, &tmp_pkt);
 
 		// read error, next packet!
 		if(read_length < 0)
@@ -112,7 +116,7 @@ void AUD_FFMPEGReader::init()
 
 	for(unsigned int i = 0; i < m_formatCtx->nb_streams; i++)
 	{
-		if((m_formatCtx->streams[i]->codec->codec_type == CODEC_TYPE_AUDIO)
+		if((m_formatCtx->streams[i]->codec->codec_type == AVMEDIA_TYPE_AUDIO)
 			&& (m_stream < 0))
 		{
 			m_stream=i;
@@ -172,7 +176,8 @@ static const char* fileopen_error = "AUD_FFMPEGReader: File couldn't be "
 
 AUD_FFMPEGReader::AUD_FFMPEGReader(std::string filename) :
 	m_pkgbuf(AVCODEC_MAX_AUDIO_FRAME_SIZE<<1),
-	m_byteiocontext(NULL)
+	m_byteiocontext(NULL),
+	m_membuf(NULL)
 {
 	// open file
 	if(av_open_input_file(&m_formatCtx, filename.c_str(), NULL, 0, NULL)!=0)
@@ -194,12 +199,15 @@ static const char* streamopen_error = "AUD_FFMPEGReader: Stream couldn't be "
 
 AUD_FFMPEGReader::AUD_FFMPEGReader(AUD_Reference<AUD_Buffer> buffer) :
 		m_pkgbuf(AVCODEC_MAX_AUDIO_FRAME_SIZE<<1),
-		m_membuffer(buffer)
+		m_membuffer(buffer),
+		m_membufferpos(0)
 {
-	m_byteiocontext = (ByteIOContext*)av_mallocz(sizeof(ByteIOContext));
+	m_membuf = reinterpret_cast<data_t*>(av_malloc(FF_MIN_BUFFER_SIZE + FF_INPUT_BUFFER_PADDING_SIZE));
 
-	if(init_put_byte(m_byteiocontext, (data_t*)buffer.get()->getBuffer(),
-					 buffer.get()->getSize(), 0, NULL, NULL, NULL, NULL) != 0)
+	m_byteiocontext = av_alloc_put_byte(m_membuf, FF_MIN_BUFFER_SIZE, 0, this,
+										read_packet, NULL, seek_packet);
+
+	if(!m_byteiocontext)
 	{
 		av_free(m_byteiocontext);
 		AUD_THROW(AUD_ERROR_FILE, fileopen_error);
@@ -207,7 +215,7 @@ AUD_FFMPEGReader::AUD_FFMPEGReader(AUD_Reference<AUD_Buffer> buffer) :
 
 	AVProbeData probe_data;
 	probe_data.filename = "";
-	probe_data.buf = (data_t*)buffer.get()->getBuffer();
+	probe_data.buf = reinterpret_cast<data_t*>(buffer.get()->getBuffer());
 	probe_data.buf_size = buffer.get()->getSize();
 	AVInputFormat* fmt = av_probe_input_format(&probe_data, 1);
 
@@ -241,6 +249,40 @@ AUD_FFMPEGReader::~AUD_FFMPEGReader()
 	}
 	else
 		av_close_input_file(m_formatCtx);
+}
+
+int AUD_FFMPEGReader::read_packet(void* opaque, uint8_t* buf, int buf_size)
+{
+	AUD_FFMPEGReader* reader = reinterpret_cast<AUD_FFMPEGReader*>(opaque);
+
+	int size = AUD_MIN(buf_size, reader->m_membuffer.get()->getSize() - reader->m_membufferpos);
+
+	if(size < 0)
+		return -1;
+
+	memcpy(buf, ((data_t*)reader->m_membuffer.get()->getBuffer()) + reader->m_membufferpos, size);
+	reader->m_membufferpos += size;
+
+	return size;
+}
+
+int64_t AUD_FFMPEGReader::seek_packet(void* opaque, int64_t offset, int whence)
+{
+	AUD_FFMPEGReader* reader = reinterpret_cast<AUD_FFMPEGReader*>(opaque);
+
+	switch(whence)
+	{
+	case SEEK_SET:
+		reader->m_membufferpos = 0;
+		break;
+	case SEEK_END:
+		reader->m_membufferpos = reader->m_membuffer.get()->getSize();
+		break;
+	case AVSEEK_SIZE:
+		return reader->m_membuffer.get()->getSize();
+	}
+
+	return (reader->m_membufferpos += offset);
 }
 
 bool AUD_FFMPEGReader::isSeekable() const
