@@ -115,9 +115,6 @@ IF(WITH_OPENCL)
 	LIST(APPEND INC ${RTPS_INCLUDE_DIR})  
 ENDIF(WITH_OPENCL)
 
-
-blender_add_lib(ge_converter "${SRC}" "${INC}")
-
 if(WITH_AUDASPACE)
 	list(APPEND INC
 		../../../intern/audaspace/intern
